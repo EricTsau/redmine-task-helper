@@ -7,7 +7,7 @@
 ### Stage 1: MVP 核心
 - ⏱️ **計時器** - 開始/停止/繼續計時，即時顯示經過時間
 - 📋 **儀表板** - 專注模式顯示當前任務，任務清單快速開始計時
-- ⚙️ **設定** - Redmine URL 和 API Key 配置
+- ⚙️ **設定** - Redmine 和 OpenAI 設定 (URL, Token, Model)
 
 ### Stage 2: 效率提升
 - ✨ **AI 文字重寫** - OpenAI 驅動的文字改寫 (專業/休閒/正式/簡潔)
@@ -42,10 +42,6 @@ npm run dev
 ### 生產環境 (Docker)
 
 ```bash
-# 設定環境變數
-export OPENAI_API_KEY=your_key_here
-
-# 啟動
 docker-compose up --build
 ```
 
@@ -53,6 +49,20 @@ docker-compose up --build
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - API 文檔: http://localhost:8000/docs
+
+## 設定
+
+啟動後，前往 **Settings** 頁面配置：
+
+| 設定 | 說明 |
+|------|------|
+| Redmine URL | 你的 Redmine 伺服器位址 |
+| Redmine Token | API 存取金鑰 (/my/account) |
+| OpenAI URL | API 端點 (預設: api.openai.com) |
+| OpenAI Key | API 金鑰 |
+| OpenAI Model | 模型名稱 (預設: gpt-4o-mini) |
+
+> 💡 所有設定儲存在本地資料庫，無需環境變數
 
 ## 技術棧
 
@@ -73,13 +83,6 @@ cd backend && pytest tests/
 # Frontend
 cd frontend && npm run test
 ```
-
-## 環境變數
-
-| 變數 | 說明 | 預設值 |
-|------|------|--------|
-| `OPENAI_API_KEY` | OpenAI API 金鑰 (AI 重寫功能需要) | - |
-| `OPENAI_BASE_URL` | OpenAI API 端點 | `https://api.openai.com/v1` |
 
 ## 授權
 

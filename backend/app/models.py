@@ -4,8 +4,13 @@ from datetime import datetime
 
 class AppSettings(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
-    redmine_url: str
-    api_key: str
+    # Redmine settings
+    redmine_url: Optional[str] = None
+    api_key: Optional[str] = None
+    # OpenAI settings
+    openai_url: Optional[str] = Field(default="https://api.openai.com/v1")
+    openai_key: Optional[str] = None
+    openai_model: Optional[str] = Field(default="gpt-4o-mini")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TimerLog(SQLModel, table=True):

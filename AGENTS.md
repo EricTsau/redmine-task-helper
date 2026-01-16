@@ -19,3 +19,4 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ### Note:
 - 請一律用繁體中文回答跟撰寫說明
+- 工作完成後要Review README.md確認是否需要更新，要的話請調整

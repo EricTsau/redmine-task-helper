@@ -1,42 +1,79 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import AppSettings
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 router = APIRouter()
 
 class SettingsUpdate(BaseModel):
-    redmine_url: str
-    api_key: str
+    redmine_url: Optional[str] = None
+    redmine_token: Optional[str] = None
+    openai_url: Optional[str] = None
+    openai_key: Optional[str] = None
+    openai_model: Optional[str] = None
 
 class SettingsResponse(BaseModel):
     redmine_url: Optional[str] = None
-    api_key: Optional[str] = None # Masked
+    redmine_token: Optional[str] = None  # Masked
+    openai_url: Optional[str] = None
+    openai_key: Optional[str] = None  # Masked
+    openai_model: Optional[str] = None
+
+def mask_key(key: Optional[str]) -> Optional[str]:
+    if not key:
+        return None
+    return "******"
 
 @router.get("/", response_model=SettingsResponse)
 async def get_settings(session: Session = Depends(get_session)):
     settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
     if not settings:
-        return SettingsResponse()
+        return SettingsResponse(
+            openai_url="https://api.openai.com/v1",
+            openai_model="gpt-4o-mini"
+        )
     
-    masked_key = "******" if settings.api_key else None
-    return SettingsResponse(redmine_url=settings.redmine_url, api_key=masked_key)
+    return SettingsResponse(
+        redmine_url=settings.redmine_url,
+        redmine_token=mask_key(settings.api_key),
+        openai_url=settings.openai_url,
+        openai_key=mask_key(settings.openai_key),
+        openai_model=settings.openai_model
+    )
 
 @router.put("/", response_model=SettingsResponse)
 async def update_settings(update: SettingsUpdate, session: Session = Depends(get_session)):
     settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
-    if not settings:
-        settings = AppSettings(id=1, redmine_url=update.redmine_url, api_key=update.api_key)
-        session.add(settings)
-    else:
-        settings.redmine_url = update.redmine_url
-        if update.api_key != "******": # meaningful check
-             settings.api_key = update.api_key
-        session.add(settings)
     
+    if not settings:
+        settings = AppSettings(id=1)
+    
+    # Update Redmine settings
+    if update.redmine_url is not None:
+        settings.redmine_url = update.redmine_url
+    if update.redmine_token and update.redmine_token != "******":
+        settings.api_key = update.redmine_token
+    
+    # Update OpenAI settings
+    if update.openai_url is not None:
+        settings.openai_url = update.openai_url
+    if update.openai_key and update.openai_key != "******":
+        settings.openai_key = update.openai_key
+    if update.openai_model is not None:
+        settings.openai_model = update.openai_model
+    
+    settings.updated_at = datetime.utcnow()
+    session.add(settings)
     session.commit()
     session.refresh(settings)
     
-    return SettingsResponse(redmine_url=settings.redmine_url, api_key="******")
+    return SettingsResponse(
+        redmine_url=settings.redmine_url,
+        redmine_token=mask_key(settings.api_key),
+        openai_url=settings.openai_url,
+        openai_key=mask_key(settings.openai_key),
+        openai_model=settings.openai_model
+    )
