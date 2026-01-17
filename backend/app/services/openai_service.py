@@ -178,3 +178,52 @@ class OpenAIService:
         except Exception as e:
             print(f"Intent Classification Error: {e}")
             return 'chat'
+
+    def refine_log_content(self, content: str) -> str:
+        """
+        Refine the work log content: fix grammar, improve formatting (Markdown), and organize thoughts.
+        """
+         # Don't change the meaning, just polish.
+        prompt = f"""
+        You are a helpful copyeditor. Please refine the following work log content.
+        - Fix grammar and spelling mistakes.
+        - Improve formatting using Markdown (bullet points, headers) where appropriate.
+        - Keep the tone professional but concise.
+        - Do NOT summarize; keep all details.
+        
+        Content:
+        {content}
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Refine Log Error: {e}")
+            return content # Fallback to original
+
+    def summarize_for_redmine(self, content: str) -> str:
+        """
+        Generate a concise summary suitable for a Redmine Time Entry comment (limit ~255 chars usually, but we can be a bit longer).
+        """
+        prompt = f"""
+        Summarize the following work log into a single concise sentence or short paragraph suitable for a timesheet entry.
+        - Focus on WHAT was achieved.
+        - Avoid "I worked on...", just state the task (e.g., "Fixed bug in login module", "Refactored API").
+        
+        Content:
+        {content}
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"Summarize Log Error: {e}")
+            return content[:100] + "..." # Fallback

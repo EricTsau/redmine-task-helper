@@ -155,15 +155,22 @@ class RedmineService:
         """
         try:
             # We want to count open issues.
-            # Using limit=1 with total_count=True is efficient if API supports it.
-            # python-redmine objects usually have total_count attribute after a filter call.
+            # Removing subproject_id='!*' to include subprojects by default (as per comment intention).
+            # limit=1 is used to minimize data transfer, relying on total_count.
             issues = self.redmine.issue.filter(
                 project_id=project_id,
                 status_id='open',
-                subproject_id='!*', # Include subprojects
                 limit=1
             )
-            count = issues.total_count
+            # Ensure we get the count even if total_count needs to be accessed differently or if filtered result is empty
+            if hasattr(issues, 'total_count'):
+                count = issues.total_count
+            else:
+                # Fallback if total_count is not available (though it should be for ResourceSet)
+                # But if we use limit=1, len() will be at most 1, so this fallback is only useful if we removed limit.
+                # Trusting total_count for now.
+                count = 0
+            
             print(f"[Stats] Project {project_id}: Found {count} open issues")
             return {
                 "open_issues_count": count,

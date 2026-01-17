@@ -27,7 +27,7 @@ def mask_key(key: Optional[str]) -> Optional[str]:
         return None
     return "******"
 
-@router.get("/", response_model=SettingsResponse)
+@router.get("", response_model=SettingsResponse)
 async def get_settings(session: Session = Depends(get_session)):
     settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
     if not settings:
@@ -44,7 +44,7 @@ async def get_settings(session: Session = Depends(get_session)):
         openai_model=settings.openai_model
     )
 
-@router.put("/", response_model=SettingsResponse)
+@router.put("", response_model=SettingsResponse)
 async def update_settings(update: SettingsUpdate, session: Session = Depends(get_session)):
     settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
     

@@ -29,6 +29,9 @@ class TrackedTask(SQLModel, table=True):
 
 
 class TimerLog(SQLModel, table=True):
+    """
+    Deprecated: Use TimerSession instead. Kept for migration.
+    """
     id: Optional[int] = Field(default=None, primary_key=True)
     redmine_issue_id: int
     start_time: datetime
@@ -37,6 +40,29 @@ class TimerLog(SQLModel, table=True):
     comment: Optional[str] = None
     is_synced: bool = False
     synced_at: Optional[datetime] = None
+
+class TimerSession(SQLModel, table=True):
+    """
+    Represent a work session for an issue, which may contain multiple time spans (Pause/Resume).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    redmine_issue_id: int
+    start_time: datetime = Field(default_factory=datetime.utcnow)
+    end_time: Optional[datetime] = None
+    total_duration: int = 0 # Calculated sum of spans
+    status: str = Field(default="running") # running, paused, stopped
+    content: Optional[str] = None # Rich text / Markdown
+    is_synced: bool = False
+    synced_at: Optional[datetime] = None
+
+class TimerSpan(SQLModel, table=True):
+    """
+    A continuous period of work within a session.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="timersession.id")
+    start_time: datetime = Field(default_factory=datetime.utcnow)
+    end_time: Optional[datetime] = None
 
 
 class TimeEntryExtraction(SQLModel):
