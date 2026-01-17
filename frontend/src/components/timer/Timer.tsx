@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Square, Play, Pause, Upload } from 'lucide-react';
 import { useTimer } from '@/hooks/useTimer';
-import { WorkLogEditor } from './WorkLogEditor';
+
 
 const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -11,7 +11,7 @@ const formatDuration = (seconds: number) => {
 };
 
 export function Timer() {
-    const { timer, elapsed, startTimer, pauseTimer, stopTimer, updateLog } = useTimer();
+    const { timer, elapsed, startTimer, pauseTimer, stopTimer } = useTimer();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!timer) return null;
@@ -29,8 +29,6 @@ export function Timer() {
         setIsSubmitting(true);
         try {
             await stopTimer();
-            // Optional: Prompt for immediate sync here or let user sync later?
-            // "Stop" currently just stops.
         } finally {
             setIsSubmitting(false);
         }
@@ -72,7 +70,7 @@ export function Timer() {
     }
 
     return (
-        <div className="fixed bottom-6 left-6 w-[450px] bg-card border rounded-lg shadow-xl z-50 flex flex-col overflow-hidden transition-all">
+        <div className="bg-card border rounded-lg shadow-xl z-50 flex flex-col overflow-hidden transition-all">
             {/* Header / StatusBar */}
             <div className="flex items-center justify-between p-4 bg-muted/30">
                 <div className="flex flex-col">
@@ -111,20 +109,6 @@ export function Timer() {
                     )}
                 </div>
             </div>
-
-            {/* Work Log Editor */}
-            {timer.status !== 'stopped' && ( // Only show editor if not fully stopped/cleared? Or allow viewing?
-                // Current logic: stop clearing local state. Refine: stop just updates status, we keep it visible until closed/synced.
-                // But useTimer clears it on stop. We need to fix useTimer stop logic if we want to retain it.
-                // For Phase IV Plan: "Stop ends Session".
-                // MVP: Editor visible while running/paused.
-                <div className="p-4 border-t h-[300px]">
-                    <WorkLogEditor
-                        initialContent={timer.content || ''}
-                        onUpdate={(c) => updateLog(c)}
-                    />
-                </div>
-            )}
         </div>
     );
 }

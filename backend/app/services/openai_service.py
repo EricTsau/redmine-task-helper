@@ -227,3 +227,58 @@ class OpenAIService:
         except Exception as e:
             print(f"Summarize Log Error: {e}")
             return content[:100] + "..." # Fallback
+
+    def generate_work_log(self, context: Dict[str, Any]) -> str:
+        """
+        Generate a work log based on the provided context (issue details, duration, etc).
+        """
+        prompt = f"""
+        You are a helpful assistant assisting a developer to write a work log.
+        Here is the context of the task:
+        - Issue ID: #{context.get('issue_id')}
+        - Issue Subject: {context.get('issue_subject', 'Unknown')}
+        - Project: {context.get('project_name', 'Unknown')}
+        - Duration: {context.get('duration_str', 'Unknown')}
+        
+        Please generate a professional and concise work log entry describing the work done for this task.
+        Since you don't know the exact details, provide a template with placeholders for specific implementation details, 
+        or infer generic steps based on the subject (e.g. if subject is "Fix bug", mention "Investigated root cause, implemented fix, verified").
+        
+        Output format: Markdown.
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Generate Log Error: {e}")
+            return "Failed to generate log."
+
+    def edit_text(self, selection: str, instruction: str) -> str:
+        """
+        Edit the selected text based on specific user instructions.
+        """
+        prompt = f"""
+        You are a text editor assistant.
+        User Instruction: "{instruction}"
+        
+        Selected Text:
+        "{selection}"
+        
+        Please provide the rewritten version of the selected text based on the instruction. 
+        Refuse to answer if the instruction is unrelated to editing.
+        Return ONLY the rewritten text.
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Edit Text Error: {e}")
+            return selection

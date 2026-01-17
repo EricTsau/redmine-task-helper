@@ -215,16 +215,55 @@ def refine_log(
     
     return {"content": refined}
 
+@router.post("/log/generate")
+def generate_log(
+    data: dict = Body(...),
+    session: Session = Depends(get_session)
+):
+    issue_id = data.get("issue_id")
+    # Need settings
+    settings = session.get(AppSettings, 1)
+    if not settings or not settings.openai_key:
+         raise HTTPException(status_code=400, detail="OpenAI not configured")
+
+    ai_service = OpenAIService(api_key=settings.openai_key, base_url=settings.openai_url, model=settings.openai_model)
+    
+    # Optional: fetch issue details if possible, or just use what's passed
+    # For now, just rely on client passing minimal context or we fetch name from DB if we tracked it
+    # We'll use the data passed from frontend 
+    
+    generated = ai_service.generate_work_log(data)
+    return {"content": generated}
+
+@router.post("/log/refine-selection")
+def refine_selection(
+    data: dict = Body(...),
+    session: Session = Depends(get_session)
+):
+    selection = data.get("selection")
+    instruction = data.get("instruction")
+    
+    if not selection or not instruction:
+        raise HTTPException(status_code=400, detail="Selection and instruction required")
+        
+    settings = session.get(AppSettings, 1)
+    if not settings or not settings.openai_key:
+         raise HTTPException(status_code=400, detail="OpenAI not configured")
+
+    ai_service = OpenAIService(api_key=settings.openai_key, base_url=settings.openai_url, model=settings.openai_model)
+    result = ai_service.edit_text(selection, instruction)
+    
+    return {"content": result}
+
+from app.dependencies import get_redmine_service
+from app.services.redmine_client import RedmineService
+
 @router.post("/submit")
 def submit_time_entry(
     data: dict = Body(...),
-    x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
-    x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key"),
+    redmine: RedmineService = Depends(get_redmine_service),
     session: Session = Depends(get_session)
 ):
-    if not x_redmine_url or not x_redmine_key:
-        raise HTTPException(status_code=401, detail="Missing Redmine credentials")
-        
     session_id = data.get("session_id")
     timer_session = None
     if session_id:
@@ -244,23 +283,61 @@ def submit_time_entry(
     if hours < 0.1: hours = 0.1
     
     comments = data.get("comments") or timer_session.content or "Worked on task"
-    activity_id = data.get("activity_id", 9)
+    
+    # Resolve Activity ID dynamically
+    # Resolve Activity ID dynamically
+    activity_id = data.get("activity_id")
+    if not activity_id:
+        activities = redmine.get_valid_activities_for_issue(timer_session.redmine_issue_id)
+        if activities:
+            # Try to find default
+            default_activity = next((a for a in activities if getattr(a, 'is_default', False)), None)
+            if default_activity:
+                activity_id = default_activity.id
+            else:
+                # Fallback to first available
+                activity_id = activities[0].id
+        
+        if not activity_id:
+             # Try fallback from AppSettings
+             settings = session.get(AppSettings, 1)
+             if settings and settings.redmine_default_activity_id:
+                 activity_id = settings.redmine_default_activity_id
+        
+        if not activity_id:
+             # If we cannot find any valid activity, we cannot submit.
+             # Attempting to use '9' blindy often results in 500/422 errors if it doesn't exist.
+             # We should return a clear error to the user.
+             raise HTTPException(status_code=400, detail="No time entry activities found in Redmine. Please check your Redmine configuration or set a Default Activity ID in Settings.")
 
-    from app.services.redmine_client import RedmineService
-    redmine = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
-    
-    success = redmine.create_time_entry(
-        issue_id=timer_session.redmine_issue_id,
-        hours=hours,
-        activity_id=activity_id,
-        comments=comments
-    )
-    
-    if success:
+    try:
+        redmine.create_time_entry(
+            issue_id=timer_session.redmine_issue_id,
+            hours=hours,
+            activity_id=activity_id,
+            comments=""  # 時間記錄的 comments 留空
+        )
+        
+        # 將工作日誌內容添加到 issue 的 notes/journal
+        if comments and comments.strip():
+            try:
+                redmine.add_issue_note(timer_session.redmine_issue_id, comments)
+            except Exception as note_err:
+                # 記錄 note 失敗不應該阻止整個提交流程
+                print(f"Warning: Failed to add note to issue: {note_err}")
+        
+        # If successful (no exception raised)
         timer_session.is_synced = True
         timer_session.synced_at = datetime.utcnow()
         session.add(timer_session)
         session.commit()
         return {"status": "submitted", "hours": hours, "issue_id": timer_session.redmine_issue_id}
-    else:
-        raise HTTPException(status_code=500, detail="Redmine submission failed")
+    except Exception as e:
+        # Return the actual error from Redmine (e.g. "Activity can't be blank" or "Invalid issue ID")
+        # Ensure we return 400/422 for client errors instead of 500
+        error_msg = str(e)
+        status = 500
+        # Check for common client-side errors in the message
+        if "Activity cannot be blank" in error_msg or "is not included in the list" in error_msg:
+             status = 400
+        raise HTTPException(status_code=status, detail=f"Redmine submission failed: {error_msg}")

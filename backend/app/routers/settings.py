@@ -11,6 +11,7 @@ router = APIRouter()
 class SettingsUpdate(BaseModel):
     redmine_url: Optional[str] = None
     redmine_token: Optional[str] = None
+    redmine_default_activity_id: Optional[int] = None
     openai_url: Optional[str] = None
     openai_key: Optional[str] = None
     openai_model: Optional[str] = None
@@ -18,6 +19,7 @@ class SettingsUpdate(BaseModel):
 class SettingsResponse(BaseModel):
     redmine_url: Optional[str] = None
     redmine_token: Optional[str] = None  # Masked
+    redmine_default_activity_id: Optional[int] = None
     openai_url: Optional[str] = None
     openai_key: Optional[str] = None  # Masked
     openai_model: Optional[str] = None
@@ -39,6 +41,7 @@ async def get_settings(session: Session = Depends(get_session)):
     return SettingsResponse(
         redmine_url=settings.redmine_url,
         redmine_token=mask_key(settings.api_key),
+        redmine_default_activity_id=settings.redmine_default_activity_id,
         openai_url=settings.openai_url,
         openai_key=mask_key(settings.openai_key),
         openai_model=settings.openai_model
@@ -56,6 +59,8 @@ async def update_settings(update: SettingsUpdate, session: Session = Depends(get
         settings.redmine_url = update.redmine_url
     if update.redmine_token and update.redmine_token != "******":
         settings.api_key = update.redmine_token
+    if update.redmine_default_activity_id is not None:
+        settings.redmine_default_activity_id = update.redmine_default_activity_id
     
     # Update OpenAI settings
     if update.openai_url is not None:
@@ -73,6 +78,7 @@ async def update_settings(update: SettingsUpdate, session: Session = Depends(get
     return SettingsResponse(
         redmine_url=settings.redmine_url,
         redmine_token=mask_key(settings.api_key),
+        redmine_default_activity_id=settings.redmine_default_activity_id,
         openai_url=settings.openai_url,
         openai_key=mask_key(settings.openai_key),
         openai_model=settings.openai_model

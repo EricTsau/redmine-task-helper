@@ -134,21 +134,27 @@ class RedmineService:
         hours: float,
         activity_id: int = 9,  # Default to 'Development' (usually 9 in std Redmine, but safer to parameterize)
         comments: str = ""
-    ) -> bool:
+    ) -> Any:
         """
-        Create a time entry for a specific issue.
+        Create a time entry for a specific issue. Returns the created entry or raises an exception.
         """
-        try:
-            self.redmine.time_entry.create(
-                issue_id=issue_id,
-                hours=hours,
-                activity_id=activity_id,
-                comments=comments
-            )
-            return True
-        except Exception as e:
-            print(f"Error creating time entry: {e}")
-            return False
+        # Let exceptions bubble up so the caller knows WHY it failed (e.g. invalid activity_id)
+        return self.redmine.time_entry.create(
+            issue_id=issue_id,
+            hours=hours,
+            activity_id=activity_id,
+            comments=comments
+        )
+
+    def add_issue_note(self, issue_id: int, notes: str) -> Any:
+        """
+        Add a note (journal entry) to an existing issue.
+        This will appear in the issue's history/comments section.
+        """
+        if not notes or not notes.strip():
+            return None
+        return self.redmine.issue.update(issue_id, notes=notes)
+
     def get_project_stats(self, project_id: int) -> Dict[str, Any]:
         """
         Get basic stats for a project (e.g. open issue count).
@@ -179,3 +185,54 @@ class RedmineService:
         except Exception as e:
             print(f"Error fetching stats for project {project_id}: {e}")
             return {"open_issues_count": 0, "error": str(e)}
+
+    def get_activities(self) -> List[Any]:
+        """
+        Fetch available time entry activities (Global).
+        """
+        try:
+            return list(self.redmine.time_entry_activity.all())
+        except Exception as e:
+            # Fallback for systems where 'time_entry_activity' is not available or supported
+            # print(f"Error fetching activities: {e}")
+            try:
+                # Try fetching via enumeration resource if available in python-redmine mapping
+                # However, python-redmine might raise 'Unsupported resource' for 'enumeration' too if not mapped standardly
+                # But we can try/catch
+                return list(self.redmine.enumeration.filter(resource='time_entry_activities'))
+            except Exception:
+                pass
+            return []
+
+    def get_valid_activities_for_issue(self, issue_id: int) -> List[Any]:
+        """
+        Fetch valid time entry activities for a specific issue's project.
+        """
+        try:
+            # 1. Get Issue to find Project
+            issue = self.redmine.issue.get(issue_id)
+            project_id = issue.project.id
+            
+            # 2. Get Project with activities included
+            # Note: include='time_entry_activities' might not return anything if they are not overridden.
+            # If overridden, they appear. If not, we might need to fallback to global.
+            project = self.redmine.project.get(project_id, include=['time_entry_activities'])
+            
+            # python-redmine returns 'time_entry_activities' attribute if present
+            # It seems if activities are NOT specific to the project, this list might be empty or null?
+            # Actually Redmine API behavior:
+            # If the project uses the system default activities, the API might not list them or list them all.
+            # But if we explicitly ask for them, we usually get the allowed list.
+            
+            project_activities = getattr(project, 'time_entry_activities', [])
+            
+            if project_activities:
+                return list(project_activities)
+            
+            # If no specific activities defined/returned, fallback to global
+            return self.get_activities()
+            
+        except Exception as e:
+            print(f"Error fetching valid activities for issue {issue_id}: {e}")
+            # Fallback to global if anything fails (e.g. issue not found)
+            return self.get_activities()

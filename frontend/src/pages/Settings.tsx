@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 interface SettingsData {
     redmine_url: string;
     redmine_token: string;
+    redmine_default_activity_id?: string;
     openai_url: string;
     openai_key: string;
     openai_model: string;
@@ -15,6 +16,7 @@ export function Settings() {
     const [settings, setSettings] = useState<SettingsData>({
         redmine_url: '',
         redmine_token: '',
+        redmine_default_activity_id: '',
         openai_url: 'https://api.openai.com/v1',
         openai_key: '',
         openai_model: 'gpt-4o-mini'
@@ -32,6 +34,7 @@ export function Settings() {
                     setSettings(prev => ({
                         ...prev,
                         redmine_url: data.redmine_url || '',
+                        redmine_default_activity_id: data.redmine_default_activity_id?.toString() || '',
                         openai_url: data.openai_url || 'https://api.openai.com/v1',
                         openai_model: data.openai_model || 'gpt-4o-mini'
                     }));
@@ -60,6 +63,7 @@ export function Settings() {
             // Save public settings to backend
             const backendSettings = {
                 redmine_url: settings.redmine_url,
+                redmine_default_activity_id: settings.redmine_default_activity_id ? parseInt(settings.redmine_default_activity_id) : null,
                 openai_url: settings.openai_url,
                 openai_model: settings.openai_model
             };
@@ -137,6 +141,20 @@ export function Settings() {
                     />
                     <p className="text-xs text-muted-foreground">
                         Find this at /my/account (RSS access key)
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Default Activity ID (Optional)</label>
+                    <input
+                        type="number"
+                        value={settings.redmine_default_activity_id}
+                        onChange={(e) => updateField('redmine_default_activity_id', e.target.value)}
+                        placeholder="e.g. 9"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        Fallback ID if API cannot fetch activities (e.g. Development = 9)
                     </p>
                 </div>
 

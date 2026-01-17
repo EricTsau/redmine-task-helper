@@ -77,6 +77,23 @@ export function useTimer() {
         }
     }
 
+    const submitEntry = async (sessionId?: number, comments?: string) => {
+        try {
+            await api.post('/timer/submit', {
+                session_id: sessionId,
+                comments: comments
+            });
+            // After submit, we probably want to clear local timer state if it matches
+            if (timer && (!sessionId || timer.id === sessionId)) {
+                setTimer(null);
+                setElapsed(0);
+            }
+        } catch (error) {
+            console.error('Failed to submit entry:', error);
+            throw error; // Re-throw to allow component to handle UI feedback
+        }
+    };
+
     // Initial fetch - runs once on mount
     useEffect(() => {
         fetchTimer();
@@ -100,5 +117,5 @@ export function useTimer() {
         return () => clearInterval(interval);
     }, [timer?.status]);
 
-    return { timer, elapsed, startTimer, pauseTimer, stopTimer, updateLog, refresh: fetchTimer };
+    return { timer, elapsed, startTimer, pauseTimer, stopTimer, updateLog, submitEntry, refresh: fetchTimer };
 }

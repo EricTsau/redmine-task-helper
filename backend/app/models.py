@@ -7,6 +7,8 @@ class AppSettings(SQLModel, table=True):
     # Redmine settings
     redmine_url: Optional[str] = None
     api_key: Optional[str] = None
+    redmine_default_activity_id: Optional[int] = None
+
     # OpenAI settings
     openai_url: Optional[str] = Field(default="https://api.openai.com/v1")
     openai_key: Optional[str] = None
