@@ -6,9 +6,14 @@ type RequestOptions = RequestInit & {
 
 class ApiClient {
     private baseUrl: string;
+    private token: string | null = null;
 
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
+    }
+
+    setToken(token: string | null) {
+        this.token = token;
     }
 
     private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
@@ -31,6 +36,10 @@ class ApiClient {
         const headers: HeadersInit = {
             ...init.headers,
         };
+
+        if (this.token) {
+            (headers as any)['Authorization'] = `Bearer ${this.token}`;
+        }
 
         // Auto-set JSON content type if not FormData and not already set
         if (!(init.body instanceof FormData) && !(headers as any)['Content-Type']) {

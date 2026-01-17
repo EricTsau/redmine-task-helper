@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.database import get_session
-from app.models import AppSettings
+from app.models import User, UserSettings
+from app.dependencies import get_current_user
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -30,8 +31,11 @@ def mask_key(key: Optional[str]) -> Optional[str]:
     return "******"
 
 @router.get("", response_model=SettingsResponse)
-async def get_settings(session: Session = Depends(get_session)):
-    settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+async def get_settings(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
     if not settings:
         return SettingsResponse(
             openai_url="https://api.openai.com/v1",
@@ -48,11 +52,15 @@ async def get_settings(session: Session = Depends(get_session)):
     )
 
 @router.put("", response_model=SettingsResponse)
-async def update_settings(update: SettingsUpdate, session: Session = Depends(get_session)):
-    settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+async def update_settings(
+    update: SettingsUpdate, 
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
     
     if not settings:
-        settings = AppSettings(id=1)
+        settings = UserSettings(user_id=current_user.id)
     
     # Update Redmine settings
     if update.redmine_url is not None:

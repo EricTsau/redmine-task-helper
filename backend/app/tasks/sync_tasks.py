@@ -18,14 +18,6 @@ _sync_task = None
 async def sync_tracked_tasks():
     """同步所有追蹤任務的狀態"""
     with Session(engine) as session:
-        # 取得 Redmine 設定
-        settings = session.get(AppSettings, 1)
-        if not settings or not settings.redmine_url or not settings.api_key:
-            print("[sync_tasks] Redmine not configured, skipping sync")
-            return
-        
-        service = RedmineService(settings.redmine_url, settings.api_key)
-        
         # 取得所有追蹤任務
         tasks = session.exec(select(TrackedTask)).all()
         
@@ -35,11 +27,32 @@ async def sync_tracked_tasks():
         
         print(f"[sync_tasks] Syncing {len(tasks)} tracked tasks...")
         
+        # 快取 Redmine 客戶端以避免重複建立
+        clients = {}
+        
         updated = 0
         failed = 0
         
         for task in tasks:
             try:
+                # 取得該任務持有者的 Redmine 設定
+                if task.owner_id not in clients:
+                    from app.models import UserSettings
+                    user_settings = session.exec(
+                        select(UserSettings).where(UserSettings.user_id == task.owner_id)
+                    ).first()
+                    
+                    if not user_settings or not user_settings.redmine_url or not user_settings.api_key:
+                        print(f"[sync_tasks] User {task.owner_id} Redmine not configured, skipping")
+                        clients[task.owner_id] = None
+                        continue
+                    
+                    clients[task.owner_id] = RedmineService(user_settings.redmine_url, user_settings.api_key)
+                
+                service = clients[task.owner_id]
+                if not service:
+                    continue
+
                 issue = service.redmine.issue.get(task.redmine_issue_id)
                 
                 assigned_to_id = None
@@ -59,7 +72,7 @@ async def sync_tracked_tasks():
                 session.add(task)
                 updated += 1
             except Exception as e:
-                print(f"[sync_tasks] Error syncing task {task.redmine_issue_id}: {e}")
+                print(f"[sync_tasks] Error syncing task {task.redmine_issue_id} (User {task.owner_id}): {e}")
                 failed += 1
         
         session.commit()

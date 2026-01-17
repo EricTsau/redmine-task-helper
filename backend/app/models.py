@@ -1,9 +1,43 @@
-from typing import Optional
-from sqlmodel import Field, SQLModel
+from typing import Optional, List
+from sqlmodel import Field, SQLModel, Relationship
 from datetime import datetime
+import enum
 
-class AppSettings(SQLModel, table=True):
+class AuthSource(str, enum.Enum):
+    STANDARD = "standard"
+    LDAP = "ldap"
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(unique=True, index=True)
+    hashed_password: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    is_admin: bool = Field(default=False)
+    auth_source: AuthSource = Field(default=AuthSource.STANDARD)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    tracked_tasks: List["TrackedTask"] = Relationship(back_populates="owner")
+    timer_sessions: List["TimerSession"] = Relationship(back_populates="owner")
+    watchlists: List["ProjectWatchlist"] = Relationship(back_populates="owner")
+    settings: Optional["UserSettings"] = Relationship(back_populates="user")
+
+class LDAPSettings(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
+    server_url: str = Field(default="ldap://localhost")
+    base_dn: str = Field(default="dc=example,dc=com")
+    user_dn_template: str = Field(default="uid={username},ou=users,dc=example,dc=com")
+    bind_dn: Optional[str] = None
+    bind_password: Optional[str] = None
+    is_active: bool = Field(default=False)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserSettings(SQLModel, table=True):
+    """Per-user application settings (Redmine/OpenAI credentials)"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", unique=True)
+    
     # Redmine settings
     redmine_url: Optional[str] = None
     api_key: Optional[str] = None
@@ -13,12 +47,22 @@ class AppSettings(SQLModel, table=True):
     openai_url: Optional[str] = Field(default="https://api.openai.com/v1")
     openai_key: Optional[str] = None
     openai_model: Optional[str] = Field(default="gpt-4o-mini")
+    
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship(back_populates="settings")
+
+class AppSettings(SQLModel, table=True):
+    """Global application settings (LDAP state etc)"""
+    id: int = Field(default=1, primary_key=True)
+    ldap_enabled: bool = Field(default=False)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TrackedTask(SQLModel, table=True):
     """使用者追蹤的 Redmine 任務"""
     id: Optional[int] = Field(default=None, primary_key=True)
-    redmine_issue_id: int = Field(unique=True, index=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    redmine_issue_id: int = Field(index=True)
     project_id: int
     project_name: str
     subject: str
@@ -28,6 +72,8 @@ class TrackedTask(SQLModel, table=True):
     custom_group: Optional[str] = None
     last_synced_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="tracked_tasks")
 
 
 class TimerLog(SQLModel, table=True):
@@ -48,14 +94,17 @@ class TimerSession(SQLModel, table=True):
     Represent a work session for an issue, which may contain multiple time spans (Pause/Resume).
     """
     id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
     redmine_issue_id: int
     start_time: datetime = Field(default_factory=datetime.utcnow)
     end_time: Optional[datetime] = None
-    total_duration: int = 0 # Calculated sum of spans
-    status: str = Field(default="running") # running, paused, stopped
-    content: Optional[str] = None # Rich text / Markdown
+    total_duration: int = 0 
+    status: str = Field(default="running") 
+    content: Optional[str] = None 
     is_synced: bool = False
     synced_at: Optional[datetime] = None
+
+    owner: User = Relationship(back_populates="timer_sessions")
 
 class TimerSpan(SQLModel, table=True):
     """
@@ -77,8 +126,10 @@ class TimeEntryExtraction(SQLModel):
     confidence_score: float = Field(default=0.0, description="AI 解析信心分數 0-1")
 
 class ProjectWatchlist(SQLModel, table=True):
-    """使用者關注的專案清單"""
     id: Optional[int] = Field(default=None, primary_key=True)
-    redmine_project_id: int = Field(unique=True, index=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    redmine_project_id: int = Field(index=True)
     project_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="watchlists")

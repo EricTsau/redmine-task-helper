@@ -8,6 +8,27 @@ from app.tasks.sync_tasks import start_sync_task
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    
+    # Initialize default admin user
+    from sqlmodel import Session, select
+    from app.database import engine
+    from app.models import User, AuthSource
+    from app.auth_utils import get_password_hash
+    
+    with Session(engine) as session:
+        admin_user = session.exec(select(User).where(User.username == "admin")).first()
+        if not admin_user:
+            print("Creating default admin user...")
+            admin_user = User(
+                username="admin",
+                hashed_password=get_password_hash("admin"),
+                is_admin=True,
+                auth_source=AuthSource.STANDARD,
+                full_name="Administrator"
+            )
+            session.add(admin_user)
+            session.commit()
+
     start_forget_safe_task()
     start_sync_task()
     yield
@@ -27,8 +48,9 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])
 app.include_router(timer.router, prefix="/api/v1/timer", tags=["timer"])
-from app.routers import settings
+from app.routers import settings, admin
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 from app.routers import ai
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
 from app.routers import upload
