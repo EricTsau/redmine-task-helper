@@ -71,8 +71,9 @@ class RedmineService:
     def get_my_projects(self) -> List[Any]:
         """Fetches all projects visible to the user."""
         try:
-            # fetch all projects
-            projects = self.redmine.project.all()
+            # fetch all projects with a reasonable limit or iterate all
+            # python-redmine's all() is a ResourceSet that handles paging
+            projects = self.redmine.project.all(limit=100)
             return list(projects)
         except Exception as e:
             print(f"Error fetching projects: {e}")

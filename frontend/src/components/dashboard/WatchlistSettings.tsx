@@ -5,6 +5,7 @@ interface Project {
     id: number;
     name: string;
     identifier: string;
+    parent_id?: number;
 }
 
 interface WatchlistItem {
@@ -30,13 +31,8 @@ export function WatchlistSettings() {
             setWatchlist(wRes);
 
             // Fetch Redmine Projects
-            const settingsRes = await api.get<any>('/settings');
-            if (settingsRes.redmine_token) {
-                const pRes = await api.get<any>('/projects', {}, {
-                    headers: { 'X-Redmine-API-Key': settingsRes.redmine_token }
-                });
-                setAllProjects(pRes.projects || []);
-            }
+            const pRes = await api.get<Project[]>('/projects');
+            setAllProjects(pRes || []);
         } catch (e) {
             console.error("Failed to fetch data", e);
         } finally {
@@ -72,11 +68,80 @@ export function WatchlistSettings() {
         }
     };
 
-    // Filter projects: exclude already watched
+    // Filter and sort projects for hierarchical display
     const watchedIds = new Set(watchlist.map(w => w.redmine_project_id));
-    const availableProjects = allProjects // Use allProjects here
-        .filter(p => !watchedIds.has(p.id))
-        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const isUnderWatchedProject = (project: Project) => {
+        let currentParentId = project.parent_id;
+        while (currentParentId) {
+            if (watchedIds.has(currentParentId)) return true;
+            const parent = allProjects.find(p => p.id === currentParentId);
+            currentParentId = parent?.parent_id;
+        }
+        return false;
+    };
+
+    const projectsByParent: Record<number, Project[]> = {};
+    allProjects.forEach(p => {
+        const pid = p.parent_id || 0;
+        if (!projectsByParent[pid]) projectsByParent[pid] = [];
+        projectsByParent[pid].push(p);
+    });
+
+    const renderProjectItem = (project: Project, depth: number = 0) => {
+        const isWatched = watchedIds.has(project.id);
+        const isCovered = isUnderWatchedProject(project);
+        const isDisabled = isWatched || isCovered;
+
+        // If searching, we flatten the tree but maintain basic info
+        const shouldShow = searchQuery
+            ? project.name.toLowerCase().includes(searchQuery.toLowerCase())
+            : true;
+
+        const children = projectsByParent[project.id] || [];
+
+        return (
+            <div key={project.id} className="space-y-1">
+                {shouldShow && (
+                    <div className="flex items-center justify-between p-2 hover:bg-muted rounded-md group">
+                        <div className="flex items-center gap-2 overflow-hidden" style={{ paddingLeft: `${depth * 1.5}rem` }}>
+                            {depth > 0 && <span className="text-muted-foreground">└</span>}
+                            <span className={`text-sm truncate ${isCovered ? 'text-muted-foreground italic' : ''}`}>
+                                {project.name}
+                                {isCovered && <span className="ml-2 text-[10px] bg-muted px-1 rounded">Covered by parent</span>}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {isWatched ? (
+                                <span className="text-[10px] text-primary font-medium px-2 py-0.5 bg-primary/10 rounded">Watching</span>
+                            ) : (
+                                <button
+                                    onClick={() => addToWatchlist(project)}
+                                    disabled={isDisabled || addingId === project.id}
+                                    className={`p-1 rounded transition-opacity ${isDisabled
+                                        ? 'opacity-30 cursor-not-allowed'
+                                        : 'opacity-0 group-hover:opacity-100 bg-primary text-primary-foreground hover:bg-primary/90'
+                                        }`}
+                                >
+                                    {addingId === project.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                        <Plus className="h-3 w-3" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {/* 
+                   If NOT searching, we show tree. 
+                   If searching, we only show children if they are also rendered by the main loop or if we want to show the full path.
+                   For simplicity in MVP, if NOT searching, we recurse.
+                */}
+                {!searchQuery && children.map(child => renderProjectItem(child, depth + 1))}
+            </div>
+        );
+    };
+
 
     return (
         <section className="space-y-4 p-6 border rounded-lg">
@@ -129,26 +194,22 @@ export function WatchlistSettings() {
                     />
                 </div>
 
-                <div className="max-h-60 overflow-y-auto space-y-1 p-1">
-                    {availableProjects.map(project => (
-                        <div key={project.id} className="flex items-center justify-between p-2 hover:bg-muted rounded-md group">
-                            <span className="text-sm">{project.name}</span>
-                            <button
-                                onClick={() => addToWatchlist(project)}
-                                disabled={addingId === project.id}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                            >
-                                {addingId === project.id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                    <Plus className="h-3 w-3" />
-                                )}
-                            </button>
-                        </div>
-                    ))}
-                    {availableProjects.length === 0 && (
+                <div className="max-h-80 overflow-y-auto space-y-1 p-1">
+                    {searchQuery ? (
+                        allProjects
+                            .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map(p => renderProjectItem(p, 0))
+                    ) : (
+                        projectsByParent[0]?.map(p => renderProjectItem(p, 0))
+                    )}
+                    {allProjects.length === 0 && !loading && (
                         <p className="text-sm text-muted-foreground text-center py-2">
-                            {searchQuery ? 'No matching projects found' : 'All projects are being watched'}
+                            No projects found. Please check your Redmine connection.
+                        </p>
+                    )}
+                    {searchQuery && allProjects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-2">
+                            No matching projects found
                         </p>
                     )}
                 </div>
