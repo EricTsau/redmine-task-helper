@@ -13,6 +13,21 @@ class AppSettings(SQLModel, table=True):
     openai_model: Optional[str] = Field(default="gpt-4o-mini")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class TrackedTask(SQLModel, table=True):
+    """使用者追蹤的 Redmine 任務"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    redmine_issue_id: int = Field(unique=True, index=True)
+    project_id: int
+    project_name: str
+    subject: str
+    status: str
+    assigned_to_id: Optional[int] = None
+    assigned_to_name: Optional[str] = None
+    custom_group: Optional[str] = None
+    last_synced_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class TimerLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     redmine_issue_id: int

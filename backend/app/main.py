@@ -3,11 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import create_db_and_tables
 from app.tasks.forget_safe import start_forget_safe_task
+from app.tasks.sync_tasks import start_sync_task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
     start_forget_safe_task()
+    start_sync_task()
     yield
 
 app = FastAPI(title="Redmine Flow API", version="0.1.0", lifespan=lifespan)
@@ -34,6 +36,10 @@ from app.routers import upload
 app.include_router(upload.router, prefix="/api/v1/upload", tags=["upload"])
 from app.routers import notifications
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
+from app.routers import tracked_tasks
+app.include_router(tracked_tasks.router, prefix="/api/v1/tracked-tasks", tags=["tracked-tasks"])
+from app.routers import projects
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
 
 @app.get("/")
 async def root():

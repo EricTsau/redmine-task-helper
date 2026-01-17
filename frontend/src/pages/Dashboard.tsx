@@ -2,17 +2,22 @@ import { useState, useEffect } from 'react';
 import { useTimer } from '@/hooks/useTimer';
 import { FocusMode } from '@/components/dashboard/FocusMode';
 import { TaskListView } from '@/components/dashboard/TaskListView';
+import { TaskGroupView, TaskImportModal } from '@/components/tracking';
 import { Link } from 'react-router-dom';
-import { Settings, AlertCircle, Loader2 } from 'lucide-react';
+import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 type SetupStatus = 'loading' | 'not_configured' | 'connection_error' | 'ready';
+type ViewTab = 'my-tasks' | 'tracked';
 
 export function Dashboard() {
     const { timer, startTimer, stopTimer } = useTimer();
     const [setupStatus, setSetupStatus] = useState<SetupStatus>('loading');
     const [errorMessage, setErrorMessage] = useState<string>('');
+    const [activeTab, setActiveTab] = useState<ViewTab>('my-tasks');
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         checkSetup();
@@ -109,5 +114,63 @@ export function Dashboard() {
         return <FocusMode timer={timer} stopTimer={() => stopTimer()} />;
     }
 
-    return <TaskListView startTimer={startTimer} />;
+    return (
+        <div className="space-y-4">
+            {/* Tab Navigation */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-1 p-1 bg-muted rounded-lg">
+                    <button
+                        onClick={() => setActiveTab('my-tasks')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'my-tasks'
+                                ? 'bg-background shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                    >
+                        <ListTodo className="h-4 w-4" />
+                        我的任務
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('tracked')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'tracked'
+                                ? 'bg-background shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                    >
+                        <Bookmark className="h-4 w-4" />
+                        追蹤任務
+                    </button>
+                </div>
+
+                {/* Import Button (only show on tracked tab) */}
+                {activeTab === 'tracked' && (
+                    <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                    >
+                        <Plus className="h-4 w-4" />
+                        匯入任務
+                    </button>
+                )}
+            </div>
+
+            {/* Content */}
+            {activeTab === 'my-tasks' ? (
+                <TaskListView startTimer={startTimer} />
+            ) : (
+                <TaskGroupView
+                    key={refreshKey}
+                    startTimer={startTimer}
+                    onRefresh={() => setRefreshKey(k => k + 1)}
+                />
+            )}
+
+            {/* Import Modal */}
+            <TaskImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImportSuccess={() => setRefreshKey(k => k + 1)}
+            />
+        </div>
+    );
 }
+
