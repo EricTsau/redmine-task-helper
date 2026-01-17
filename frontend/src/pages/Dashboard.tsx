@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useTimer } from '@/hooks/useTimer';
 import { FocusMode } from '@/components/dashboard/FocusMode';
 import { TaskListView } from '@/components/dashboard/TaskListView';
+import { WatchlistStats } from '@/components/dashboard/WatchlistStats';
 import { TaskGroupView, TaskImportModal } from '@/components/tracking';
 import { Link } from 'react-router-dom';
 import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
+import { ChatBox } from '@/components/Chat/ChatBox';
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
@@ -18,10 +20,6 @@ export function Dashboard() {
     const [activeTab, setActiveTab] = useState<ViewTab>('my-tasks');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        checkSetup();
-    }, []);
 
     const checkSetup = async () => {
         try {
@@ -44,6 +42,10 @@ export function Dashboard() {
             setErrorMessage('Unable to reach backend server');
         }
     };
+
+    useEffect(() => {
+        checkSetup();
+    }, []);
 
     // Loading state
     if (setupStatus === 'loading') {
@@ -116,14 +118,20 @@ export function Dashboard() {
 
     return (
         <div className="space-y-4">
+            {/* Watchlist Stats (Phase 2) */}
+            <WatchlistStats />
+
+            {/* AI Chat Logger */}
+            <ChatBox />
+
             {/* Tab Navigation */}
             <div className="flex items-center justify-between">
                 <div className="flex gap-1 p-1 bg-muted rounded-lg">
                     <button
                         onClick={() => setActiveTab('my-tasks')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'my-tasks'
-                                ? 'bg-background shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                            ? 'bg-background shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                     >
                         <ListTodo className="h-4 w-4" />
@@ -132,8 +140,8 @@ export function Dashboard() {
                     <button
                         onClick={() => setActiveTab('tracked')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'tracked'
-                                ? 'bg-background shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                            ? 'bg-background shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                     >
                         <Bookmark className="h-4 w-4" />
@@ -173,4 +181,3 @@ export function Dashboard() {
         </div>
     );
 }
-

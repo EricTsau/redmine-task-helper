@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 
 class RedmineService:
     def __init__(self, url: str, api_key: str):
-        self.redmine = Redmine(url, key=api_key)
+        self.redmine = Redmine(url, key=api_key, requests={'verify': False})
 
     def get_current_user(self) -> Dict[str, Any]:
         """Fetches the current authenticated user to validate credentials."""
@@ -128,3 +128,47 @@ class RedmineService:
             print(f"Error in advanced search: {e}")
             return []
 
+    def create_time_entry(
+        self,
+        issue_id: int,
+        hours: float,
+        activity_id: int = 9,  # Default to 'Development' (usually 9 in std Redmine, but safer to parameterize)
+        comments: str = ""
+    ) -> bool:
+        """
+        Create a time entry for a specific issue.
+        """
+        try:
+            self.redmine.time_entry.create(
+                issue_id=issue_id,
+                hours=hours,
+                activity_id=activity_id,
+                comments=comments
+            )
+            return True
+        except Exception as e:
+            print(f"Error creating time entry: {e}")
+            return False
+    def get_project_stats(self, project_id: int) -> Dict[str, Any]:
+        """
+        Get basic stats for a project (e.g. open issue count).
+        """
+        try:
+            # We want to count open issues.
+            # Using limit=1 with total_count=True is efficient if API supports it.
+            # python-redmine objects usually have total_count attribute after a filter call.
+            issues = self.redmine.issue.filter(
+                project_id=project_id,
+                status_id='open',
+                subproject_id='!*', # Include subprojects
+                limit=1
+            )
+            count = issues.total_count
+            print(f"[Stats] Project {project_id}: Found {count} open issues")
+            return {
+                "open_issues_count": count,
+                 # Potential for expansion: closed count, count by tracker, etc.
+            }
+        except Exception as e:
+            print(f"Error fetching stats for project {project_id}: {e}")
+            return {"open_issues_count": 0, "error": str(e)}

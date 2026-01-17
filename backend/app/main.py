@@ -40,6 +40,12 @@ from app.routers import tracked_tasks
 app.include_router(tracked_tasks.router, prefix="/api/v1/tracked-tasks", tags=["tracked-tasks"])
 from app.routers import projects
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+from app.routers import chat
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+from app.routers import watchlist
+app.include_router(watchlist.router, prefix="/api/v1/watchlist", tags=["watchlist"])
+from app.routers import analysis
+app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"])
 
 @app.get("/")
 async def root():

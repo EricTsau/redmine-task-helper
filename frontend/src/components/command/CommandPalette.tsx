@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Command, Search, Clock, LayoutDashboard, Settings, X } from 'lucide-react';
+import { Search, Clock, LayoutDashboard, Settings, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 interface CommandItem {
     id: string;
@@ -15,7 +13,6 @@ interface CommandItem {
 export function CommandPalette() {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
     const navigate = useNavigate();
 
     const staticCommands: CommandItem[] = [

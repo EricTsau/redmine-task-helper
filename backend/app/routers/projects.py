@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from typing import List, Optional
 from pydantic import BaseModel
 from app.services.redmine_client import RedmineService
 
 router = APIRouter()
-
-from app.dependencies import get_redmine_service
 
 class ProjectResponse(BaseModel):
     id: int
@@ -14,8 +12,16 @@ class ProjectResponse(BaseModel):
     parent_id: Optional[int] = None
 
 @router.get("/", response_model=List[ProjectResponse])
-async def list_projects(service: RedmineService = Depends(get_redmine_service)):
-    """List all projects visible to the user."""
+async def list_projects(
+    x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
+    x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key")
+):
+    """List all projects visible to the user. Requires Redmine credentials in headers."""
+    
+    if not x_redmine_url or not x_redmine_key:
+        raise HTTPException(status_code=401, detail="Missing Redmine credentials in header")
+
+    service = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
     projects = service.get_my_projects()
     
     results = []

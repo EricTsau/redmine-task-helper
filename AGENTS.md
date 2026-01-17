@@ -20,3 +20,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 ### Note:
 - 請一律用繁體中文回答跟撰寫說明
 - 工作完成後要Review README.md確認是否需要更新，要的話請調整
+- 資料庫版控與遷移規格 (Database Migration Spec)
+    - 為確保開發紀律與可追溯性，強制執行以下規範：
+    - 4.1 工具與配置
+        • 使用 Alembic 進行遷移管理。
+        • alembic.ini 設定：file_template = %%(slug)s_%%(year)d%%(month)02d%%(day)02d (或自定義格式)。
+    - 4.2 命名規範 (Naming Convention)
+        • 所有遷移腳本檔名必須符合：{序號}_{日期}_{簡易描述}.py
+            • 範例： 001_20231027_init_settings_table.py
+            • 範例： 002_20231101_add_watchlist_column.py

@@ -37,3 +37,20 @@ class TimerLog(SQLModel, table=True):
     comment: Optional[str] = None
     is_synced: bool = False
     synced_at: Optional[datetime] = None
+
+
+class TimeEntryExtraction(SQLModel):
+    """NLP 解析出的工時紀錄結構"""
+    issue_id: Optional[int] = None
+    project_name: Optional[str] = None
+    hours: float
+    activity_name: str = "Development"
+    comments: str
+    confidence_score: float = Field(default=0.0, description="AI 解析信心分數 0-1")
+
+class ProjectWatchlist(SQLModel, table=True):
+    """使用者關注的專案清單"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    redmine_project_id: int = Field(unique=True, index=True)
+    project_name: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -136,21 +136,22 @@ class TestTrackedTasksAPI:
 class TestTaskSearchAPI:
     """Test cases for task search endpoint"""
     
-    @patch("app.routers.tasks.RedmineService")
-    def test_search_tasks_with_status_filter(self, mock_service_class, client):
+    def test_search_tasks_with_status_filter(self, client):
         """Should search tasks with status filter"""
         mock_service = MagicMock()
         mock_service.search_issues_advanced.return_value = []
-        mock_service_class.return_value = mock_service
         
-        response = client.get(
-            "/api/v1/tasks/search",
-            params={"status": "open"},
-            headers={
-                "X-Redmine-Url": "https://redmine.example.com",
-                "X-Redmine-Key": "test_key"
-            }
-        )
+        # Override dependency
+        from app.dependencies import get_redmine_service
+        app.dependency_overrides[get_redmine_service] = lambda: mock_service
         
-        assert response.status_code == 200
-        mock_service.search_issues_advanced.assert_called_once()
+        try:
+            response = client.get(
+                "/api/v1/tasks/search",
+                params={"status": "open"}
+            )
+            
+            assert response.status_code == 200
+            mock_service.search_issues_advanced.assert_called_once()
+        finally:
+            del app.dependency_overrides[get_redmine_service]

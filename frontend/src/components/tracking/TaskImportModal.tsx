@@ -53,23 +53,47 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
 
     // Fetch projects on mount
     useEffect(() => {
-        fetch(`${API_BASE}/projects`)
-            .then(res => res.json())
-            .then((data: Project[]) => {
-                // Build simple tree structure or just sort by name
-                // For "tree concept", we can sort or group. 
-                // Let's just list them for now, but UI should look hierarchy-like if possible.
-                // Or better, let's build a flat list with 'level' based on parent_id if we want full tree
-                // But for simplicity, let's just show them in a list first, user said "tree concept"
-                // Let's rely on Redmine's hierarchy if we can recurse. 
-                // Actually, let's just store the flat list and use parent_id to build tree for rendering if needed.
-                setProjects(data);
-            })
-            .catch(console.error);
+        const fetchProjects = async () => {
+            try {
+                // Get URL from backend settings (public)
+                const settingsRes = await fetch(`${API_BASE}/settings`);
+                if (!settingsRes.ok) return; // settings endpoint might fail if DB not init, though unlikely
+                const settingsData = await settingsRes.json();
+                const redmineUrl = settingsData.redmine_url;
+
+                // Get Key from localStorage
+                const redmineKey = localStorage.getItem('redmine_api_key');
+
+                if (redmineKey && redmineUrl) {
+                    const res = await fetch(`${API_BASE}/projects`, {
+                        headers: {
+                            'X-Redmine-Key': redmineKey,
+                            'X-Redmine-Url': redmineUrl
+                        }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (Array.isArray(data)) {
+                            setProjects(data);
+                        } else {
+                            console.error("Projects data is not an array:", data);
+                            setProjects([]);
+                        }
+                    } else {
+                        console.error("Failed to fetch projects:", res.status);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching projects:", error);
+            }
+        };
+
+        fetchProjects();
     }, []);
 
     // Helper to build tree for rendering
     const buildProjectTree = (items: Project[]) => {
+        if (!Array.isArray(items)) return [];
         const map = new Map<number, Project>();
         const roots: Project[] = [];
         // First pass: create map

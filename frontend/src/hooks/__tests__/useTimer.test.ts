@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { beforeAll, afterEach, afterAll, describe, it, expect, vi } from 'vitest';
+import { beforeAll, afterEach, afterAll, describe, it, expect } from 'vitest';
 import { useTimer } from '../useTimer';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';

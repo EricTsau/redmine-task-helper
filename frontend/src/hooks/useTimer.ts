@@ -52,8 +52,9 @@ export function useTimer() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ comment })
         });
-        if (res.ok) {
-            // const data = await res.json();
+
+        if (res.ok || res.status === 404) {
+            // If success or "not found" (already stopped), clear local state
             setTimer(null);
             setElapsed(0);
         }

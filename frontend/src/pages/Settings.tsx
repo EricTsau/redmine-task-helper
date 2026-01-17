@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { WatchlistSettings } from '@/components/dashboard/WatchlistSettings';
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
@@ -23,35 +24,56 @@ export function Settings() {
     const [openaiTestStatus, setOpenaiTestStatus] = useState<string>('');
 
     useEffect(() => {
+        // Load public settings from backend
         fetch(`${API_BASE}/settings`)
             .then(res => res.json())
             .then(data => {
                 if (data) {
-                    setSettings({
+                    setSettings(prev => ({
+                        ...prev,
                         redmine_url: data.redmine_url || '',
-                        redmine_token: data.redmine_token || '',
                         openai_url: data.openai_url || 'https://api.openai.com/v1',
-                        openai_key: data.openai_key || '',
                         openai_model: data.openai_model || 'gpt-4o-mini'
-                    });
+                    }));
                 }
             })
-            .catch(err => console.error(err));
+            .catch(console.error);
+
+        // Load secrets from localStorage
+        const localRedmineKey = localStorage.getItem('redmine_api_key') || '';
+        const localOpenAIKey = localStorage.getItem('openai_api_key') || '';
+
+        setSettings(prev => ({
+            ...prev,
+            redmine_token: localRedmineKey,
+            openai_key: localOpenAIKey
+        }));
     }, []);
 
     const handleSave = async () => {
         setStatus('Saving...');
         try {
+            // Save secrets to localStorage
+            localStorage.setItem('redmine_api_key', settings.redmine_token);
+            localStorage.setItem('openai_api_key', settings.openai_key);
+
+            // Save public settings to backend
+            const backendSettings = {
+                redmine_url: settings.redmine_url,
+                openai_url: settings.openai_url,
+                openai_model: settings.openai_model
+            };
+
             const res = await fetch(`${API_BASE}/settings`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings),
+                body: JSON.stringify(backendSettings),
             });
             if (res.ok) {
-                setStatus('✓ Saved');
+                setStatus('✓ Saved (Keys locally)');
                 setTimeout(() => setStatus(''), 2000);
             } else {
-                setStatus('Failed to save');
+                setStatus('Failed to save backend settings');
             }
         } catch {
             setStatus('Error saving');
@@ -83,10 +105,18 @@ export function Settings() {
     const testOpenAI = async () => {
         setOpenaiTestStatus('Testing...');
         try {
-            const res = await fetch(`${API_BASE}/ai/test`, { method: 'POST' });
+            const res = await fetch(`${API_BASE}/chat/test-connection`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-OpenAI-Key': settings.openai_key,
+                    'X-OpenAI-URL': settings.openai_url,
+                    'X-OpenAI-Model': settings.openai_model
+                }
+            });
+
             if (res.ok) {
-                const data = await res.json();
-                setOpenaiTestStatus(`✓ Connected (${data.model})`);
+                setOpenaiTestStatus(`✓ Connected (${settings.openai_model})`);
             } else {
                 const err = await res.json();
                 setOpenaiTestStatus(`✗ ${err.detail}`);
@@ -197,6 +227,9 @@ export function Settings() {
                 </button>
                 {openaiTestStatus && <span className="ml-2 text-sm">{openaiTestStatus}</span>}
             </section>
+
+            {/* Watchlist Section */}
+            <WatchlistSettings />
 
             {/* Save Button */}
             <div className="flex items-center gap-4">
