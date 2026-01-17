@@ -9,51 +9,39 @@ interface AnalysisResult {
     data: any[];
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 export function AnalysisWidget() {
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<AnalysisResult | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const handleAnalyze = async () => {
         if (!query.trim()) return;
         setLoading(true);
         setResult(null);
+        setError(null);
 
         try {
-            const localKey = localStorage.getItem('redmine_api_key');
-            const localOpenAIKey = localStorage.getItem('openai_api_key');
-            const settingsRes = await fetch(`${API_BASE}/settings`);
-            const settingsData = await settingsRes.json();
+            // Get API Key
+            const settingsRes = await api.get<any>('/settings');
+            const apiKey = settingsRes.redmine_token;
 
-            if (!localKey || !localOpenAIKey) {
-                alert("Please configure API keys in Settings first.");
+            if (!apiKey) {
+                setError("Redmine API Key not found in settings.");
                 setLoading(false);
                 return;
             }
 
-            const res = await fetch(`${API_BASE}/analysis/query`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Redmine-Key': localKey,
-                    'X-Redmine-Url': settingsData.redmine_url,
-                    'X-OpenAI-Key': localOpenAIKey,
-                    'X-OpenAI-URL': settingsData.openai_url || 'https://api.openai.com/v1',
-                    'X-OpenAI-Model': settingsData.openai_model || 'gpt-4o-mini'
-                },
-                body: JSON.stringify({ query: query })
+            const res = await api.post<any>('/analysis/query', {
+                query: query,
+                api_key: apiKey
             });
-
-            if (res.ok) {
-                const data = await res.json();
-                setResult(data);
-            } else {
-                console.error("Analysis failed");
-            }
+            setResult(res);
         } catch (e) {
             console.error(e);
+            setError("Analysis failed. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -67,6 +55,12 @@ export function AnalysisWidget() {
                 </div>
                 <h2 className="text-lg font-semibold">Conversational BI</h2>
             </div>
+
+            {error && (
+                <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                    {error}
+                </div>
+            )}
 
             {/* Input Area */}
             <div className="flex gap-2">

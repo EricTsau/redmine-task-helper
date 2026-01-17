@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
-export interface TimerState {
+export interface TimeEntry {
     id: number;
     issue_id: number;
     start_time: string;
@@ -13,71 +13,68 @@ export interface TimerState {
 }
 
 export function useTimer() {
-    const [timer, setTimer] = useState<TimerState | null>(null);
+    const [timer, setTimer] = useState<TimeEntry | null>(null);
     const [elapsed, setElapsed] = useState(0);
 
     const fetchTimer = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/timer/current`);
-            if (res.ok) {
-                const data = await res.json();
-                // Data from backend: { ..., is_running, status, duration }
-                // Duration from backend is Total so far.
-                // If running, we need to add local drift.
-                setTimer(data);
-                if (data) {
-                    setElapsed(data.duration);
-                }
+            const data = await api.get<TimeEntry | null>('/timer/current');
+            setTimer(data);
+            if (data) {
+                setElapsed(data.duration);
             } else {
-                setTimer(null);
+                setElapsed(0);
             }
         } catch (e) {
             console.error("Failed to fetch timer", e);
+            setTimer(null);
+            setElapsed(0);
         }
     }, []);
 
     const startTimer = async (issueId: number, comment?: string) => {
-        const res = await fetch(`${API_BASE}/timer/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ issue_id: issueId, comment })
-        });
-        if (res.ok) {
+        try {
+            await api.post('/timer/start', { issue_id: issueId, comment });
             fetchTimer();
+        } catch (error) {
+            console.error('Failed to start timer:', error);
         }
     };
 
     const pauseTimer = async () => {
-        const res = await fetch(`${API_BASE}/timer/pause`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
+        try {
+            await api.post('/timer/pause');
             fetchTimer();
+        } catch (error) {
+            console.error('Failed to pause timer:', error);
         }
     }
 
     const stopTimer = async (comment?: string) => {
-        const res = await fetch(`${API_BASE}/timer/stop`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ comment })
-        });
-
-        if (res.ok || res.status === 404) {
+        try {
+            await api.post('/timer/stop', { comment });
             setTimer(null);
             setElapsed(0);
+        } catch (error: any) {
+            if (error.response && error.response.status === 404) {
+                // If timer was not found (e.g., already stopped or never started),
+                // we can consider it stopped from the client's perspective.
+                setTimer(null);
+                setElapsed(0);
+            } else {
+                console.error('Failed to stop timer:', error);
+            }
         }
     };
 
     const updateLog = async (content: string) => {
-        await fetch(`${API_BASE}/timer/log/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content })
-        });
-        // Optimistic update
-        if (timer) setTimer({ ...timer, content });
+        try {
+            await api.post('/timer/log/update', { content });
+            // Optimistic update
+            if (timer) setTimer({ ...timer, content });
+        } catch (e) {
+            console.error("Failed to update draft", e);
+        }
     }
 
     // Initial fetch - runs once on mount

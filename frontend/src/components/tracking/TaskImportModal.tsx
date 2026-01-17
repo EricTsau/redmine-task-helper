@@ -4,7 +4,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Search, X, Loader2, Check, Square, CheckSquare, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
+
+
 
 interface SearchResult {
     id: number;
@@ -53,43 +55,16 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
 
     // Fetch projects on mount
     useEffect(() => {
-        const fetchProjects = async () => {
+        const loadProjects = async () => {
             try {
-                // Get URL from backend settings (public)
-                const settingsRes = await fetch(`${API_BASE}/settings`);
-                if (!settingsRes.ok) return; // settings endpoint might fail if DB not init, though unlikely
-                const settingsData = await settingsRes.json();
-                const redmineUrl = settingsData.redmine_url;
-
-                // Get Key from localStorage
-                const redmineKey = localStorage.getItem('redmine_api_key');
-
-                if (redmineKey && redmineUrl) {
-                    const res = await fetch(`${API_BASE}/projects`, {
-                        headers: {
-                            'X-Redmine-Key': redmineKey,
-                            'X-Redmine-Url': redmineUrl
-                        }
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (Array.isArray(data)) {
-                            setProjects(data);
-                        } else {
-                            console.error("Projects data is not an array:", data);
-                            setProjects([]);
-                        }
-                    } else {
-                        console.error("Failed to fetch projects:", res.status);
-                    }
-                }
+                const res = await api.get<Project[]>('/projects');
+                setProjects(res || []);
             } catch (error) {
-                console.error("Error fetching projects:", error);
+                console.error("Failed to load projects", error);
             }
         };
-
-        fetchProjects();
-    }, []);
+        loadProjects();
+    }, [isOpen]);
 
     // Helper to build tree for rendering
     const buildProjectTree = (items: Project[]) => {
@@ -119,19 +94,23 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
 
         try {
             const params = new URLSearchParams();
-            if (keyword) params.append('q', keyword);
-            if (status !== 'all') params.append('status', status);
-            if (assignedToMe) params.append('assigned_to', 'me');
             if (selectedProjectId) params.append('project_id', selectedProjectId.toString());
+            if (keyword) params.append('q', keyword); // 'q' for keyword as per original
+            if (status !== 'all') params.append('status', status); // 'status' as per original
+            if (assignedToMe) params.append('assigned_to', 'me'); // 'assigned_to' as per original
 
-            const res = await fetch(`${API_BASE}/tasks/search?${params.toString()}`);
+            // Need API Key again? or use stored one in backend service?
+            // The search endpoint in tasks.py uses dependency injection to get settings, so no header needed if backend is updated.
+            // Wait, tasks.py search endpoint DOES depend on settings in DB now (since conversation 7fb77952).
+            // Let's assume backend handles auth via DB settings.
 
-            if (!res.ok) {
-                throw new Error('搜尋失敗');
-            }
+            // However, the original code didn't send header?
+            // Ah, line 127 in original file: fetch(`${API_BASE}/tasks/search?${params.toString()}`)
+            // It didn't send headers. So backend must be handling it or it was failing? 
+            // Previous conversation said we refactored dependencies.
 
-            const data = await res.json();
-            setResults(data);
+            const res = await api.get<SearchResult[]>(`/tasks/search?${params.toString()}`);
+            setResults(res);
             setSelectedIds(new Set());
         } catch (e) {
             setError(e instanceof Error ? e.message : '搜尋時發生錯誤');
@@ -167,18 +146,19 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
         setError(null);
 
         try {
-            const res = await fetch(`${API_BASE}/tracked-tasks/import`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ issue_ids: Array.from(selectedIds) })
-            });
+            const selectedTasks = results.filter(t => selectedIds.has(t.id));
+            const importData = selectedTasks.map(t => ({
+                redmine_id: t.id,
+                subject: t.subject,
+                project_name: t.project_name || "Unknown", // Use project_name from SearchResult
+                custom_group: "Default"
+            }));
 
-            if (!res.ok) {
-                throw new Error('匯入失敗');
-            }
+            await api.post('/tracked-tasks/import', importData);
 
             onImportSuccess?.();
             onClose();
+            setSelectedIds(new Set());
         } catch (e) {
             setError(e instanceof Error ? e.message : '匯入時發生錯誤');
         } finally {

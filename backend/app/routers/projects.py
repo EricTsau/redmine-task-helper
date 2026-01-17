@@ -3,6 +3,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 from app.services.redmine_client import RedmineService
 
+from app.dependencies import get_redmine_service
+
 router = APIRouter()
 
 class ProjectResponse(BaseModel):
@@ -11,17 +13,11 @@ class ProjectResponse(BaseModel):
     identifier: str
     parent_id: Optional[int] = None
 
-@router.get("/", response_model=List[ProjectResponse])
+@router.get("", response_model=List[ProjectResponse])
 async def list_projects(
-    x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
-    x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key")
+    service: RedmineService = Depends(get_redmine_service)
 ):
-    """List all projects visible to the user. Requires Redmine credentials in headers."""
-    
-    if not x_redmine_url or not x_redmine_key:
-        raise HTTPException(status_code=401, detail="Missing Redmine credentials in header")
-
-    service = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
+    """List all projects visible to the user. Uses configured Redmine settings."""
     projects = service.get_my_projects()
     
     results = []

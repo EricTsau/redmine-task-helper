@@ -8,7 +8,7 @@ interface WatchlistStat {
     open_issues_count: number;
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 export function WatchlistStats() {
     const [stats, setStats] = useState<WatchlistStat[]>([]);
@@ -18,25 +18,18 @@ export function WatchlistStats() {
         const fetchStats = async () => {
             setLoading(true);
             try {
-                // Determine credentials same way as other components
-                const localKey = localStorage.getItem('redmine_api_key');
-                const settingsRes = await fetch(`${API_BASE}/settings`);
-                const settingsData = await settingsRes.json();
-                const url = settingsData.redmine_url;
+                // Get API Key
+                const settingsRes = await api.get<any>('/settings');
+                const apiKey = settingsRes.redmine_token;
 
-                if (localKey && url) {
-                    const res = await fetch(`${API_BASE}/watchlist/stats`, {
-                        headers: {
-                            'X-Redmine-Key': localKey,
-                            'X-Redmine-Url': url
-                        }
+                if (apiKey) {
+                    const res = await api.get<WatchlistStat[]>('/watchlist/stats', {}, {
+                        headers: { 'X-Redmine-API-Key': apiKey }
                     });
-                    if (res.ok) {
-                        setStats(await res.json());
-                    }
+                    setStats(res);
                 }
-            } catch (error) {
-                console.error("Failed to fetch watchlist stats", error);
+            } catch (e) {
+                console.error("Failed to fetch watchlist stats", e);
             } finally {
                 setLoading(false);
             }

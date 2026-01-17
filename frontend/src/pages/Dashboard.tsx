@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
 import { ChatBox } from '@/components/Chat/ChatBox';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 type SetupStatus = 'loading' | 'not_configured' | 'connection_error' | 'ready';
 type ViewTab = 'my-tasks' | 'tracked';
@@ -24,22 +24,18 @@ export function Dashboard() {
     const checkSetup = async () => {
         try {
             // Use validate endpoint which uses stored credentials
-            const res = await fetch(`${API_BASE}/auth/validate`);
-
-            if (res.ok) {
-                setSetupStatus('ready');
+            await api.get('/auth/validate');
+            setSetupStatus('ready');
+        } catch (error: any) {
+            if (error.response && error.response.status === 400 && error.response.data && error.response.data.detail === 'Redmine not configured') {
+                setSetupStatus('not_configured');
+            } else if (error.response) {
+                setSetupStatus('connection_error');
+                setErrorMessage(error.response.data?.detail || 'Unable to connect to Redmine');
             } else {
-                const err = await res.json();
-                if (res.status === 400 && err.detail === 'Redmine not configured') {
-                    setSetupStatus('not_configured');
-                } else {
-                    setSetupStatus('connection_error');
-                    setErrorMessage(err.detail || 'Unable to connect to Redmine');
-                }
+                setSetupStatus('connection_error');
+                setErrorMessage('Unable to reach backend server');
             }
-        } catch (e) {
-            setSetupStatus('connection_error');
-            setErrorMessage('Unable to reach backend server');
         }
     };
 

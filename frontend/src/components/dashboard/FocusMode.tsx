@@ -1,9 +1,9 @@
-import type { TimerState } from '@/hooks/useTimer';
+import type { TimeEntry } from '@/hooks/useTimer';
 import { Timer } from '@/components/timer/Timer';
 import { Square } from 'lucide-react';
 
 interface FocusModeProps {
-    timer: TimerState;
+    timer: TimeEntry;
     stopTimer: () => void;
 }
 
@@ -32,7 +32,7 @@ export function FocusMode({ timer, stopTimer }: FocusModeProps) {
                 <textarea
                     className="w-full min-h-[100px] p-2 bg-background border rounded resize-none"
                     placeholder="Jot down notes, next steps..."
-                    defaultValue={timer.comment}
+                    defaultValue={timer.content}
                 />
             </div>
         </div>

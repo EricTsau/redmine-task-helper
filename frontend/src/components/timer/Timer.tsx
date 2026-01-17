@@ -40,7 +40,7 @@ export function Timer() {
         setIsSubmitting(true);
         try {
             const redmineKey = localStorage.getItem('redmine_api_key');
-            const redmineUrl = JSON.parse(localStorage.getItem('app-settings') || '{}').redmine_url; // or fetch settings
+            // const redmineUrl = JSON.parse(localStorage.getItem('app-settings') || '{}').redmine_url;
 
             // We might need a proper way to get settings if not in localStorage easily or use a hook
             // For MVP assuming we have access or fetching settings

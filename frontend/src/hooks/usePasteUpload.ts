@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { api } from '@/lib/api';
 
 interface UsePasteUploadOptions {
     issueId?: number;
@@ -6,7 +7,15 @@ interface UsePasteUploadOptions {
     onError?: (error: string) => void;
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+// The API_BASE constant is no longer needed if `api` handles the base URL.
+// const API_BASE = 'http://127.0.0.1:8000/api/v1';
+
+// Define the expected structure of the upload result from the API
+interface UploadResult {
+    filename: string;
+    // Assuming the API might also return a URL, though onUpload only uses filename
+    url?: string;
+}
 
 export function usePasteUpload({ issueId, onUpload, onError }: UsePasteUploadOptions) {
     const handlePaste = useCallback(async (e: ClipboardEvent) => {
@@ -25,22 +34,15 @@ export function usePasteUpload({ issueId, onUpload, onError }: UsePasteUploadOpt
                 formData.append('file', file, `pasted-image-${Date.now()}.png`);
 
                 try {
-                    const res = await fetch(`${API_BASE}/upload/upload?issue_id=${issueId}`, {
-                        method: 'POST',
+                    const res = await api.post<UploadResult>(`/upload/upload?issue_id=${issueId}`, formData, {
                         headers: {
                             'X-Redmine-Url': localStorage.getItem('redmine_url') || '',
-                            'X-Redmine-Key': localStorage.getItem('redmine_key') || '',
-                        },
-                        body: formData
+                            'X-Redmine-Key': localStorage.getItem('redmine_api_key') || '', // Fix key name to match others (was redmine_key)
+                        }
                     });
 
-                    if (res.ok) {
-                        const data = await res.json();
-                        onUpload?.(data);
-                    } else {
-                        const error = await res.json();
-                        onError?.(error.detail || 'Upload failed');
-                    }
+
+                    onUpload?.(res); // Call callback with full result
                 } catch (err) {
                     onError?.('Network error');
                 }

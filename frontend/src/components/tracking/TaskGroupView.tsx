@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 interface TrackedTask {
     id: number;
@@ -37,14 +37,13 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     const [editingGroup, setEditingGroup] = useState<number | null>(null);
     const [newGroupName, setNewGroupName] = useState('');
 
-    const fetchTasks = useCallback(async () => {
+    const loadTasks = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/tracked-tasks/`);
-            if (!res.ok) throw new Error('無法載入追蹤任務');
-            const data = await res.json();
-            setTasks(data);
+            const res = await api.get<TrackedTask[]>('/tracked-tasks/');
+            setTasks(res);
             setError(null);
         } catch (e) {
+            console.error(e);
             setError(e instanceof Error ? e.message : '載入失敗');
         } finally {
             setLoading(false);
@@ -52,16 +51,17 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     }, []);
 
     useEffect(() => {
-        fetchTasks();
-    }, [fetchTasks]);
+        loadTasks();
+    }, [loadTasks]);
 
     const handleSync = async () => {
         setSyncing(true);
         try {
-            const res = await fetch(`${API_BASE}/tracked-tasks/sync`, { method: 'POST' });
-            if (!res.ok) throw new Error('同步失敗');
-            await fetchTasks();
+            await api.post('/tracked-tasks/sync');
+            await loadTasks();
+            setError(null);
         } catch (e) {
+            console.error(e);
             setError(e instanceof Error ? e.message : '同步失敗');
         } finally {
             setSyncing(false);
@@ -69,24 +69,22 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     };
 
     const handleRemove = async (taskId: number) => {
+        if (!confirm('Stop tracking this task?')) return;
         try {
-            const res = await fetch(`${API_BASE}/tracked-tasks/${taskId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('移除失敗');
+            await api.delete(`/tracked-tasks/${taskId}`);
             setTasks(prev => prev.filter(t => t.id !== taskId));
+            setError(null);
         } catch (e) {
+            console.error(e);
             setError(e instanceof Error ? e.message : '移除失敗');
         }
     };
 
     const handleUpdateGroup = async (taskId: number, group: string | null) => {
         try {
-            const res = await fetch(`${API_BASE}/tracked-tasks/${taskId}/group`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ custom_group: group || null })
+            const updated = await api.patch<TrackedTask>(`/tracked-tasks/${taskId}/group`, null, {
+                params: { custom_group: group || '' }
             });
-            if (!res.ok) throw new Error('更新分組失敗');
-            const updated = await res.json();
             setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
             setEditingGroup(null);
             setNewGroupName('');

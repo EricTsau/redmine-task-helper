@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 interface RewriteButtonProps {
     text: string;
@@ -13,20 +13,16 @@ export function RewriteButton({ text, onRewrite }: RewriteButtonProps) {
     const [style, setStyle] = useState<'professional' | 'casual' | 'formal' | 'concise'>('professional');
 
     const handleRewrite = async () => {
-        if (!text.trim()) return;
+        if (!text) return;
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/ai/rewrite`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, style })
+            const res = await api.post<any>('/ai/rewrite', {
+                text: text,
+                tone: 'professional' // default tone
             });
-            if (res.ok) {
-                const data = await res.json();
-                onRewrite(data.rewritten);
-            }
-        } catch (e) {
-            console.error('Rewrite failed', e);
+            onRewrite(res.rewritten);
+        } catch (error) {
+            console.error("Rewrite failed", error);
         } finally {
             setLoading(false);
         }

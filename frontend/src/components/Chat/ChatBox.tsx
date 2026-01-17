@@ -3,14 +3,7 @@ import { Send, Loader2, CheckCircle, AlertCircle, Bot, X, Maximize2, Minimize2 }
 import { GanttChart } from '@/components/dashboard/GanttChart';
 import ReactMarkdown from 'react-markdown';
 
-interface TimeEntryExtraction {
-    issue_id: number | null;
-    project_name: string | null;
-    hours: number;
-    activity_name: string;
-    comments: string;
-    confidence_score: number;
-}
+
 
 interface ChatResponse {
     type: 'time_entry' | 'analysis' | 'chat';
@@ -19,7 +12,7 @@ interface ChatResponse {
     intent_filter?: any;
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 export function ChatBox() {
     const [isOpen, setIsOpen] = useState(false);
@@ -48,40 +41,33 @@ export function ChatBox() {
         setSuccessMsg('');
 
         try {
-            const openaiKey = localStorage.getItem('openai_api_key');
-            const redmineKey = localStorage.getItem('redmine_api_key');
+            const settingsRes = await api.get<any>('/settings');
 
-            if (!openaiKey) throw new Error('OpenAI Key missing');
-            if (!redmineKey) throw new Error('Redmine Key missing');
-
-            const settingsRes = await fetch(`${API_BASE}/settings`);
-            const settingsData = await settingsRes.json();
-
-            const res = await fetch(`${API_BASE}/chat/message`, {
-                method: 'POST',
+            const res = await api.post<ChatResponse>('/chat/message', {
+                message: input,
+                context: {
+                    // TODO: Add screen context or selected task context here
+                    current_view: "dashboard"
+                }
+            }, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-OpenAI-Key': openaiKey,
-                    'X-OpenAI-URL': settingsData.openai_url || 'https://api.openai.com/v1',
-                    'X-OpenAI-Model': settingsData.openai_model || 'gpt-4o-mini',
-                    'X-Redmine-Url': settingsData.redmine_url,
-                    'X-Redmine-Key': redmineKey
-                },
-                body: JSON.stringify({ message: input })
+                    'X-OpenAI-Key': settingsRes.openai_key,
+                    'X-OpenAI-URL': settingsRes.openai_url,
+                    'X-OpenAI-Model': settingsRes.openai_model,
+                    'X-Redmine-Url': settingsRes.redmine_url,
+                    'X-Redmine-Key': settingsRes.redmine_token
+                }
             });
 
-            if (!res.ok) throw new Error('Failed to send message');
-
-            const data: ChatResponse = await res.json();
-            setChatState(data);
+            setChatState(res.data);
 
             // Auto-expand for analysis
-            if (data.type === 'analysis') {
+            if (res.data.type === 'analysis') {
                 setIsExpanded(true);
             }
             setInput('');
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to send message');
         } finally {
             setIsLoading(false);
         }
@@ -91,30 +77,24 @@ export function ChatBox() {
         if (!chatState || chatState.type !== 'time_entry' || !chatState.data?.issue_id) return;
         setIsLoading(true);
         try {
-            const redmineKey = localStorage.getItem('redmine_api_key');
-            const settingsRes = await fetch(`${API_BASE}/settings`);
-            const settingsData = await settingsRes.json();
+            const settingsRes = await api.get<any>('/settings');
 
-            const res = await fetch(`${API_BASE}/chat/submit-time-entry`, {
-                method: 'POST',
+            await api.post('/chat/submit-time-entry', {
+                issue_id: chatState.data.issue_id,
+                hours: chatState.data.hours,
+                comments: chatState.data.comments,
+                activity_id: 9
+            }, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-Redmine-Url': settingsData.redmine_url,
-                    'X-Redmine-Key': redmineKey || ''
-                },
-                body: JSON.stringify({
-                    issue_id: chatState.data.issue_id,
-                    hours: chatState.data.hours,
-                    comments: chatState.data.comments,
-                    activity_id: 9
-                })
+                    'X-Redmine-Url': settingsRes.redmine_url,
+                    'X-Redmine-Key': settingsRes.redmine_token
+                }
             });
 
-            if (!res.ok) throw new Error('Submission failed');
             setSuccessMsg('Logged successfully!');
             setChatState(null);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Submission failed');
         } finally {
             setIsLoading(false);
         }

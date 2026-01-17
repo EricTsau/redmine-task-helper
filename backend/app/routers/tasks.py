@@ -17,7 +17,7 @@ class TaskResponse(BaseModel):
     status_name: str
     updated_on: str
 
-@router.get("/", response_model=List[TaskResponse])
+@router.get("", response_model=List[TaskResponse])
 async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
     """List issues assigned to the current user."""
     issues = service.get_my_tasks()

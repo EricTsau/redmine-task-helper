@@ -13,38 +13,29 @@ interface WatchlistItem {
     project_name: string;
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 export function WatchlistSettings() {
-    const [projects, setProjects] = useState<Project[]>([]);
+    const [allProjects, setAllProjects] = useState<Project[]>([]); // Renamed from 'projects'
     const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [addingId, setAddingId] = useState<number | null>(null);
+    const [addingId, setAddingId] = useState<number | null>(null); // Kept for the button loading state
 
     const fetchData = async () => {
         setLoading(true);
         try {
             // Fetch Watchlist
-            const wRes = await fetch(`${API_BASE}/watchlist`);
-            if (wRes.ok) setWatchlist(await wRes.json());
+            const wRes = await api.get<WatchlistItem[]>('/watchlist');
+            setWatchlist(wRes);
 
             // Fetch Redmine Projects
-            const redmineKey = localStorage.getItem('redmine_api_key');
-
-            // Get URL from backend settings (public)
-            const settingsRes = await fetch(`${API_BASE}/settings`);
-            const settingsData = await settingsRes.json();
-            const redmineUrl = settingsData.redmine_url;
-
-            if (redmineKey && redmineUrl) {
-                const pRes = await fetch(`${API_BASE}/projects`, {
-                    headers: {
-                        'X-Redmine-Key': redmineKey,
-                        'X-Redmine-Url': redmineUrl
-                    }
+            const settingsRes = await api.get<any>('/settings');
+            if (settingsRes.redmine_token) {
+                const pRes = await api.get<any>('/projects', {}, {
+                    headers: { 'X-Redmine-API-Key': settingsRes.redmine_token }
                 });
-                if (pRes.ok) setProjects(await pRes.json());
+                setAllProjects(pRes.projects || []);
             }
         } catch (e) {
             console.error("Failed to fetch data", e);
@@ -60,18 +51,11 @@ export function WatchlistSettings() {
     const addToWatchlist = async (project: Project) => {
         setAddingId(project.id);
         try {
-            const res = await fetch(`${API_BASE}/watchlist`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    redmine_project_id: project.id,
-                    project_name: project.name
-                })
+            const res = await api.post<WatchlistItem>('/watchlist', {
+                redmine_project_id: project.id,
+                project_name: project.name
             });
-            if (res.ok) {
-                const newItem = await res.json();
-                setWatchlist(prev => [...prev, newItem]);
-            }
+            setWatchlist(prev => [...prev, res]);
         } catch (e) {
             console.error("Add failed", e);
         } finally {
@@ -81,12 +65,8 @@ export function WatchlistSettings() {
 
     const removeFromWatchlist = async (redmine_id: number) => {
         try {
-            const res = await fetch(`${API_BASE}/watchlist/${redmine_id}`, {
-                method: 'DELETE'
-            });
-            if (res.ok) {
-                setWatchlist(prev => prev.filter(item => item.redmine_project_id !== redmine_id));
-            }
+            await api.delete(`/watchlist/${redmine_id}`);
+            setWatchlist(prev => prev.filter(item => item.redmine_project_id !== redmine_id));
         } catch (e) {
             console.error("Delete failed", e);
         }
@@ -94,7 +74,7 @@ export function WatchlistSettings() {
 
     // Filter projects: exclude already watched
     const watchedIds = new Set(watchlist.map(w => w.redmine_project_id));
-    const availableProjects = projects
+    const availableProjects = allProjects // Use allProjects here
         .filter(p => !watchedIds.has(p.id))
         .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
 

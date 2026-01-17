@@ -148,3 +148,26 @@ def unified_chat(
             }
         except Exception as e:
             return {"type": "chat", "summary": f"Error: {str(e)}"}
+@router.post("/test-connection")
+def test_connection(
+    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
+    x_openai_url: Optional[str] = Header("https://api.openai.com/v1", alias="X-OpenAI-URL"),
+    x_openai_model: Optional[str] = Header("gpt-4o-mini", alias="X-OpenAI-Model")
+):
+    """
+    Test OpenAI connection using headers.
+    """
+    if not x_openai_key:
+        raise HTTPException(status_code=401, detail="Missing X-OpenAI-Key header")
+    
+    try:
+        service = OpenAIService(api_key=x_openai_key, base_url=x_openai_url, model=x_openai_model)
+        # Simple test
+        service.client.chat.completions.create(
+            model=service.model,
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5
+        )
+        return {"status": "success", "message": "Connection successful"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection failed: {str(e)}")

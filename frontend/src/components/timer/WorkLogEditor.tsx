@@ -1,4 +1,5 @@
-import { useState, useRef, ClipboardEvent } from 'react';
+import { useState, type ClipboardEvent } from 'react';
+import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import { Bot, Image as ImageIcon, Eye, Edit2 } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export function WorkLogEditor({ initialContent = '', onUpdate }: WorkLogEditorPr
     const [content, setContent] = useState(initialContent);
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
     const [isUploading, setIsUploading] = useState(false);
+
 
     const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
         const items = e.clipboardData.items;
@@ -26,7 +28,7 @@ export function WorkLogEditor({ initialContent = '', onUpdate }: WorkLogEditorPr
                 reader.onload = (event) => {
                     const base64 = event.target?.result as string;
                     // Markdown image syntax
-                    const imageMarkdown = `\n![Pasted Image](${base64})\n`;
+                    const imageMarkdown = `\n![Pasted Image](${base64}) \n`;
                     const newContent = content + imageMarkdown;
                     setContent(newContent);
                     onUpdate(newContent);
@@ -40,24 +42,20 @@ export function WorkLogEditor({ initialContent = '', onUpdate }: WorkLogEditorPr
 
     const handleAiFix = async () => {
         if (!content) return;
-        setIsUploading(true); // Reuse loading state or add new one
+
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/v1/timer/log/refine', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content })
+            // Assuming sessionData is available in scope or passed as prop
+            const sessionData = {}; // Placeholder for sessionData
+            const res = await api.post<any>('/timer/log/refine', {
+                content: content,
+                session_data: sessionData
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.content) {
-                    setContent(data.content);
-                    onUpdate(data.content);
-                }
-            }
+            setContent(res.refined_content);
+            onUpdate(res.refined_content); // Ensure onUpdate is called with new content
         } catch (e) {
-            console.error("AI Fix failed", e);
+            console.error(e);
         } finally {
-            setIsUploading(false);
+
         }
     };
 
@@ -72,14 +70,14 @@ export function WorkLogEditor({ initialContent = '', onUpdate }: WorkLogEditorPr
                 <div className="flex gap-1">
                     <button
                         onClick={() => setMode('edit')}
-                        className={`p-1.5 rounded transition-colors ${mode === 'edit' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:bg-background/50'}`}
+                        className={`p - 1.5 rounded transition - colors ${mode === 'edit' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:bg-background/50'} `}
                         title="Edit"
                     >
                         <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => setMode('preview')}
-                        className={`p-1.5 rounded transition-colors ${mode === 'preview' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:bg-background/50'}`}
+                        className={`p - 1.5 rounded transition - colors ${mode === 'preview' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:bg-background/50'} `}
                         title="Preview"
                     >
                         <Eye className="w-4 h-4" />

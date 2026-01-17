@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { WatchlistSettings } from '@/components/dashboard/WatchlistSettings';
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1';
+import { api } from '@/lib/api';
 
 interface SettingsData {
     redmine_url: string;
@@ -25,8 +25,8 @@ export function Settings() {
 
     useEffect(() => {
         // Load public settings from backend
-        fetch(`${API_BASE}/settings`)
-            .then(res => res.json())
+        // Load public settings from backend
+        api.get<SettingsData>('/settings')
             .then(data => {
                 if (data) {
                     setSettings(prev => ({
@@ -64,17 +64,9 @@ export function Settings() {
                 openai_model: settings.openai_model
             };
 
-            const res = await fetch(`${API_BASE}/settings`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(backendSettings),
-            });
-            if (res.ok) {
-                setStatus('✓ Saved (Keys locally)');
-                setTimeout(() => setStatus(''), 2000);
-            } else {
-                setStatus('Failed to save backend settings');
-            }
+            await api.put('/settings', backendSettings);
+            setStatus('✓ Saved (Keys locally)');
+            setTimeout(() => setStatus(''), 2000);
         } catch {
             setStatus('Error saving');
         }
@@ -83,46 +75,29 @@ export function Settings() {
     const testConnection = async () => {
         setTestStatus('Testing...');
         try {
-            const res = await fetch(`${API_BASE}/auth/connect`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: settings.redmine_url,
-                    api_key: settings.redmine_token === '******' ? '' : settings.redmine_token
-                }),
+            const data = await api.post<{ user: { firstname: string } }>('/auth/connect', {
+                url: settings.redmine_url,
+                api_key: settings.redmine_token === '******' ? '' : settings.redmine_token
             });
-            if (res.ok) {
-                const data = await res.json();
-                setTestStatus(`✓ Connected as ${data.user.firstname}`);
-            } else {
-                setTestStatus('✗ Connection failed');
-            }
-        } catch {
-            setTestStatus('✗ Error');
+            setTestStatus(`✓ Connected as ${data.user.firstname}`);
+        } catch (e) {
+            setTestStatus('✗ Connection failed');
         }
     };
 
     const testOpenAI = async () => {
         setOpenaiTestStatus('Testing...');
         try {
-            const res = await fetch(`${API_BASE}/chat/test-connection`, {
-                method: 'POST',
+            await api.post('/chat/test-connection', {}, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'X-OpenAI-Key': settings.openai_key,
                     'X-OpenAI-URL': settings.openai_url,
                     'X-OpenAI-Model': settings.openai_model
                 }
             });
-
-            if (res.ok) {
-                setOpenaiTestStatus(`✓ Connected (${settings.openai_model})`);
-            } else {
-                const err = await res.json();
-                setOpenaiTestStatus(`✗ ${err.detail}`);
-            }
-        } catch {
-            setOpenaiTestStatus('✗ Error');
+            setOpenaiTestStatus(`✓ Connected (${settings.openai_model})`);
+        } catch (e: any) {
+            setOpenaiTestStatus(`✗ ${e.message}`);
         }
     };
 
