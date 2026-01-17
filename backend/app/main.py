@@ -46,6 +46,8 @@ from app.routers import watchlist
 app.include_router(watchlist.router, prefix="/api/v1/watchlist", tags=["watchlist"])
 from app.routers import analysis
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"])
+from app.routers import issues
+app.include_router(issues.router, prefix="/api/v1/issues", tags=["issues"])
 
 @app.get("/")
 async def root():

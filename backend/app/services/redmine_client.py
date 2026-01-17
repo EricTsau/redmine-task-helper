@@ -16,6 +16,40 @@ class RedmineService:
             # TODO: Log error
             raise e
 
+    def get_issue_with_journals(self, issue_id: int) -> Dict[str, Any]:
+        """
+        Fetch issue details including description and journals (history notes).
+        
+        Returns:
+            Dict with id, subject, description, and journals list
+        """
+        try:
+            issue = self.redmine.issue.get(issue_id, include=['journals'])
+            
+            journals = []
+            for j in getattr(issue, 'journals', []):
+                # Only include journals that have notes (not just status changes)
+                notes = getattr(j, 'notes', '')
+                if notes and notes.strip():
+                    journals.append({
+                        'id': j.id,
+                        'notes': notes,
+                        'created_on': str(getattr(j, 'created_on', '')),
+                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
+                    })
+            
+            return {
+                'id': issue.id,
+                'subject': getattr(issue, 'subject', ''),
+                'description': getattr(issue, 'description', '') or '',
+                'journals': journals
+            }
+        except ResourceNotFoundError:
+            return None
+        except Exception as e:
+            print(f"Error fetching issue {issue_id} with journals: {e}")
+            return None
+
     def get_my_tasks(self, limit: int = 50) -> List[Any]:
         """Fetches issues assigned to the current user."""
         try:
