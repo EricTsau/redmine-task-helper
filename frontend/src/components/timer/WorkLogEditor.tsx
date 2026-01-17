@@ -1,20 +1,81 @@
-import { useState, useRef, useEffect, type ClipboardEvent } from 'react';
+import { useState, useRef, useEffect, type ClipboardEvent, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
-import { Image as ImageIcon, Eye, Edit2, Send, Sparkles, Wand2, X } from 'lucide-react';
+import { Image as ImageIcon, Eye, Edit2, Send, Sparkles, Wand2, X, Paperclip, Trash2, FileIcon } from 'lucide-react';
+import { useFileAttachments, formatFileSize, markdownToTextile, type PendingFile } from '@/hooks/useFileAttachments';
 
 interface WorkLogEditorProps {
     initialContent?: string;
+    issueId?: number;
     onUpdate: (content: string) => void;
     onSubmit?: (content: string) => void;
+    onSubmitWithFiles?: (content: string, files: PendingFile[], uploads: UploadToken[]) => Promise<void>;
 }
 
-export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkLogEditorProps) {
+interface UploadToken {
+    filename: string;
+    token: string;
+    content_type: string;
+}
+
+export function WorkLogEditor({
+    initialContent = '',
+    issueId,
+    onUpdate,
+    onSubmit,
+    onSubmitWithFiles
+}: WorkLogEditorProps) {
     const [content, setContent] = useState(initialContent);
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
-    const [isUploading, setIsUploading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Image compression helper
+    const compressImage = (file: File, maxWidth = 1920, quality = 0.8): Promise<File> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxWidth) {
+                        height = (maxWidth / width) * height;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                                type: 'image/jpeg',
+                                lastModified: Date.now(),
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            reject(new Error('Canvas to Blob failed'));
+                        }
+                    }, 'image/jpeg', quality);
+                };
+            };
+            reader.onerror = (e) => reject(e);
+        });
+    };
+
+
+    // File attachments
+    const { pendingFiles, addFile, removeFile, clearFiles, getFileById } = useFileAttachments();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Initial content sync
     useEffect(() => {
@@ -26,42 +87,128 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [selection, setSelection] = useState({ start: 0, end: 0, text: '' });
     const [showFloatingWidget, setShowFloatingWidget] = useState(false);
-    // const [floatingPos, setFloatingPos] = useState({ top: 0, left: 0 }); // Future implementation
     const [aiInstruction, setAiInstruction] = useState('');
     const [aiResult, setAiResult] = useState('');
     const [isAiProcessing, setIsAiProcessing] = useState(false);
 
     const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+        setError(null);
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
                 e.preventDefault();
-                setIsUploading(true);
-                const blob = items[i].getAsFile();
+                let file = items[i].getAsFile();
+                if (!file) continue;
 
-                // TODO: Upload to backend
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const base64 = event.target?.result as string;
-                    const imageMarkdown = `\n![Pasted Image](${base64}) \n`;
-                    const newContent = content + imageMarkdown;
+                // Compress if it's too large or just always compress for web to be safe
+                if (file.size > 5 * 1024 * 1024) { // > 5MB
+                    try {
+                        file = await compressImage(file);
+                    } catch (err) {
+                        console.error("Compression failed", err);
+                    }
+                }
+
+                // Add to pending files
+                const fileId = addFile(file);
+
+
+                // Insert placeholder in content
+                const placeholder = `![{{${fileId}}}](pending)`;
+                const textarea = textareaRef.current;
+                if (textarea) {
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const newContent = content.substring(0, start) + placeholder + content.substring(end);
                     setContent(newContent);
-                    setHasUnsavedChanges(true); // Mark as unsaved
-                    setIsUploading(false);
-                    // Also invoke local update if needed, but we wanted to stop auto-save.
-                };
-                reader.readAsDataURL(blob!);
+                    setHasUnsavedChanges(true);
+
+                    // Move cursor after placeholder
+                    setTimeout(() => {
+                        textarea.selectionStart = textarea.selectionEnd = start + placeholder.length;
+                    }, 0);
+                } else {
+                    setContent(prev => prev + '\n' + placeholder);
+                    setHasUnsavedChanges(true);
+                }
                 return;
             }
         }
     };
 
-    // We keep handleSave as alternative manual save or just sync
+    const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+        setError(null);
+        const files = e.target.files;
+        if (!files) return;
+
+        for (const file of Array.from(files)) {
+            if (!file.type.startsWith('image/')) continue;
+
+            let finalFile = file;
+            if (file.size > 5 * 1024 * 1024) { // > 5MB
+                try {
+                    finalFile = await compressImage(file);
+                } catch (err) {
+                    console.error("Compression failed", err);
+                }
+            }
+
+            const fileId = addFile(finalFile);
+            const placeholder = `![{{${fileId}}}](pending)`;
+            setContent(prev => prev + '\n' + placeholder);
+            setHasUnsavedChanges(true);
+        }
+
+        // Reset input
+        if (imageInputRef.current) {
+            imageInputRef.current.value = '';
+        }
+    };
+
+    const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+        setError(null);
+        const files = e.target.files;
+        if (!files) return;
+
+        Array.from(files).forEach(file => {
+            // Check for size limit (5MB as per Redmine error)
+            if (file.size > 40 * 1024 * 1024) {
+                setError(`檔案 ${file.name} 超過 40MB 限制，無法上傳。`);
+                return;
+            }
+
+            const fileId = addFile(file);
+            // Use different placeholder for non-image files
+            const placeholder = file.type.startsWith('image/')
+                ? `![{{${fileId}}}](pending)`
+                : `[{{${fileId}}}](attachment)`;
+            setContent(prev => prev + '\n' + placeholder);
+            setHasUnsavedChanges(true);
+        });
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+
+    const handleRemoveFile = (fileId: string) => {
+        removeFile(fileId);
+        // Also remove placeholder from content
+        setContent(prev => {
+            let updated = prev.replace(new RegExp(`!\\[\\{\\{${fileId}\\}\\}\\]\\(pending\\)\\n?`, 'g'), '');
+            updated = updated.replace(new RegExp(`\\[\\{\\{${fileId}\\}\\}\\]\\(attachment\\)\\n?`, 'g'), '');
+            return updated;
+        });
+        setHasUnsavedChanges(true);
+    };
+
     const handleSave = async () => {
         if (!hasUnsavedChanges) return;
-        setIsSubmitting(true); // Re-use submitting state spinner
+        setIsSubmitting(true);
         try {
-            await onUpdate(content); // Call parent update which calls API
+            await onUpdate(content);
             setHasUnsavedChanges(false);
         } finally {
             setIsSubmitting(false);
@@ -69,29 +216,68 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
     };
 
     const handleSubmit = async () => {
-        if (!onSubmit) {
-            // If no submit handler, fallback to save
+        if (!onSubmit && !onSubmitWithFiles) {
             await handleSave();
             return;
         }
+
+        setError(null);
         setIsSubmitting(true);
         try {
-            // First ensure we save draft
-            await onUpdate(content);
-            // Then submit
-            await onSubmit(content);
+            // If we have pending files, upload them first
+            if (pendingFiles.length > 0 && onSubmitWithFiles) {
+                // Upload files to Redmine
+                const formData = new FormData();
+                pendingFiles.forEach(pf => {
+                    formData.append('files', pf.file);
+                });
+
+                // Use ApiClient.post which now supports FormData
+                let uploadData;
+                try {
+                    uploadData = await api.post<any>('/upload/batch', formData);
+                } catch (err: any) {
+                    throw new Error(err.message || '上傳檔案失敗，可能是檔案太大或網路問題。');
+                }
+
+                const uploads: UploadToken[] = uploadData.uploads;
+
+                // Build file ID to filename mapping
+                const fileMapping = new Map<string, string>();
+                pendingFiles.forEach((pf, index) => {
+                    if (uploads[index]) {
+                        fileMapping.set(pf.id, uploads[index].filename);
+                    }
+                });
+
+                // Convert content to Textile
+                const textileContent = markdownToTextile(content, fileMapping);
+
+                // Submit with files
+                await onSubmitWithFiles(textileContent, pendingFiles, uploads);
+                clearFiles();
+            } else if (onSubmit) {
+                // No files, just submit content
+                // Still convert to Textile for consistency
+                const textileContent = markdownToTextile(content, new Map());
+                await onSubmit(textileContent);
+            }
+
             setHasUnsavedChanges(false);
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || '送出失敗');
         } finally {
             setIsSubmitting(false);
         }
     };
 
+
     const handleGenerateLog = async () => {
         setIsAiProcessing(true);
         try {
-            // Basic context - enhancement could be passing more props
             const res = await api.post<any>('/timer/log/generate', {
-                issue_id: 0, // Should come from props if available generally
+                issue_id: issueId || 0,
                 issue_subject: "Task",
             });
 
@@ -113,22 +299,10 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
         if (textarea.selectionStart !== textarea.selectionEnd) {
             const text = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
             if (text.trim().length > 0) {
-                // Calculate position - rough approximation relative to textarea
-                // For a real floating widget, we might need a more complex library or measurement 
-                // But simply putting it near the top of the textarea or fixed is a start.
-                // Let's try to position it relative to the container for now.
-
-                // Better UX: Show it fixed above the textarea or use a portal. 
-                // For MVP, lets show it "at the top of the selection" logic implies tracking caret coordinates which is hard in textarea.
-                // We will verify "floating window" roughly by centering it or placing it near cursor if possible.
-                // Simpler: Show it as a overlay "Context Menu" style near the mouse or just fixed absolute.
-
                 setSelection({ start: textarea.selectionStart, end: textarea.selectionEnd, text });
                 setShowFloatingWidget(true);
-                // We rely on CSS absolute positioning for the widget, maybe centered horizontally?
             }
         } else {
-            // Dismiss if no selection
             setShowFloatingWidget(false);
         }
     };
@@ -171,6 +345,27 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
         setHasUnsavedChanges(true);
     };
 
+    // Custom image renderer for preview mode
+    const renderImage = ({ src, alt }: { src?: string; alt?: string }) => {
+        // Check if this is a pending file placeholder
+        const pendingMatch = alt?.match(/\{\{([^}]+)\}\}/);
+        if (pendingMatch && src === 'pending') {
+            const fileId = pendingMatch[1];
+            const pendingFile = getFileById(fileId);
+            if (pendingFile?.previewUrl) {
+                return (
+                    <img
+                        src={pendingFile.previewUrl}
+                        alt={pendingFile.file.name}
+                        className="max-w-full h-auto rounded border"
+                    />
+                );
+            }
+            return <span className="text-muted-foreground">[圖片載入中...]</span>;
+        }
+        return <img src={src} alt={alt} className="max-w-full h-auto rounded" />;
+    };
+
     return (
         <div className="flex flex-col h-full border rounded-md overflow-hidden bg-card relative">
             {/* Toolbar */}
@@ -202,10 +397,40 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
                         <span>Generate</span>
                     </button>
 
-                    <button className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded hover:bg-background/50">
+                    {/* Image button */}
+                    <button
+                        onClick={() => imageInputRef.current?.click()}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded hover:bg-background/50"
+                        title="添加圖片"
+                    >
                         <ImageIcon className="w-3 h-3" />
                         <span>Image</span>
                     </button>
+                    <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                    />
+
+                    {/* Attach file button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground rounded hover:bg-background/50"
+                        title="附加檔案"
+                    >
+                        <Paperclip className="w-3 h-3" />
+                        <span>Attach</span>
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
 
                     <button
                         onClick={handleSubmit}
@@ -222,6 +447,16 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
                 </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="bg-destructive/15 text-destructive px-3 py-2 text-xs flex justify-between items-center border-b">
+                    <span>{error}</span>
+                    <button onClick={() => setError(null)}>
+                        <X className="w-3 h-3" />
+                    </button>
+                </div>
+            )}
+
             {/* Editor Area */}
             <div className="flex-1 relative min-h-[150px]">
                 {mode === 'edit' ? (
@@ -233,7 +468,7 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
                             onPaste={handlePaste}
                             onSelect={handleSelect}
                             className="w-full h-full p-3 resize-none focus:outline-none bg-background text-foreground font-mono text-sm"
-                            placeholder="Type work log here... (Select text for AI edits)"
+                            placeholder="Type work log here... (Ctrl+V to paste images)"
                         />
 
                         {/* Floating AI Widget */}
@@ -293,16 +528,59 @@ export function WorkLogEditor({ initialContent = '', onUpdate, onSubmit }: WorkL
                     </div>
                 ) : (
                     <div className="w-full h-full p-3 overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown>{content}</ReactMarkdown>
-                    </div>
-                )}
-
-                {isUploading && (
-                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
-                        <span className="text-sm font-medium">Processing Image...</span>
+                        <ReactMarkdown
+                            components={{
+                                img: renderImage
+                            }}
+                        >
+                            {content}
+                        </ReactMarkdown>
                     </div>
                 )}
             </div>
+
+            {/* Pending Files List */}
+            {pendingFiles.length > 0 && (
+                <div className="border-t p-3 bg-muted/30">
+                    <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                        <Paperclip className="w-3 h-3" />
+                        <span>待上傳檔案 ({pendingFiles.length})</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {pendingFiles.map(pf => (
+                            <div
+                                key={pf.id}
+                                className="flex items-center gap-2 px-2 py-1 bg-background border rounded text-xs group"
+                            >
+                                {pf.type === 'image' && pf.previewUrl ? (
+                                    <img
+                                        src={pf.previewUrl}
+                                        alt={pf.file.name}
+                                        className="w-8 h-8 object-cover rounded"
+                                    />
+                                ) : (
+                                    <FileIcon className="w-4 h-4 text-muted-foreground" />
+                                )}
+                                <div className="flex flex-col">
+                                    <span className="font-medium truncate max-w-[100px]" title={pf.file.name}>
+                                        {pf.file.name}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        {formatFileSize(pf.file.size)}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => handleRemoveFile(pf.id)}
+                                    className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="移除"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

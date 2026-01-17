@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 
 export interface TimeEntry {
@@ -8,13 +7,28 @@ export interface TimeEntry {
     start_time: string;
     duration: number;
     status: 'running' | 'paused' | 'stopped';
-    is_running: boolean; // Computed or from backend
+    is_running: boolean;
     content?: string;
 }
 
-export function useTimer() {
+interface TimerContextType {
+    timer: TimeEntry | null;
+    elapsed: number;
+    startTimer: (issueId: number, comment?: string) => Promise<void>;
+    pauseTimer: () => Promise<void>;
+    stopTimer: (comment?: string) => Promise<void>;
+    updateLog: (content: string) => Promise<void>;
+    submitEntry: (sessionId?: number, comments?: string) => Promise<void>;
+    refresh: () => Promise<void>;
+    isLoading: boolean;
+}
+
+const TimerContext = createContext<TimerContextType | undefined>(undefined);
+
+export function TimerProvider({ children }: { children: ReactNode }) {
     const [timer, setTimer] = useState<TimeEntry | null>(null);
     const [elapsed, setElapsed] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
 
     const fetchTimer = useCallback(async () => {
         try {
@@ -29,26 +43,32 @@ export function useTimer() {
             console.error("Failed to fetch timer", e);
             setTimer(null);
             setElapsed(0);
+        } finally {
+            setIsLoading(false);
         }
     }, []);
 
     const startTimer = async (issueId: number, comment?: string) => {
         try {
+            // Check if there is already a timer running. 
+            // In the future, we can add the auto-submit logic here.
             await api.post('/timer/start', { issue_id: issueId, comment });
-            fetchTimer();
+            await fetchTimer();
         } catch (error) {
             console.error('Failed to start timer:', error);
+            throw error;
         }
     };
 
     const pauseTimer = async () => {
         try {
             await api.post('/timer/pause');
-            fetchTimer();
+            await fetchTimer();
         } catch (error) {
             console.error('Failed to pause timer:', error);
+            throw error;
         }
-    }
+    };
 
     const stopTimer = async (comment?: string) => {
         try {
@@ -57,12 +77,11 @@ export function useTimer() {
             setElapsed(0);
         } catch (error: any) {
             if (error.response && error.response.status === 404) {
-                // If timer was not found (e.g., already stopped or never started),
-                // we can consider it stopped from the client's perspective.
                 setTimer(null);
                 setElapsed(0);
             } else {
                 console.error('Failed to stop timer:', error);
+                throw error;
             }
         }
     };
@@ -70,12 +89,11 @@ export function useTimer() {
     const updateLog = async (content: string) => {
         try {
             await api.post('/timer/log/update', { content });
-            // Optimistic update
             if (timer) setTimer({ ...timer, content });
         } catch (e) {
             console.error("Failed to update draft", e);
         }
-    }
+    };
 
     const submitEntry = async (sessionId?: number, comments?: string) => {
         try {
@@ -83,32 +101,22 @@ export function useTimer() {
                 session_id: sessionId,
                 comments: comments
             });
-            // After submit, we probably want to clear local timer state if it matches
             if (timer && (!sessionId || timer.id === sessionId)) {
                 setTimer(null);
                 setElapsed(0);
             }
         } catch (error) {
             console.error('Failed to submit entry:', error);
-            throw error; // Re-throw to allow component to handle UI feedback
+            throw error;
         }
     };
 
-    // Initial fetch - runs once on mount
     useEffect(() => {
         fetchTimer();
     }, [fetchTimer]);
 
-    // Elapsed time interval
     useEffect(() => {
         if (!timer || timer.status !== 'running') return;
-
-        // We rely on backend 'duration' as the base, and add seconds since 'now' ?
-        // Actually, backend calculates duration = stored + (now - last_span_start).
-        // But the 'duration' in 'timer' state is static from the time of fetch.
-        // We need to know WHEN the 'fetch' happened or calculate local diff.
-        // For simplicity: We can just Increment 'elapsed' every second if running.
-        // Periodic sync (fetchTimer) corrects drift.
 
         const interval = setInterval(() => {
             setElapsed(e => e + 1);
@@ -117,5 +125,27 @@ export function useTimer() {
         return () => clearInterval(interval);
     }, [timer?.status]);
 
-    return { timer, elapsed, startTimer, pauseTimer, stopTimer, updateLog, submitEntry, refresh: fetchTimer };
+    return (
+        <TimerContext.Provider value={{
+            timer,
+            elapsed,
+            startTimer,
+            pauseTimer,
+            stopTimer,
+            updateLog,
+            submitEntry,
+            refresh: fetchTimer,
+            isLoading
+        }}>
+            {children}
+        </TimerContext.Provider>
+    );
+}
+
+export function useTimer() {
+    const context = useContext(TimerContext);
+    if (context === undefined) {
+        throw new Error('useTimer must be used within a TimerProvider');
+    }
+    return context;
 }

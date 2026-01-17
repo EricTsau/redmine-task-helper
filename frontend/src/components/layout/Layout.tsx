@@ -1,4 +1,5 @@
 import { Sidebar } from "./Sidebar";
+import { FloatingTimer } from "../timer/FloatingTimer";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -13,6 +14,7 @@ export function Layout({ children }: LayoutProps) {
                     {children}
                 </div>
             </main>
+            <FloatingTimer />
         </div>
     );
 }

@@ -1,13 +1,44 @@
 import { Home, Clock, Settings, LayoutDashboard } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-export function Sidebar() {
+interface SidebarProps {
+    compact?: boolean;
+}
+
+export function Sidebar({ compact = false }: SidebarProps) {
     const location = useLocation();
     const navItems = [
         { icon: LayoutDashboard, label: "Dashboard", href: "/" },
         { icon: Clock, label: "Time Log", href: "/time-log" },
         { icon: Settings, label: "Settings", href: "/settings" },
     ];
+
+    if (compact) {
+        return (
+            <aside className="hidden md:flex flex-col w-16 bg-muted/40 border-r flex-shrink-0">
+                <div className="flex items-center justify-center h-14 border-b">
+                    <Link to="/" className="p-2 rounded-lg hover:bg-muted transition-colors" title="Redmine Flow">
+                        <Home className="h-6 w-6" />
+                    </Link>
+                </div>
+                <nav className="flex-1 flex flex-col items-center gap-2 py-4">
+                    {navItems.map((item) => (
+                        <Link
+                            key={item.href}
+                            to={item.href}
+                            className={`p-3 rounded-lg transition-colors ${location.pathname === item.href
+                                    ? "bg-muted text-primary"
+                                    : "text-muted-foreground hover:text-primary hover:bg-muted"
+                                }`}
+                            title={item.label}
+                        >
+                            <item.icon className="h-5 w-5" />
+                        </Link>
+                    ))}
+                </nav>
+            </aside>
+        );
+    }
 
     return (
         <aside className="hidden border-r bg-muted/40 md:block w-64 flex-shrink-0">

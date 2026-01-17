@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useTimer } from '@/hooks/useTimer';
-import { FocusMode } from '@/components/dashboard/FocusMode';
+import { useTimer } from '@/contexts/TimerContext';
+import { useNavigate } from 'react-router-dom';
 import { TaskListView } from '@/components/dashboard/TaskListView';
 import { WatchlistStats } from '@/components/dashboard/WatchlistStats';
 import { TaskGroupView, TaskImportModal } from '@/components/tracking';
@@ -14,8 +14,10 @@ type SetupStatus = 'loading' | 'not_configured' | 'connection_error' | 'ready';
 type ViewTab = 'my-tasks' | 'tracked';
 
 export function Dashboard() {
-    const { timer, startTimer, stopTimer } = useTimer();
+    const { timer, startTimer, submitEntry } = useTimer();
+    const navigate = useNavigate();
     const [setupStatus, setSetupStatus] = useState<SetupStatus>('loading');
+
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [activeTab, setActiveTab] = useState<ViewTab>('my-tasks');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -107,10 +109,21 @@ export function Dashboard() {
         );
     }
 
-    // Ready - show normal dashboard
-    if (timer && timer.is_running) {
-        return <FocusMode timer={timer} stopTimer={() => stopTimer()} />;
-    }
+    const handleStartTimer = async (issueId: number) => {
+        if (timer && timer.issue_id !== issueId && timer.status !== 'stopped') {
+            const confirm = window.confirm(`目前已有正在進行的任務 #${timer.issue_id}，開始新任務將自動結算當前任務。確定繼續？`);
+            if (!confirm) return;
+
+            try {
+                await submitEntry(timer.id, "Auto-submitted when switching tasks");
+            } catch (e) {
+                console.error("Failed to auto-submit previous task", e);
+            }
+        }
+
+        await startTimer(issueId);
+        navigate('/focus');
+    };
 
     return (
         <div className="space-y-4">
@@ -159,11 +172,11 @@ export function Dashboard() {
 
             {/* Content */}
             {activeTab === 'my-tasks' ? (
-                <TaskListView startTimer={startTimer} />
+                <TaskListView startTimer={handleStartTimer} />
             ) : (
                 <TaskGroupView
                     key={refreshKey}
-                    startTimer={startTimer}
+                    startTimer={handleStartTimer}
                     onRefresh={() => setRefreshKey(k => k + 1)}
                 />
             )}

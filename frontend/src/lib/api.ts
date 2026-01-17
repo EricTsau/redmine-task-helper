@@ -81,9 +81,10 @@ class ApiClient {
         return this.request<T>(endpoint, {
             ...options,
             method: 'POST',
-            body: body ? JSON.stringify(body) : undefined
+            body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
         });
     }
+
 
     async put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'body' | 'method'>): Promise<T> {
         return this.request<T>(endpoint, {

@@ -21,7 +21,7 @@ class RedmineService:
         Fetch issue details including description and journals (history notes).
         
         Returns:
-            Dict with id, subject, description, and journals list
+            Dict with id, subject, description, journals, estimated_hours, and spent_hours
         """
         try:
             issue = self.redmine.issue.get(issue_id, include=['journals'])
@@ -42,7 +42,9 @@ class RedmineService:
                 'id': issue.id,
                 'subject': getattr(issue, 'subject', ''),
                 'description': getattr(issue, 'description', '') or '',
-                'journals': journals
+                'journals': journals,
+                'estimated_hours': getattr(issue, 'estimated_hours', None),
+                'spent_hours': getattr(issue, 'spent_hours', None) or getattr(issue, 'total_spent_hours', None)
             }
         except ResourceNotFoundError:
             return None
@@ -180,14 +182,25 @@ class RedmineService:
             comments=comments
         )
 
-    def add_issue_note(self, issue_id: int, notes: str) -> Any:
+    def add_issue_note(self, issue_id: int, notes: str, uploads: List[Dict[str, str]] = None) -> Any:
         """
         Add a note (journal entry) to an existing issue.
         This will appear in the issue's history/comments section.
+        
+        Args:
+            issue_id: The Redmine issue ID
+            notes: The note content (can be Textile formatted)
+            uploads: Optional list of upload tokens, e.g. [{'token': 'xxx', 'filename': 'file.png', 'content_type': 'image/png'}]
         """
         if not notes or not notes.strip():
             return None
-        return self.redmine.issue.update(issue_id, notes=notes)
+        
+        update_params = {'notes': notes}
+        if uploads:
+            update_params['uploads'] = uploads
+        
+        return self.redmine.issue.update(issue_id, **update_params)
+
 
     def get_project_stats(self, project_id: int) -> Dict[str, Any]:
         """

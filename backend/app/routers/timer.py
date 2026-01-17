@@ -255,6 +255,46 @@ def refine_selection(
     
     return {"content": result}
 
+@router.post("/log/save-to-issue")
+def save_note_to_issue(
+    data: dict = Body(...),
+    session: Session = Depends(get_session)
+):
+    """
+    Save a note directly to the Redmine issue's journals without stopping the timer.
+    This allows users to add multiple notes during a work session.
+    Supports file attachments via upload tokens.
+    
+    Body params:
+        issue_id: int - The Redmine issue ID
+        notes: str - The note content (Textile formatted)
+        uploads: list[dict] - Optional list of upload tokens from /upload/batch
+                 Each item: {token: str, filename: str, content_type: str}
+    """
+    issue_id = data.get("issue_id")
+    notes = data.get("notes")
+    uploads = data.get("uploads")  # Optional list of {token, filename, content_type}
+    
+    if not issue_id:
+        raise HTTPException(status_code=400, detail="issue_id required")
+    if not notes or not notes.strip():
+        raise HTTPException(status_code=400, detail="notes required")
+    
+    # Get Redmine settings
+    settings = session.get(AppSettings, 1)
+    if not settings or not settings.redmine_url or not settings.api_key:
+        raise HTTPException(status_code=400, detail="Redmine not configured")
+    
+    from app.services.redmine_client import RedmineService
+    redmine = RedmineService(settings.redmine_url, settings.api_key)
+    
+    try:
+        redmine.add_issue_note(issue_id, notes, uploads=uploads)
+        return {"status": "saved", "issue_id": issue_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save note: {str(e)}")
+
+
 from app.dependencies import get_redmine_service
 from app.services.redmine_client import RedmineService
 
