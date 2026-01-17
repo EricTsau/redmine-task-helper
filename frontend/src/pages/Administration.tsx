@@ -9,8 +9,10 @@ import {
     UserPlus,
     Loader2,
     CheckCircle2,
-    XCircle
+    XCircle,
+    Calendar
 } from 'lucide-react';
+import { HolidayManagement } from '@/components/admin/HolidayManagement';
 
 interface User {
     id: number;
@@ -31,7 +33,7 @@ interface LDAPSettings {
 }
 
 export const Administration: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'users' | 'ldap'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'ldap' | 'holidays'>('users');
     const [users, setUsers] = useState<User[]>([]);
     const [ldapSettings, setLdapSettings] = useState<LDAPSettings>({
         server_url: '',
@@ -69,10 +71,11 @@ export const Administration: React.FC = () => {
             if (activeTab === 'users') {
                 const res = await api.get<User[]>('/admin/users');
                 setUsers(res);
-            } else {
+            } else if (activeTab === 'ldap') {
                 const res = await api.get<LDAPSettings>('/admin/ldap-settings');
                 setLdapSettings(res);
             }
+            // holidays tab 由 HolidayManagement 元件自行管理
         } catch (e) {
             console.error("Failed to fetch admin data", e);
         } finally {
@@ -160,6 +163,13 @@ export const Administration: React.FC = () => {
                             }`}
                     >
                         <Server size={18} /> LDAP
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('holidays')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'holidays' ? 'bg-background shadow-md text-primary scale-105' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                    >
+                        <Calendar size={18} /> 假日
                     </button>
                 </div>
             </div>
@@ -249,7 +259,7 @@ export const Administration: React.FC = () => {
                             </table>
                         </div>
                     </div>
-                ) : (
+                ) : activeTab === 'ldap' ? (
                     <div className="p-10 space-y-10">
                         <div className="space-y-2 border-b pb-6">
                             <h3 className="text-2xl font-bold text-foreground">LDAP Configuration</h3>
@@ -317,7 +327,9 @@ export const Administration: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                )}
+                ) : activeTab === 'holidays' ? (
+                    <HolidayManagement onStatus={setStatus} />
+                ) : null}
             </div>
 
             {/* Modals could be implemented here */}

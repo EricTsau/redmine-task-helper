@@ -145,3 +145,34 @@ class RefreshToken(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     revoked: bool = Field(default=False)
 
+
+# ============ AI PM Copilot Models ============
+
+class Holiday(SQLModel, table=True):
+    """系統假日資料 (全域共用)"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    date: str = Field(index=True, unique=True)  # YYYY-MM-DD 格式
+    name: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class HolidaySettings(SQLModel, table=True):
+    """假日設定 (週末開關等)"""
+    id: int = Field(default=1, primary_key=True)
+    exclude_saturday: bool = Field(default=True)
+    exclude_sunday: bool = Field(default=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PRDConversation(SQLModel, table=True):
+    """AI PRD 對話歷史"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    project_id: int = Field(index=True)
+    project_name: str
+    messages: str = Field(default="[]")  # JSON 格式儲存對話
+    generated_tasks: Optional[str] = None  # JSON 格式儲存生成的任務
+    status: str = Field(default="draft")  # draft, confirmed, synced
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+

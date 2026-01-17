@@ -1,4 +1,4 @@
-import { Home, Settings, LayoutDashboard, Shield, LogOut } from "lucide-react";
+import { Home, Settings, LayoutDashboard, Shield, LogOut, Brain } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -10,6 +10,7 @@ export function Sidebar({ compact = false }: SidebarProps) {
     const { user, logout } = useAuth();
     const navItems = [
         { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+        { icon: Brain, label: "AI 專案規劃", href: "/ai-planner" },
         { icon: Settings, label: "Settings", href: "/settings" },
     ];
 

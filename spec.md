@@ -1,130 +1,69 @@
-這是一份彙整了您所有技術要求（React + Vite + Python FastAPI）、架構決策（Headless、瀏覽器端憑證儲存、SQLite/PG 彈性切換）與管理思維（MVP、服務設計）的**最終版軟體需求規格書 (Final Software Requirements Specification)**。
+**「模組 C：AI 專案經理助手 (AI PM Copilot)」**。以下是針對您提出的 **Sidebar 對話、Redmine 整合、互動式甘特圖、以及假日設定** 四大需求的詳細技術規格設計：
 
----
+新增規格模組：AI 專案經理助手 (AI PM Copilot)
 
-# 專案規格書：Redmine AI 智能協作平台 (Redmine AI Wrapper)
+1. 功能 C1：Sidebar 專屬 AI PRD 對話視窗 (AI PRD Chat)
 
-## 1. 專案願景與範圍 (Vision & Scope)
+這將是專案啟動的入口，位於 React 側邊欄，提供持續性的對話環境。
 
-### 1.1 核心痛點
-*   **成員端**：Redmine 原生介面操作繁瑣，導致工時紀錄不全或延遲，被視為行政負擔,。
-*   **主管端**：缺乏即時的可視化報表，資料分散難以統計，無法快速掌握專案風險,。
+• **互動流程設計：**
 
-### 1.2 解決方案
-開發一個 **「AI 外掛介面 (Wrapper)」**。不替換 Redmine，而是透過 API 接管「輸入」與「查詢」體驗。利用 **React** 提供互動式儀表板，**Python FastAPI** 處理 AI 邏輯，並透過 **OpenAI** 進行自然語言解析。
+    1. **Sidebar 入口**：新增「AI 專案規劃」選單。
 
-### 1.3 預期效益
-1.  **無感輸入 (Frictionless Input)**：成員用對話方式即可完成日報，降低抗拒感。
-2.  **智慧決策 (Intelligent Insight)**：主管透過對話生成甘特圖與風險報告，效率翻倍。
-3.  **隱私與彈性**：敏感憑證不落地，資料庫架構保留企業級擴充彈性。
+    2. **Context 鎖定**：主管選擇特定的 Redmine 專案後，AI 會自動載入該專案的背景資訊（如成員名單、現有相關 Issue）作為 Context。
 
----
+    3. **對話定義 PRD**：
 
-## 2. 系統架構設計 (System Architecture)
+        ▪ 主管輸入：「我們要開發一個新登入頁面，需要兩週，包含 UI 設計和後端 API。」
 
-採用 **前後端分離 (Headless)** 與 **本地優先 (Local-First)** 的混合架構。
+        ▪ **Backend (Python) 處理**：呼叫 OpenAI API，Prompt 設定為：「你是一位資深 PM，請根據對話內容協助使用者釐清 PRD，並將需求拆解為具體的 Task List (JSON 格式)，包含 `subject` (任務名), `estimated_hours` (預估工時), `start_date` (開始日), `due_date` (結束日), `predecessors` (依賴任務)」,。
 
-### 2.1 技術堆疊 (Tech Stack)
-| 層級 | 技術選型 | 職責描述 |
-| :--- | :--- | :--- |
-| **Frontend** | **React + Vite** | SPA 單頁應用。負責 UI 渲染、狀態管理、**API Key 加密儲存**。 |
-| **Backend** | **Python (FastAPI)** | RESTful API 服務。負責業務邏輯、OpenAI 串接、Redmine API 轉發。 |
-| **AI Core** | **OpenAI Python Lib** | 負責 NLP 意圖識別、實體提取 (Entity Extraction)、SQL/Filter 生成。 |
-| **Database** | **SQLite (Dev) / PostgreSQL (Prod)** | 儲存非敏感設定（如關注清單、UI 偏好）。透過 SQLAlchemy ORM 切換。 |
-| **Migration** | **Alembic** | 資料庫版本控制，嚴格執行命名規範。 |
+    4. **輸出至 Redmine**：
 
-### 2.2 安全性架構 (Security Spec)
-為符合「API Key 存在客戶端」的需求：
-1.  **憑證儲存**：OpenAI API Key 與 Redmine API Key 僅存於使用者瀏覽器的 `localStorage` (或加密後的 IndexedDB)。
-2.  **傳輸協定**：前端發送請求時，將 Key 放入 HTTP Request Header (如 `X-OpenAI-Key`)。
-3.  **後端處理**：FastAPI 透過 Dependency Injection 讀取 Header，僅在 **記憶體 (In-Memory)** 中暫存以完成當次請求，**嚴禁**寫入後端資料庫或 Log 文件。
+        ▪ 當主管確認內容後，點擊「生成並儲存」。
 
----
+        ▪ 系統將完整的 PRD 對話紀錄整理成一篇 Note，寫入 Redmine 的 **Parent Task** (主任務) 中。
 
-## 3. 功能需求規格 (Functional Requirements)
+        ▪ AI 拆解出的 Task List 則自動轉為該 Parent Task 下的 **Sub-tasks (子任務)**，這樣之後重新登入 Redmine 或網頁都能看到並持續追蹤,。
 
-### 3.1 模組 A：成員端 - 極速回報 (Frictionless Input)
-**目標：** 讓成員在 30 秒內完成工時紀錄。
+2. 功能 C2：互動式甘特圖編輯器 (Interactive AI Gantt)
 
-*   **功能 A1：自然語言填單 (NLP Time Logging)**
-    *   **介面：** 整合至 Slack/Teams 機器人或 React 手機版網頁。
-    *   **流程：**
-        1.  成員輸入：「今早花 3 小時修復登入 Bug #1024」。
-        2.  Python 後端呼叫 OpenAI 提取實體：`{issue_id: 1024, hours: 3, activity: "Bug Fix", comment: "修復登入..."}`。
-        3.  寫入 Redmine `time_entries` API。
-    *   **例外處理：** 若資訊缺漏（如沒說專案），AI 自動追問。
+文獻中提到的甘特圖主要用於「視覺化」，但您的需求進階到了「編輯與排程」，這需要前端 React 進行較複雜的狀態管理。
 
-*   **功能 A2：自動化站立會議 (Auto Stand-up)**
-    *   **流程：** 每日定時推播「今天做了什麼？」，成員回覆即完成日報。若整合 Git，系統自動建議：「偵測到您提交了 commit，是否紀錄？」。
+• **資料來源 (Data Flow)**：
 
-### 3.2 模組 B：主管端 - 智能戰情室 (Intelligent Dashboard)
-**目標：** 降低 AI Token 消耗，並提供即時視覺化。
+    ◦ **Step 1 (AI 生成)**：由 C1 對話產生的 JSON 直接渲染成甘特圖初稿。
 
-*   **功能 B1：關注專案過濾器 (Project Watchlist & Pre-filtering)**
-    *   **邏輯：** 這是降低 Chatbot 處理量的核心。
-    *   **設定：** 主管在 React 後台勾選「關注專案 A, B」。此設定存於後端 SQLite。
-    *   **運作：** 當主管問「進度如何？」時，Python **先**讀取 SQLite 的關注清單，**只**向 Redmine 撈取這兩個專案的資料，**最後**才把過濾後的少量資料餵給 OpenAI 分析。
+    ◦ **Step 2 (互動編輯)**：使用 React 甘特圖套件 (如 `dhtmlxGantt`，實作以下功能：
 
-*   **功能 B2：三階段對話式查詢 (Conversational BI)**
-    *   參考 *JiraGPT Next* 架構,：
-    *   **Phase 1 (Intent):** AI 將口語轉譯為 Redmine API Filter (JSON)。*Temperature = 0*。
-    *   **Phase 2 (Optimization):** Python 執行查詢，並**清洗資料**（移除描述等長文欄位），僅保留狀態、工時、負責人。
-    *   **Phase 3 (Insight):** AI 讀取清洗後的數據，生成管理摘要。*Temperature = 0.5*。
+        ▪ **拖拉時長 (Duration)**：滑鼠拖曳任務條邊緣，自動更新 `estimated_hours` 與 `due_date`。
 
-*   **功能 B3：即時甘特圖 (AI-Generated Gantt)**
-    *   **前端：** 使用 `Recharts` 或 `d3.js`。
-    *   **功能：** 接收後端 JSON，渲染動態甘特圖。
-    *   **AI 加值：** 標示「紅色警戒區」（例如：預估工時 < 剩餘時間 的任務）。
+        ▪ **調整順序與依賴 (Dependencies)**：透過連線方式建立任務相依性（例如：任務 A 結束 -> 任務 B 開始）。
 
----
+        ▪ **顏色顯示**：根據任務狀態 (Status) 或優先級 (Priority) 自動填色（如：紅色代表緊急/落後）。
 
-## 4. 資料庫版控與遷移規格 (Database Migration Spec)
+    ◦ **Step 3 (資料回寫)**：所有編輯操作（如延長時間），都會觸發 Python FastAPI 呼叫 Redmine API 更新對應的 Issue 資料，確保下次登入時資料一致。
 
-為確保開發紀律與可追溯性，強制執行以下規範：
+3. 功能 C3：Admin 後台 - 假日與工時計算邏輯 (Holiday Management)
 
-### 4.1 工具與配置
-*   使用 **Alembic** 進行遷移管理。
-*   `alembic.ini` 設定：`file_template = %%(slug)s_%%(year)d%%(month)02d%%(day)02d` (或自定義格式)。
+為了讓甘特圖的時程預估準確，必須排除非工作日。這部分邏輯將在 Python Backend 處理，並由 React Admin 介面設定。 此假日資訊可以給所有使用者共用，所以不需要每個人都設定只要admin
 
-### 4.2 命名規範 (Naming Convention)
-*   所有遷移腳本檔名必須符合：`{序號}_{日期}_{簡易描述}.py`
-    *   **範例：** `001_20231027_init_settings_table.py`
-    *   **範例：** `002_20231101_add_watchlist_column.py`
+• **假日設定介面**：
 
-### 4.3 擴充彈性
-*   程式碼中禁止寫死 SQL 語法，必須使用 SQLAlchemy ORM 模型。
-*   部署時僅需修改環境變數 `DATABASE_URL`，即可從 `sqlite:///./app.db` 無痛切換至 `postgresql://...`。
+    1. **週末開關**：提供 Checkbox 「排除週六」、「排除週日」。若勾選，AI 在計算 `due_date` 時會自動跳過這些日期。
 
----
+    2. **自定義假日匯入**：
 
-## 5. 交付與部署 (Deployment)
+        ▪ **介面**：提供一個文字輸入框或檔案上傳區。
 
-**需求：** 不使用 EXE 打包，採用標準 Web Service 部署。
+        ▪ **格式說明**：在匯入處顯示提示：「請上傳 .txt 或 .csv 檔案，格式為 `YYYY-MM-DD, 假日名稱`，每行一筆」。
 
-### 5.1 交付物清單
-1.  **Frontend Source:** React + Vite 專案碼。
-2.  **Backend Source:** Python FastAPI 專案碼 (含 Alembic 目錄)。
-3.  **Docker Compose (選配):** 一鍵啟動前後端服務的設定檔（適用於公司內部伺服器部署）。
-4.  **Readme:** 包含 API Key 設定教學與 Alembic 遷移指令說明。
+        ▪ **Python 解析邏輯**：FastAPI 接收檔案後，解析日期並存入 SQLite/PostgreSQL 的 `holidays` 表格中,。
 
-### 5.2 部署環境建議
-*   **內部伺服器 (Intranet):** 架設於公司內網，成員透過瀏覽器訪問。
-*   **資料儲存:**
-    *   **Client:** 瀏覽器 LocalStorage (API Keys)。
-    *   **Server:** SQLite 檔案 (初期) 或 Postgres Container (後期) (App Settings)。
+• **AI 排程演算法更新**：
 
----
+    ◦ 當 AI 或主管設定「任務需耗時 3 天」且起始日為週五時，後端演算法會檢查假日設定：
 
-## 6. 開發路徑 (MVP Roadmap)
+        ▪ 若週六日為假日：結束日期 = 週五 + 3工作天 = 下週二。
 
-採用服務設計思維，分階段驗收。
-
-*   **Phase 1: 驗證輸入 (Week 1-2)**
-    *   僅開發 Python Backend + 簡單 Chat UI。
-    *   目標：確認成員願意用對話方式記工時。
-*   **Phase 2: 戰情室基礎 (Week 3-4)**
-    *   開發 React Dashboard + SQLite 設定儲存。
-    *   目標：主管能設定關注清單，並看到基礎圖表。
-*   **Phase 3: 完整 AI 分析 (Week 5-6)**
-    *   實作三階段查詢優化 (3-Phase Workflow)。
-    *   目標：產出高品質的 AI 總結報告與風險預警。
+        ▪ 若週六日不為假日：結束日期 = 週日。

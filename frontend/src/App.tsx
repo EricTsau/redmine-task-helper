@@ -4,6 +4,7 @@ import { Settings } from "@/pages/Settings";
 import { FocusPage } from "@/pages/FocusPage";
 import { Login } from "@/pages/Login";
 import { Administration } from "@/pages/Administration";
+import { AIPlannerPage } from "@/pages/AIPlannerPage";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { CommandPalette } from "@/components/command/CommandPalette";
 import { TimerProvider } from "@/contexts/TimerContext";
@@ -36,6 +37,7 @@ function AppContent() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/focus" element={<FocusPage />} />
+          <Route path="/ai-planner" element={<AIPlannerPage />} />
           <Route path="/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

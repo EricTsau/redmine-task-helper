@@ -70,6 +70,11 @@ app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"]
 from app.routers import issues
 app.include_router(issues.router, prefix="/api/v1/issues", tags=["issues"])
 
+# AI PM Copilot 模組
+from app.routers import pm_copilot, holidays
+app.include_router(pm_copilot.router, prefix="/api/v1/pm-copilot", tags=["pm-copilot"])
+app.include_router(holidays.router, prefix="/api/v1/admin/holidays", tags=["holidays"])
+
 @app.get("/")
 async def root():
     return {"message": "Redmine Flow API is running"}

@@ -282,3 +282,104 @@ class OpenAIService:
         except Exception as e:
             print(f"Edit Text Error: {e}")
             return selection
+
+    def parse_prd_to_tasks(self, conversation: List[Dict[str, Any]], project_context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        根據 PRD 對話內容拆解為任務清單
+        
+        Args:
+            conversation: 對話訊息列表 [{"role": "user/assistant", "content": "..."}]
+            project_context: 專案資訊 {"id": int, "name": str}
+            
+        Returns:
+            {
+                "message": "AI 回應訊息",
+                "tasks": [{"subject", "estimated_hours", "start_date", "due_date", "predecessors"}]
+            }
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        system_prompt = f"""
+你是一位資深專案經理 (PM)，負責協助使用者釐清專案需求文件 (PRD) 並將需求拆解為具體的任務清單。
+
+專案資訊：
+- 專案名稱：{project_context.get('name', 'Unknown')}
+- 專案 ID：{project_context.get('id', 0)}
+- 今天日期：{today}
+
+你的職責：
+1. 仔細閱讀使用者的需求描述
+2. 提出澄清問題以確保需求完整
+3. 當需求足夠清晰時，將 PRD 拆解為具體的 Task List
+
+任務清單格式 (JSON)：
+{{
+    "message": "你的回應訊息，可以是確認理解、提問或總結",
+    "tasks": [
+        {{
+            "subject": "任務名稱",
+            "estimated_hours": 8,
+            "start_date": "YYYY-MM-DD",
+            "due_date": "YYYY-MM-DD",
+            "predecessors": []
+        }}
+    ]
+}}
+
+規則：
+- 如果需求還不夠清晰，tasks 陣列可以為空，並在 message 中詢問更多細節
+- 如果需求清晰，拆解為 3-10 個具體可執行的子任務
+- estimated_hours 應該是合理的工時預估 (1-40 小時)
+- start_date 從今天開始，根據任務順序安排
+- due_date 根據 estimated_hours 計算 (假設每天 8 工作小時)
+- predecessors 是任務相依性，使用 1-based 索引 (例如 [1,2] 表示依賴第 1 和第 2 個任務)
+
+回應格式：嚴格 JSON，確保可以 parse
+"""
+
+        # 建立訊息列表
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in conversation:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.7
+            )
+            
+            content = response.choices[0].message.content
+            
+            # 嘗試提取 JSON (支援 ```json 格式)
+            import re
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
+            if json_match:
+                json_str = json_match.group(1).strip()
+            else:
+                # 嘗試直接解析整個內容
+                json_str = content.strip()
+            
+            result = json.loads(json_str)
+            
+            # 確保必要欄位存在
+            if "message" not in result:
+                result["message"] = "任務已拆解完成"
+            if "tasks" not in result:
+                result["tasks"] = []
+                
+            return result
+        except json.JSONDecodeError as e:
+            print(f"PRD Parsing JSON Error: {e}")
+            # 如果 JSON 解析失敗，嘗試擷取部分內容作為訊息
+            return {
+                "message": content if content else "抱歉，我在處理回應時遇到問題。請再告訴我一次您的需求。",
+                "tasks": []
+            }
+        except Exception as e:
+            print(f"PRD Parsing Error: {e}")
+            return {
+                "message": f"處理時發生錯誤：{str(e)}",
+                "tasks": []
+            }
+
