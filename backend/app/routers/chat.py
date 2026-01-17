@@ -3,7 +3,11 @@ from pydantic import BaseModel
 from typing import Optional
 from app.services.openai_service import OpenAIService
 from app.services.redmine_client import RedmineService
-from app.models import TimeEntryExtraction
+from app.models import TimeEntryExtraction, User, UserSettings
+from app.dependencies import get_current_user, get_redmine_service, get_openai_service
+from app.database import get_session
+from sqlalchemy.orm import Session
+from sqlmodel import select
 
 router = APIRouter(tags=["chat"])
 
@@ -19,18 +23,12 @@ class ChatTimeEntryRequest(BaseModel):
 @router.post("/parse-time-entry", response_model=TimeEntryExtraction)
 def parse_time_entry(
     request: ChatParseRequest,
-    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
-    x_openai_url: Optional[str] = Header("https://testpega.openai.com/v1", alias="X-OpenAI-URL"),
-    x_openai_model: Optional[str] = Header("gpt-4o-mini", alias="X-OpenAI-Model")
+    service: OpenAIService = Depends(get_openai_service)
 ):
     """
     接收自然語言，使用 OpenAI 解析出工時結構。
-    API Key 需由前端 Header 帶入，不存資料庫。
+    使用儲存在伺服器端的使用者設定。
     """
-    if not x_openai_key:
-        raise HTTPException(status_code=401, detail="Missing X-OpenAI-Key header")
-
-    service = OpenAIService(api_key=x_openai_key, base_url=x_openai_url, model=x_openai_model)
     try:
         result = service.extract_time_entry(request.message)
         return result
@@ -40,16 +38,12 @@ def parse_time_entry(
 @router.post("/submit-time-entry")
 def submit_time_entry(
     request: ChatTimeEntryRequest,
-    x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
-    x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key")
+    redmine: RedmineService = Depends(get_redmine_service)
 ):
     """
     確認後提交工時到 Redmine。
+    使用儲存在伺服器端的使用者設定。
     """
-    if not x_redmine_url or not x_redmine_key:
-        raise HTTPException(status_code=401, detail="Missing Redmine credentials in header")
-
-    redmine = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
     success = redmine.create_time_entry(
         issue_id=request.issue_id,
         hours=request.hours,
@@ -60,24 +54,20 @@ def submit_time_entry(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create time entry in Redmine")
     
+    return {"status": "success"}
+    
 @router.post("/message")
 def unified_chat(
     request: ChatParseRequest,
-    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
-    x_openai_url: Optional[str] = Header(None, alias="X-OpenAI-URL"),
-    x_openai_model: Optional[str] = Header("gpt-4o-mini", alias="X-OpenAI-Model"),
-    x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
-    x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key")
+    openai_service: OpenAIService = Depends(get_openai_service),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Unified Chat Endpoint.
     Automatically detects intent: 'time_entry' vs 'analysis' vs 'chat'.
+    Uses stored credentials.
     """
-    if not x_openai_key:
-        raise HTTPException(status_code=401, detail="Missing X-OpenAI-Key header")
-    
-    openai_service = OpenAIService(api_key=x_openai_key, base_url=x_openai_url, model=x_openai_model)
-    
     # 1. Intent Classification
     intent = openai_service.classify_intent(request.message)
     
@@ -93,15 +83,17 @@ def unified_chat(
             return {"type": "chat", "summary": f"Error parsing time entry: {str(e)}"}
 
     elif intent == 'analysis':
-        if not x_redmine_url or not x_redmine_key:
+        # Get Redmine settings from stored user settings
+        settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+        if not settings or not settings.redmine_url or not settings.api_key:
              return {"type": "chat", "summary": "I need Redmine credentials to perform analysis. Please check your settings."}
         
         try:
-             # Reuse Analysis Workflow Logic
+            # Reuse Analysis Workflow Logic
             filters = openai_service.extract_query_filter(request.message)
             if "limit" not in filters: filters["limit"] = 20
             
-            redmine_service = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
+            redmine_service = RedmineService(url=settings.redmine_url, api_key=settings.api_key)
             issues = redmine_service.search_issues_advanced(
                 project_id=filters.get("project_id"),
                 assigned_to=filters.get("assigned_to"),
@@ -151,17 +143,40 @@ def unified_chat(
 @router.post("/test-connection")
 def test_connection(
     x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
-    x_openai_url: Optional[str] = Header("https://api.openai.com/v1", alias="X-OpenAI-URL"),
-    x_openai_model: Optional[str] = Header("gpt-4o-mini", alias="X-OpenAI-Model")
+    x_openai_url: Optional[str] = Header(None, alias="X-OpenAI-URL"),
+    x_openai_model: Optional[str] = Header(None, alias="X-OpenAI-Model"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
 ):
     """
-    Test OpenAI connection using headers.
+    Test OpenAI connection. 
+    If x_openai_key is provided and not "******", uses it.
+    Otherwise, uses the stored key from the database.
     """
-    if not x_openai_key:
-        raise HTTPException(status_code=401, detail="Missing X-OpenAI-Key header")
+    api_key = None
+    base_url = x_openai_url
+    model = x_openai_model
+
+    if x_openai_key and x_openai_key != "******":
+        api_key = x_openai_key
+    else:
+        # Load from DB
+        settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+        if not settings or not settings.openai_key:
+            raise HTTPException(status_code=400, detail="OpenAI settings not configured. Please provide an API key.")
+        api_key = settings.openai_key
+        if not base_url:
+            base_url = settings.openai_url
+        if not model:
+            model = settings.openai_model
+
+    if not base_url:
+        base_url = "https://api.openai.com/v1"
+    if not model:
+        model = "gpt-4o-mini"
     
     try:
-        service = OpenAIService(api_key=x_openai_key, base_url=x_openai_url, model=x_openai_model)
+        service = OpenAIService(api_key=api_key, base_url=base_url, model=model)
         # Simple test
         service.client.chat.completions.create(
             model=service.model,

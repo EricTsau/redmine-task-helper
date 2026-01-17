@@ -113,10 +113,10 @@ export function Settings() {
         try {
             const data = await api.post<{ user: { firstname: string } }>('/auth/connect', {
                 url: settings.redmine_url,
-                api_key: settings.redmine_token === '******' ? '' : settings.redmine_token
+                api_key: settings.redmine_token === '******' ? '******' : settings.redmine_token
             });
-            setTestStatus(`✓ Connected as ${data.user.firstname} `);
-        } catch (e) {
+            setTestStatus(`✓ Connected as ${data.user.firstname}`);
+        } catch (e: any) {
             setTestStatus('✗ Connection failed');
         }
     };
@@ -124,16 +124,22 @@ export function Settings() {
     const testOpenAI = async () => {
         setOpenaiTestStatus('Testing...');
         try {
-            await api.post('/chat/test-connection', {}, {
-                headers: {
-                    'X-OpenAI-Key': settings.openai_key,
-                    'X-OpenAI-URL': settings.openai_url,
-                    'X-OpenAI-Model': settings.openai_model
-                }
-            });
+            const headers: Record<string, string> = {};
+            // Only send if it's not the masked value
+            if (settings.openai_key && settings.openai_key !== '******') {
+                headers['X-OpenAI-Key'] = settings.openai_key;
+            }
+            if (settings.openai_url) {
+                headers['X-OpenAI-URL'] = settings.openai_url;
+            }
+            if (settings.openai_model) {
+                headers['X-OpenAI-Model'] = settings.openai_model;
+            }
+
+            await api.post('/chat/test-connection', {}, { headers });
             setOpenaiTestStatus(`✓ Connected(${settings.openai_model})`);
         } catch (e: any) {
-            setOpenaiTestStatus(`✗ ${e.message} `);
+            setOpenaiTestStatus(`✗ ${e.message}`);
         }
     };
 

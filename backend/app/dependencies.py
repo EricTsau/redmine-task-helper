@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import User, UserSettings, AppSettings
 from app.services.redmine_client import RedmineService
+from app.services.openai_service import OpenAIService
 from app.auth_utils import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -54,3 +55,22 @@ def get_redmine_service(
         )
     
     return RedmineService(settings.redmine_url, settings.api_key)
+
+def get_openai_service(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+) -> OpenAIService:
+    # Try to get user-specific settings
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+    
+    if not settings or not settings.openai_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI settings not configured for this user"
+        )
+    
+    return OpenAIService(
+        api_key=settings.openai_key,
+        base_url=settings.openai_url or "https://api.openai.com/v1",
+        model=settings.openai_model or "gpt-4o-mini"
+    )

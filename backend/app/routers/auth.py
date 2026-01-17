@@ -130,3 +130,47 @@ async def validate_redmine_credentials(
 async def get_ldap_status(session: Session = Depends(get_session)):
     app_settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
     return {"ldap_enabled": app_settings.ldap_enabled if app_settings else False}
+
+class ConnectRequest(BaseModel):
+    url: str
+    api_key: str
+
+@router.post("/connect")
+async def connect_redmine(
+    request: ConnectRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Check if Redmine credentials are valid.
+    If api_key is "******" or empty, use the stored one.
+    """
+    from app.services.redmine_client import RedmineService
+    from app.models import UserSettings
+    
+    url = request.url
+    api_key = request.api_key
+    
+    # If no values provided or masked, try to load from DB
+    if not url or not api_key or api_key == "******":
+        settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+        if not settings:
+             raise HTTPException(status_code=400, detail="Redmine not configured for this user")
+        
+        if not url: url = settings.redmine_url
+        if not api_key or api_key == "******": api_key = settings.api_key
+
+    if not url or not api_key:
+        raise HTTPException(status_code=400, detail="Redmine URL and API Key are required")
+
+    try:
+        service = RedmineService(url, api_key)
+        user = service.get_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid Redmine credentials")
+        
+        # Return simple user info for connection success display
+        firstname = getattr(user, 'firstname', 'User')
+        return {"status": "success", "user": {"firstname": firstname}}
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Connection failed: {str(e)}")
