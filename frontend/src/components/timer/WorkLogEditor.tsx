@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ClipboardEvent, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Image as ImageIcon, Eye, Edit2, Send, Sparkles, Wand2, X, Paperclip, Trash2, FileIcon } from 'lucide-react';
 import { useFileAttachments, formatFileSize, markdownToTextile, type PendingFile } from '@/hooks/useFileAttachments';
 
@@ -10,6 +11,7 @@ interface WorkLogEditorProps {
     onUpdate: (content: string) => void;
     onSubmit?: (content: string) => void;
     onSubmitWithFiles?: (content: string, files: PendingFile[], uploads: UploadToken[]) => Promise<void>;
+    hideSaveButton?: boolean;
 }
 
 interface UploadToken {
@@ -23,7 +25,8 @@ export function WorkLogEditor({
     issueId,
     onUpdate,
     onSubmit,
-    onSubmitWithFiles
+    onSubmitWithFiles,
+    hideSaveButton = false
 }: WorkLogEditorProps) {
     const [content, setContent] = useState(initialContent);
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
@@ -114,7 +117,8 @@ export function WorkLogEditor({
 
 
                 // Insert placeholder in content
-                const placeholder = `![{{${fileId}}}](pending)`;
+                // Use URL-based placeholder for robust preview: ![image](pending:<fileId>) -> now using standard markdown
+                const placeholder = `![image](pending:${fileId})`;
                 const textarea = textareaRef.current;
                 if (textarea) {
                     const start = textarea.selectionStart;
@@ -154,7 +158,7 @@ export function WorkLogEditor({
             }
 
             const fileId = addFile(finalFile);
-            const placeholder = `![{{${fileId}}}](pending)`;
+            const placeholder = `![image](pending:${fileId})`;
             setContent(prev => prev + '\n' + placeholder);
             setHasUnsavedChanges(true);
         }
@@ -180,8 +184,8 @@ export function WorkLogEditor({
             const fileId = addFile(file);
             // Use different placeholder for non-image files
             const placeholder = file.type.startsWith('image/')
-                ? `![{{${fileId}}}](pending)`
-                : `[{{${fileId}}}](attachment)`;
+                ? `![image](pending:${fileId})`
+                : `[${file.name}](attachment:${fileId})`;
             setContent(prev => prev + '\n' + placeholder);
             setHasUnsavedChanges(true);
         });
@@ -196,9 +200,12 @@ export function WorkLogEditor({
     const handleRemoveFile = (fileId: string) => {
         removeFile(fileId);
         // Also remove placeholder from content
+        // Regex to match ![...](pending:<fileId>) or [...](attachment:<fileId>)
         setContent(prev => {
-            let updated = prev.replace(new RegExp(`!\\[\\{\\{${fileId}\\}\\}\\]\\(pending\\)\\n?`, 'g'), '');
-            updated = updated.replace(new RegExp(`\\[\\{\\{${fileId}\\}\\}\\]\\(attachment\\)\\n?`, 'g'), '');
+            // Clean up image placeholders: ![...](pending:fileId)
+            let updated = prev.replace(new RegExp(`!\\[[^\\]]*\\]\\(pending:${fileId}\\)\\n?`, 'g'), '');
+            // Clean up attachment placeholders: [...](attachment:fileId)
+            updated = updated.replace(new RegExp(`\\[[^\\]]*\\]\\(attachment:${fileId}\\)\\n?`, 'g'), '');
             return updated;
         });
         setHasUnsavedChanges(true);
@@ -274,6 +281,12 @@ export function WorkLogEditor({
 
 
     const handleGenerateLog = async () => {
+        // If we have selected text, open the AI Edit widget instead of generating new content
+        if (selection.text) {
+            setShowFloatingWidget(true);
+            return;
+        }
+
         setIsAiProcessing(true);
         try {
             const res = await api.post<any>('/timer/log/generate', {
@@ -300,9 +313,12 @@ export function WorkLogEditor({
             const text = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
             if (text.trim().length > 0) {
                 setSelection({ start: textarea.selectionStart, end: textarea.selectionEnd, text });
-                setShowFloatingWidget(true);
+                // Don't show widget automatically on select anymore
+                // setShowFloatingWidget(true);
             }
         } else {
+            // Clear selection state and hide widget if selection is gone
+            setSelection({ start: 0, end: 0, text: '' });
             setShowFloatingWidget(false);
         }
     };
@@ -347,7 +363,24 @@ export function WorkLogEditor({
 
     // Custom image renderer for preview mode
     const renderImage = ({ src, alt }: { src?: string; alt?: string }) => {
-        // Check if this is a pending file placeholder
+        // Check if this is a pending file placeholder using URL scheme
+        if (src && src.startsWith('pending:')) {
+            const fileId = src.split('pending:')[1];
+            const pendingFile = getFileById(fileId);
+            if (pendingFile?.previewUrl) {
+                // If we have a preview URL (blob), show it
+                return (
+                    <img
+                        src={pendingFile.previewUrl}
+                        alt={pendingFile.file.name}
+                        className="max-w-full h-auto rounded border"
+                    />
+                );
+            }
+            return <span className="text-muted-foreground">[圖片載入中...]</span>;
+        }
+
+        // Fallback for old style placeholders or other images
         const pendingMatch = alt?.match(/\{\{([^}]+)\}\}/);
         if (pendingMatch && src === 'pending') {
             const fileId = pendingMatch[1];
@@ -363,6 +396,7 @@ export function WorkLogEditor({
             }
             return <span className="text-muted-foreground">[圖片載入中...]</span>;
         }
+
         return <img src={src} alt={alt} className="max-w-full h-auto rounded" />;
     };
 
@@ -389,12 +423,13 @@ export function WorkLogEditor({
                 <div className="flex gap-2 items-center">
                     <button
                         onClick={handleGenerateLog}
+                        onMouseDown={(e) => e.preventDefault()}
                         disabled={isAiProcessing}
                         className="flex items-center gap-1 px-2 py-1 text-xs text-purple-600 hover:bg-purple-50 rounded disabled:opacity-50"
-                        title="Auto-generate log content"
+                        title={selection.text ? "AI Edit Selection" : "Auto-generate log content"}
                     >
                         <Wand2 className="w-3 h-3" />
-                        <span>Generate</span>
+                        <span>{selection.text ? "Edit" : "Generate"}</span>
                     </button>
 
                     {/* Image button */}
@@ -432,18 +467,20 @@ export function WorkLogEditor({
                         className="hidden"
                     />
 
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isSubmitting}
-                        className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all bg-primary text-primary-foreground hover:bg-primary/90`}
-                    >
-                        {isSubmitting ? (
-                            <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            <Send className="w-3 h-3" />
-                        )}
-                        <span>送出</span>
-                    </button>
+                    {!hideSaveButton && (
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
+                            className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all bg-primary text-primary-foreground hover:bg-primary/90`}
+                        >
+                            {isSubmitting ? (
+                                <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <Send className="w-3 h-3" />
+                            )}
+                            <span>送出</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -529,8 +566,20 @@ export function WorkLogEditor({
                 ) : (
                     <div className="w-full h-full p-3 overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            urlTransform={(url) => url}
                             components={{
-                                img: renderImage
+                                img: renderImage,
+                                // Customize table styling if needed, though prose usually handles it
+                                table: ({ node, ...props }) => (
+                                    <table className="border-collapse table-auto w-full text-sm" {...props} />
+                                ),
+                                th: ({ node, ...props }) => (
+                                    <th className="border px-4 py-2 font-medium bg-muted" {...props} />
+                                ),
+                                td: ({ node, ...props }) => (
+                                    <td className="border px-4 py-2" {...props} />
+                                )
                             }}
                         >
                             {content}

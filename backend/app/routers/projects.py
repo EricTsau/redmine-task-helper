@@ -34,3 +34,28 @@ async def list_projects(
         ))
     
     return results
+@router.get("/{project_id}/metadata")
+async def get_project_metadata(
+    project_id: int,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """
+    Get available metadata for creating issues in a project.
+    Returns trackers, priorities, issues statuses, and assignable members.
+    """
+    trackers = service.get_trackers()
+    statuses = service.get_issue_statuses()
+    priorities = service.get_priorities()
+    members = service.get_project_members(project_id)
+    current_redmine_user = service.get_current_user()
+    
+    return {
+        "trackers": [{"id": t.id, "name": t.name} for t in trackers],
+        "statuses": [{"id": s.id, "name": s.name} for s in statuses],
+        "priorities": [{"id": p.id, "name": p.name} for p in priorities],
+        "members": members,
+        "current_user": {
+            "id": current_redmine_user.id,
+            "name": f"{current_redmine_user.firstname} {current_redmine_user.lastname}"
+        } if current_redmine_user else None
+    }

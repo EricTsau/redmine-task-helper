@@ -95,3 +95,41 @@ async def search_tasks(
         ))
     
     return results
+
+class CreateTaskRequest(BaseModel):
+    project_id: int
+    subject: str
+    description: Optional[str] = None
+    tracker_id: int
+    status_id: int
+    priority_id: Optional[int] = None
+    assigned_to_id: Optional[int] = None
+    estimated_hours: Optional[float] = None
+    
+@router.post("", response_model=TaskResponse)
+async def create_task(
+    request: CreateTaskRequest,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Create a new task in Redmine."""
+    try:
+        issue = service.create_issue(
+            project_id=request.project_id,
+            subject=request.subject,
+            tracker_id=request.tracker_id,
+            description=request.description,
+            status_id=request.status_id,
+            priority_id=request.priority_id,
+            assigned_to_id=request.assigned_to_id,
+            estimated_hours=request.estimated_hours
+        )
+        
+        return TaskResponse(
+            id=issue.id,
+            subject=issue.subject,
+            project_name=issue.project.name,
+            status_name=issue.status.name,
+            updated_on=str(issue.updated_on)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

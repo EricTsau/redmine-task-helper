@@ -113,17 +113,35 @@ export function markdownToTextile(
     let textile = markdown;
 
     // Replace pending image placeholders with Redmine attachment link syntax
-    // Pattern: ![{{file-id}}](pending) -> ![](filename)
+    // Pattern 1: ![...](pending:<file-id>) -> !filename!
+    textile = textile.replace(
+        /!\[[^\]]*\]\(pending:([^\)]+)\)/g,
+        (_, fileId) => {
+            const filename = fileMapping.get(fileId);
+            return filename ? `!${filename}!` : '';
+        }
+    );
+
+    // Pattern 2 (Legacy): ![{{file-id}}](pending) -> !filename!
     textile = textile.replace(
         /!\[\{\{([^}]+)\}\}\]\(pending\)/g,
         (_, fileId) => {
             const filename = fileMapping.get(fileId);
-            return filename ? `![](${filename})` : '';
+            return filename ? `!${filename}!` : '';
         }
     );
 
     // Replace pending attachment placeholders
-    // Pattern: [{{file-id}}](attachment)
+    // Pattern 1: [...](attachment:<file-id>)
+    textile = textile.replace(
+        /\[[^\]]*\]\(attachment:([^\)]+)\)/g,
+        (_, fileId) => {
+            const filename = fileMapping.get(fileId);
+            return filename ? `attachment:${filename}` : '';
+        }
+    );
+
+    // Pattern 2 (Legacy): [{{file-id}}](attachment)
     textile = textile.replace(
         /\[\{\{([^}]+)\}\}\]\(attachment\)/g,
         (_, fileId) => {

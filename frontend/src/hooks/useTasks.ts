@@ -28,7 +28,7 @@ export function useTasks() {
             const headers: Record<string, string> = {};
             if (apiKey) headers['X-Redmine-API-Key'] = apiKey;
 
-            const res = await api.get<Task[]>('/tasks/', {}, { headers });
+            const res = await api.get<Task[]>('/tasks', {}, { headers });
 
             setTasks(res);
             setError(null);

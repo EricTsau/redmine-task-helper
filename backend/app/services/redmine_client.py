@@ -24,7 +24,7 @@ class RedmineService:
             Dict with id, subject, description, journals, estimated_hours, and spent_hours
         """
         try:
-            issue = self.redmine.issue.get(issue_id, include=['journals'])
+            issue = self.redmine.issue.get(issue_id, include=['journals', 'attachments'])
             
             journals = []
             for j in getattr(issue, 'journals', []):
@@ -44,7 +44,8 @@ class RedmineService:
                 'description': getattr(issue, 'description', '') or '',
                 'journals': journals,
                 'estimated_hours': getattr(issue, 'estimated_hours', None),
-                'spent_hours': getattr(issue, 'spent_hours', None) or getattr(issue, 'total_spent_hours', None)
+                'spent_hours': getattr(issue, 'spent_hours', None) or getattr(issue, 'total_spent_hours', None),
+                'attachments': [{'filename': a.filename, 'content_url': a.content_url} for a in getattr(issue, 'attachments', [])]
             }
         except ResourceNotFoundError:
             return None
@@ -97,6 +98,57 @@ class RedmineService:
             # For now, simplest approach:
             issues = self.redmine.issue.filter(subject=query) 
             # Note: partial match depends on Redmine API capability, 
+            return list(issues)
+        except Exception as e:
+            print(f"Error searching issues: {e}")
+            return []
+
+    def get_trackers(self) -> List[Any]:
+        try:
+            return list(self.redmine.tracker.all())
+        except Exception:
+            return []
+
+    def get_issue_statuses(self) -> List[Any]:
+        try:
+            return list(self.redmine.issue_status.all())
+        except Exception:
+            return []
+
+    def get_priorities(self) -> List[Any]:
+        try:
+            return list(self.redmine.enumeration.filter(resource='issue_priorities'))
+        except Exception:
+            return []
+
+    def get_project_members(self, project_id: int) -> List[Any]:
+        try:
+            memberships = self.redmine.project_membership.filter(project_id=project_id)
+            # Extract users from memberships
+            users = []
+            for m in memberships:
+                if hasattr(m, 'user'):
+                    users.append({'id': m.user.id, 'name': m.user.name})
+                elif hasattr(m, 'group'):
+                    users.append({'id': m.group.id, 'name': m.group.name})
+            return users
+        except Exception as e:
+            print(f"Error fetching members: {e}")
+            return []
+
+    def create_issue(self, project_id: int, subject: str, tracker_id: int, **kwargs) -> Any:
+        try:
+            issue = self.redmine.issue.create(
+                project_id=project_id,
+                subject=subject,
+                tracker_id=tracker_id,
+                **kwargs
+            )
+            return issue
+        except Exception as e:
+            # Enhanced error logging
+            print(f"Error creating issue: {e}")
+            raise e 
             # often filter supports specific operators (e.g. ~ for contains) but python-redmine might abstract it.
             # Using basic filter for MVP.
             return list(issues)

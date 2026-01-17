@@ -3,8 +3,10 @@ from sqlmodel import Session, select
 from typing import Optional
 from datetime import datetime
 from app.database import get_session
-from app.models import TimerSession, TimerSpan, AppSettings
+from app.models import TimerSession, TimerSpan, UserSettings, User
 from app.services.openai_service import OpenAIService
+from app.services.redmine_client import RedmineService
+from app.dependencies import get_current_user, get_redmine_service, get_openai_service
 
 router = APIRouter(tags=["timer"])
 
@@ -18,10 +20,14 @@ def calculate_duration(session: TimerSession, current_span: Optional[TimerSpan] 
     return total
 
 @router.get("/current")
-def get_current_timer(session: Session = Depends(get_session)):
+def get_current_timer(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Get the currently running or paused timer session."""
     timer_session = session.exec(
         select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
         .where(TimerSession.status.in_(["running", "paused"]))
         .order_by(TimerSession.start_time.desc())
     ).first()
@@ -52,7 +58,8 @@ def get_current_timer(session: Session = Depends(get_session)):
 @router.post("/start")
 def start_timer(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     issue_id = data.get("issue_id")
     if not issue_id:
@@ -61,12 +68,13 @@ def start_timer(
     # 1. Check for any running session
     active_session = session.exec(
         select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
         .where(TimerSession.status == "running")
     ).first()
 
     if active_session:
         if active_session.redmine_issue_id == issue_id:
-            return get_current_timer(session) # Already running
+            return get_current_timer(session, current_user) # Already running
         else:
             # Pause other task
             active_session.status = "paused"
@@ -85,6 +93,7 @@ def start_timer(
     # 2. Check if we have a paused session for THIS issue to resume
     paused_session = session.exec(
         select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
         .where(TimerSession.redmine_issue_id == issue_id)
         .where(TimerSession.status == "paused")
         .order_by(TimerSession.start_time.desc())
@@ -96,7 +105,8 @@ def start_timer(
         # Create new session
         target_session = TimerSession(
             redmine_issue_id=issue_id,
-            status="running"
+            status="running",
+            owner_id=current_user.id
         )
         session.add(target_session)
         session.commit()
@@ -112,12 +122,17 @@ def start_timer(
     session.add(new_span)
     session.commit()
 
-    return get_current_timer(session)
+    return get_current_timer(session, current_user)
 
 @router.post("/pause")
-def pause_timer(session: Session = Depends(get_session)):
+def pause_timer(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     active_session = session.exec(
-        select(TimerSession).where(TimerSession.status == "running")
+        select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
+        .where(TimerSession.status == "running")
     ).first()
 
     if not active_session:
@@ -138,15 +153,17 @@ def pause_timer(session: Session = Depends(get_session)):
     session.add(active_session)
     session.commit()
     
-    return get_current_timer(session)
+    return get_current_timer(session, current_user)
 
 @router.post("/stop")
 def stop_timer(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     timer_session = session.exec(
         select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
         .where(TimerSession.status.in_(["running", "paused"]))
     ).first()
 
@@ -174,15 +191,17 @@ def stop_timer(
     session.add(timer_session)
     session.commit()
     
-    return get_current_timer(session)
+    return get_current_timer(session, current_user)
 
 @router.post("/log/update")
 def update_log(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     timer_session = session.exec(
         select(TimerSession)
+        .where(TimerSession.owner_id == current_user.id)
         .where(TimerSession.status.in_(["running", "paused"]))
     ).first()
     
@@ -200,17 +219,12 @@ def update_log(
 @router.post("/log/refine")
 def refine_log(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    ai_service: OpenAIService = Depends(get_openai_service)
 ):
     content = data.get("content")
     if not content:
         raise HTTPException(status_code=400, detail="Content required")
     
-    settings = session.get(AppSettings, 1)
-    if not settings or not settings.openai_key:
-         raise HTTPException(status_code=400, detail="OpenAI not configured")
-         
-    ai_service = OpenAIService(api_key=settings.openai_key, base_url=settings.openai_url, model=settings.openai_model)
     refined = ai_service.refine_log_content(content)
     
     return {"content": refined}
@@ -218,16 +232,8 @@ def refine_log(
 @router.post("/log/generate")
 def generate_log(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    ai_service: OpenAIService = Depends(get_openai_service)
 ):
-    issue_id = data.get("issue_id")
-    # Need settings
-    settings = session.get(AppSettings, 1)
-    if not settings or not settings.openai_key:
-         raise HTTPException(status_code=400, detail="OpenAI not configured")
-
-    ai_service = OpenAIService(api_key=settings.openai_key, base_url=settings.openai_url, model=settings.openai_model)
-    
     # Optional: fetch issue details if possible, or just use what's passed
     # For now, just rely on client passing minimal context or we fetch name from DB if we tracked it
     # We'll use the data passed from frontend 
@@ -238,7 +244,7 @@ def generate_log(
 @router.post("/log/refine-selection")
 def refine_selection(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    ai_service: OpenAIService = Depends(get_openai_service)
 ):
     selection = data.get("selection")
     instruction = data.get("instruction")
@@ -246,11 +252,6 @@ def refine_selection(
     if not selection or not instruction:
         raise HTTPException(status_code=400, detail="Selection and instruction required")
         
-    settings = session.get(AppSettings, 1)
-    if not settings or not settings.openai_key:
-         raise HTTPException(status_code=400, detail="OpenAI not configured")
-
-    ai_service = OpenAIService(api_key=settings.openai_key, base_url=settings.openai_url, model=settings.openai_model)
     result = ai_service.edit_text(selection, instruction)
     
     return {"content": result}
@@ -258,7 +259,7 @@ def refine_selection(
 @router.post("/log/save-to-issue")
 def save_note_to_issue(
     data: dict = Body(...),
-    session: Session = Depends(get_session)
+    redmine: RedmineService = Depends(get_redmine_service)
 ):
     """
     Save a note directly to the Redmine issue's journals without stopping the timer.
@@ -280,14 +281,6 @@ def save_note_to_issue(
     if not notes or not notes.strip():
         raise HTTPException(status_code=400, detail="notes required")
     
-    # Get Redmine settings
-    settings = session.get(AppSettings, 1)
-    if not settings or not settings.redmine_url or not settings.api_key:
-        raise HTTPException(status_code=400, detail="Redmine not configured")
-    
-    from app.services.redmine_client import RedmineService
-    redmine = RedmineService(settings.redmine_url, settings.api_key)
-    
     try:
         redmine.add_issue_note(issue_id, notes, uploads=uploads)
         return {"status": "saved", "issue_id": issue_id}
@@ -295,22 +288,24 @@ def save_note_to_issue(
         raise HTTPException(status_code=500, detail=f"Failed to save note: {str(e)}")
 
 
-from app.dependencies import get_redmine_service
-from app.services.redmine_client import RedmineService
-
 @router.post("/submit")
 def submit_time_entry(
     data: dict = Body(...),
     redmine: RedmineService = Depends(get_redmine_service),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     session_id = data.get("session_id")
     timer_session = None
     if session_id:
         timer_session = session.get(TimerSession, session_id)
+        # Check ownership
+        if timer_session and timer_session.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this session")
     else:
          timer_session = session.exec(
             select(TimerSession)
+            .where(TimerSession.owner_id == current_user.id)
             .where(TimerSession.status == "stopped")
             .where(TimerSession.is_synced == False)
             .order_by(TimerSession.end_time.desc())
@@ -339,8 +334,8 @@ def submit_time_entry(
                 activity_id = activities[0].id
         
         if not activity_id:
-             # Try fallback from AppSettings
-             settings = session.get(AppSettings, 1)
+             # Try fallback from UserSettings (NOT AppSettings)
+             settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
              if settings and settings.redmine_default_activity_id:
                  activity_id = settings.redmine_default_activity_id
         

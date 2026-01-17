@@ -1,10 +1,57 @@
 import { useState, useEffect, useCallback } from 'react';
 import { WorkLogEditor } from '@/components/timer/WorkLogEditor';
+import ReactMarkdown from 'react-markdown';
 import { type TimeEntry } from '@/contexts/TimerContext';
 import { Play, Pause, Square, Clock, FileText, Edit3, X } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import type { PendingFile } from '@/hooks/useFileAttachments';
+
+const AuthenticatedImage = ({ src, alt, attachments }: { src?: string; alt?: string; attachments?: any[] }) => {
+    const [objectUrl, setObjectUrl] = useState<string | null>(null);
+    const [_loading, _setLoading] = useState(false);
+    const [_error, _setError] = useState(false);
+
+    useEffect(() => {
+        if (!src) return;
+
+        // 1. Check if it's a pending file (local blob)
+        if (src.startsWith('pending:')) return;
+        if (src.startsWith('blob:')) return;
+
+        // 2. Check if we have an attachment matching this filename
+        // Filename might be a URL in some markdown renderers, but usually it's just 'image.png'
+        const filename = src.split('/').pop();
+        const attachment = attachments?.find(a => a.filename === filename || a.filename === src);
+
+        if (attachment) {
+            _setLoading(true);
+            setObjectUrl(attachment.content_url);
+            _setLoading(false);
+        }
+    }, [src, attachments]);
+
+    if (objectUrl) {
+        return (
+            <span className="relative inline-block max-w-full">
+                <img
+                    src={objectUrl}
+                    alt={alt}
+                    className="max-w-full h-auto rounded border"
+                    onError={() => _setError(true)}
+                />
+            </span>
+        );
+    }
+
+    // Fallback
+    return (
+        <span className="text-xs text-muted-foreground border p-1 rounded inline-block max-w-full truncate">
+            {src?.startsWith('http') ? <img src={src} alt={alt} className="max-w-full h-auto" /> : (alt || src || 'Image')}
+        </span>
+    );
+};
+
 
 interface FocusModeProps {
     timer: TimeEntry;
@@ -28,6 +75,10 @@ interface IssueDetails {
     }>;
     estimated_hours: number | null;
     spent_hours: number | null;
+    attachments: Array<{
+        filename: string;
+        content_url: string;
+    }>;
 }
 
 const formatDuration = (seconds: number) => {
@@ -346,9 +397,21 @@ export function FocusMode({
                                             </div>
                                             <Edit3 className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
-                                        <pre className="whitespace-pre-wrap font-sans text-sm line-clamp-3">
-                                            {journal.notes}
-                                        </pre>
+                                        <div className="prose prose-sm dark:prose-invert max-w-none text-foreground font-sans text-sm line-clamp-3">
+                                            <ReactMarkdown
+                                                components={{
+                                                    img: ({ node: _node, ...props }) => (
+                                                        <AuthenticatedImage
+                                                            src={props.src}
+                                                            alt={props.alt}
+                                                            attachments={issueDetails?.attachments}
+                                                        />
+                                                    )
+                                                }}
+                                            >
+                                                {journal.notes}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

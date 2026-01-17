@@ -21,6 +21,9 @@ class User(SQLModel, table=True):
     tracked_tasks: List["TrackedTask"] = Relationship(back_populates="owner")
     timer_sessions: List["TimerSession"] = Relationship(back_populates="owner")
     watchlists: List["ProjectWatchlist"] = Relationship(back_populates="owner")
+    refresh_tokens: List["RefreshToken"] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "User.id==RefreshToken.user_id", "lazy": "dynamic"}
+    )
     settings: Optional["UserSettings"] = Relationship(back_populates="user")
 
 class LDAPSettings(SQLModel, table=True):
@@ -133,3 +136,12 @@ class ProjectWatchlist(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     owner: User = Relationship(back_populates="watchlists")
+
+class RefreshToken(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    token: str = Field(index=True)
+    user_id: int = Field(foreign_key="user.id")
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    revoked: bool = Field(default=False)
+

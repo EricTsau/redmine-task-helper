@@ -4,15 +4,18 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import Optional
 from app.database import get_session
-from app.models import User, LDAPSettings, AuthSource, AppSettings
-from app.auth_utils import verify_password, create_access_token, get_password_hash
-from app.services.ldap_service import LDAPService
+from datetime import datetime, timedelta
+from app.models import User, LDAPSettings, AuthSource, AppSettings, UserSettings, RefreshToken
+from app.auth_utils import verify_password, create_access_token, get_password_hash, create_refresh_token, decode_access_token, REFRESH_TOKEN_EXPIRE_DAYS
 from app.dependencies import get_current_user
+from app.services.ldap_service import LDAPService
+
 
 router = APIRouter()
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
     username: str
     is_admin: bool
@@ -21,6 +24,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
     auth_source: AuthSource = AuthSource.STANDARD
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -66,13 +72,93 @@ async def login(
         if not verify_password(request.password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid username or password")
 
+    # Issue tokens
     access_token = create_access_token(data={"sub": user.username})
+    refresh_token_str = create_refresh_token(data={"sub": user.username})
+    
+    # Store refresh token in DB
+    db_refresh_token = RefreshToken(
+        token=refresh_token_str,
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    session.add(db_refresh_token)
+    session.commit()
+
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
+        "refresh_token": refresh_token_str,
         "token_type": "bearer",
         "username": user.username,
         "is_admin": user.is_admin
     }
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    request: RefreshRequest,
+    session: Session = Depends(get_session)
+):
+    # Verify the token format
+    payload = decode_access_token(request.refresh_token)
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid token subject")
+        
+    # Check DB
+    db_token = session.exec(select(RefreshToken).where(RefreshToken.token == request.refresh_token)).first()
+    if not db_token:
+        # Token not found (maybe reused or forged)
+        raise HTTPException(status_code=401, detail="Token revoked or not found")
+        
+    if db_token.revoked:
+        raise HTTPException(status_code=401, detail="Token revoked")
+        
+    if db_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Token expired")
+        
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Revoke current token (Rotational)
+    db_token.revoked = True
+    session.add(db_token)
+    
+    # Issue new pair
+    access_token = create_access_token(data={"sub": user.username})
+    new_refresh_token = create_refresh_token(data={"sub": user.username})
+    
+    new_db_token = RefreshToken(
+        token=new_refresh_token,
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    session.add(new_db_token)
+    session.commit()
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "is_admin": user.is_admin
+    }
+
+@router.post("/logout")
+async def logout(
+    request: RefreshRequest,
+    session: Session = Depends(get_session)
+):
+    # Revoke provided refresh token
+    db_token = session.exec(select(RefreshToken).where(RefreshToken.token == request.refresh_token)).first()
+    if db_token:
+        db_token.revoked = True
+        session.add(db_token)
+        session.commit()
+    return {"status": "success"}
 
 @router.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):

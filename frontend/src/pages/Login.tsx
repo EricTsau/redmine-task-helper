@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { LogIn, ShieldAlert, Loader2, User, Lock } from 'lucide-react';
+import { LogIn, Loader2, User, Lock } from 'lucide-react';
 
 export const Login: React.FC = () => {
     const { login } = useAuth();
@@ -30,12 +30,12 @@ export const Login: React.FC = () => {
         setError(null);
 
         try {
-            const res = await api.post<{ access_token: string, username: string, is_admin: boolean }>('/auth/login', {
+            const res = await api.post<{ access_token: string, refresh_token: string, username: string, is_admin: boolean }>('/auth/login', {
                 username,
                 password,
                 auth_source: authSource
             });
-            login(res.access_token, res.username, res.is_admin);
+            login(res.access_token, res.username, res.is_admin, res.refresh_token);
         } catch (err: any) {
             setError(err.message || 'Login failed');
         } finally {

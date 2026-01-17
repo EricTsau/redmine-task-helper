@@ -9,6 +9,7 @@ import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide
 import { ChatBox } from '@/components/Chat/ChatBox';
 
 import { api } from '@/lib/api';
+import { isTokenExpired } from '@/lib/jwt';
 
 type SetupStatus = 'loading' | 'not_configured' | 'connection_error' | 'ready';
 type ViewTab = 'my-tasks' | 'tracked';
@@ -24,11 +25,44 @@ export function Dashboard() {
     const [refreshKey, setRefreshKey] = useState(0);
 
     const checkSetup = async () => {
+        const token = localStorage.getItem('token');
+        if (!token || isTokenExpired(token)) {
+            // If invalid/expired, skip validation
+            setSetupStatus('not_configured');
+            return;
+        }
+        if (!token) {
+            setSetupStatus('not_configured'); // Or maybe 'ready' if we just want to show login? 
+            // Actually, if no token, we are likely not logged in.
+            // But checkSetup is checking if REDMINE is configured.
+            // The validate endpoint requires auth.
+            // If we are not logged in, we shouldn't call validate.
+            // But the Dashboard seems to assume we might be logged in?
+
+            // Wait, if we are not logged in, we should be on Login page, right?
+            // Dashboard is a protected route? 
+            // If so, AuthContext should redirect us.
+            // Let's assume we are here because we have a token (or think we do).
+
+            // If we truly have no token, we can't call validate.
+            // So return early.
+            return;
+        }
+
         try {
             // Use validate endpoint which uses stored credentials
             await api.get('/auth/validate');
             setSetupStatus('ready');
         } catch (error: any) {
+            if (error.response && error.response.status === 401) {
+                // Token invalid/expired
+                // AuthContext usually handles this via 401 interceptor?
+                // But we simulate it here.
+                // Just stop loading without error message
+                setSetupStatus('ready');
+                return;
+            }
+
             if (error.response && error.response.status === 400 && error.response.data && error.response.data.detail === 'Redmine not configured') {
                 setSetupStatus('not_configured');
             } else if (error.response) {

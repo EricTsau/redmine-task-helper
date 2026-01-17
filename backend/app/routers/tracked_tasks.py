@@ -1,25 +1,18 @@
 """
 Tracked Tasks Router - 管理使用者追蹤的 Redmine 任務
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlmodel import Session, select
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
 from app.database import get_session
-from app.models import TrackedTask, AppSettings
+from app.models import TrackedTask, User
 from app.services.redmine_client import RedmineService
+from app.dependencies import get_current_user, get_redmine_service
 
 router = APIRouter()
-
-
-def get_redmine_service_from_db(session: Session = Depends(get_session)) -> RedmineService:
-    """從資料庫取得 Redmine 設定並建立服務"""
-    settings = session.get(AppSettings, 1)
-    if not settings or not settings.redmine_url or not settings.api_key:
-        raise HTTPException(status_code=400, detail="Redmine not configured")
-    return RedmineService(settings.redmine_url, settings.api_key)
 
 
 # === Schemas ===
@@ -58,7 +51,8 @@ class SyncResult(BaseModel):
 async def import_tasks(
     request: ImportTasksRequest,
     session: Session = Depends(get_session),
-    service: RedmineService = Depends(get_redmine_service_from_db)
+    service: RedmineService = Depends(get_redmine_service),
+    current_user: User = Depends(get_current_user)
 ):
     """
     匯入 Redmine 任務到追蹤清單。
@@ -70,9 +64,12 @@ async def import_tasks(
     
     for issue_id in request.issue_ids:
         try:
-            # 檢查是否已追蹤
+            # 檢查是否已追蹤 (需過濾 owner_id)
             existing = session.exec(
-                select(TrackedTask).where(TrackedTask.redmine_issue_id == issue_id)
+                select(TrackedTask).where(
+                    TrackedTask.redmine_issue_id == issue_id,
+                    TrackedTask.owner_id == current_user.id
+                )
             ).first()
             
             # 從 Redmine 取得最新資料
@@ -98,6 +95,7 @@ async def import_tasks(
             else:
                 # 新增記錄
                 tracked = TrackedTask(
+                    owner_id=current_user.id,
                     redmine_issue_id=issue.id,
                     project_id=issue.project.id,
                     project_name=issue.project.name,
@@ -123,7 +121,8 @@ async def import_tasks(
 async def list_tracked_tasks(
     group_by: Optional[str] = None,
     custom_group: Optional[str] = None,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     取得所有追蹤中的任務。
@@ -132,7 +131,7 @@ async def list_tracked_tasks(
     - group_by: 分組方式 ('project', 'status', 'custom')
     - custom_group: 篩選特定自定義分組
     """
-    query = select(TrackedTask)
+    query = select(TrackedTask).where(TrackedTask.owner_id == current_user.id)
     
     if custom_group:
         query = query.where(TrackedTask.custom_group == custom_group)
@@ -144,10 +143,17 @@ async def list_tracked_tasks(
 @router.get("/{task_id}", response_model=TrackedTaskResponse)
 async def get_tracked_task(
     task_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """取得單一追蹤任務詳情"""
-    task = session.get(TrackedTask, task_id)
+    task = session.exec(
+        select(TrackedTask).where(
+            TrackedTask.id == task_id,
+            TrackedTask.owner_id == current_user.id
+        )
+    ).first()
+    
     if not task:
         raise HTTPException(status_code=404, detail="Tracked task not found")
     return task
@@ -156,10 +162,17 @@ async def get_tracked_task(
 @router.delete("/{task_id}")
 async def delete_tracked_task(
     task_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """移除任務追蹤"""
-    task = session.get(TrackedTask, task_id)
+    task = session.exec(
+        select(TrackedTask).where(
+            TrackedTask.id == task_id,
+            TrackedTask.owner_id == current_user.id
+        )
+    ).first()
+    
     if not task:
         raise HTTPException(status_code=404, detail="Tracked task not found")
     
@@ -172,10 +185,17 @@ async def delete_tracked_task(
 async def update_task_group(
     task_id: int,
     request: UpdateGroupRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """更新任務的自定義分組"""
-    task = session.get(TrackedTask, task_id)
+    task = session.exec(
+        select(TrackedTask).where(
+            TrackedTask.id == task_id,
+            TrackedTask.owner_id == current_user.id
+        )
+    ).first()
+
     if not task:
         raise HTTPException(status_code=404, detail="Tracked task not found")
     
@@ -189,13 +209,17 @@ async def update_task_group(
 @router.post("/sync", response_model=SyncResult)
 async def sync_tracked_tasks(
     session: Session = Depends(get_session),
-    service: RedmineService = Depends(get_redmine_service_from_db)
+    service: RedmineService = Depends(get_redmine_service),
+    current_user: User = Depends(get_current_user)
 ):
     """
     手動觸發同步所有追蹤任務的狀態。
     從 Redmine 取得最新資料並更新本地記錄。
     """
-    tasks = session.exec(select(TrackedTask)).all()
+    # Fetch tasks only for current user
+    tasks = session.exec(
+        select(TrackedTask).where(TrackedTask.owner_id == current_user.id)
+    ).all()
     
     total = len(tasks)
     updated = 0

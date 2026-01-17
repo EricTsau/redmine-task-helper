@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api } from '@/lib/api';
+import { isTokenExpired } from '@/lib/jwt';
 
 export interface TimeEntry {
     id: number;
@@ -31,6 +32,27 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchTimer = useCallback(async () => {
+        // Simple check: if no token in localStorage (or API client), don't fetch.
+        // But better is to use AuthContext. However, using AuthContext here prevents circular dependency?
+        // Actually, TimerProvider is inside AuthProvider in App.tsx usually.
+        // Let's assume we can get token existence check.
+        // The API client has a token.
+        // But api.token might be null initially.
+        // We really should consume AuthContext.
+
+        // However, simpler fix for the reported 401 loop:
+        // Wrap the call to avoid it if token is missing.
+        const token = localStorage.getItem('token');
+        if (!token || isTokenExpired(token)) {
+            // console.log("[TimerContext] Skipping fetch, token missing or expired");
+            setIsLoading(false);
+            if (token) {
+                // Optionally clear expired token? leave it to AuthContext
+                setTimer(null);
+            }
+            return;
+        }
+
         try {
             const data = await api.get<TimeEntry | null>('/timer/current');
             setTimer(data);
@@ -39,9 +61,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
             } else {
                 setElapsed(0);
             }
-        } catch (e) {
-            console.error("Failed to fetch timer", e);
-            setTimer(null);
+        } catch (e: any) {
+            // Silence 401s if they happen during initial load/logout
+            if (e.status === 401 || (e.message && e.message.includes('401'))) {
+                setTimer(null);
+            } else {
+                console.error("Failed to fetch timer", e);
+                setTimer(null);
+            }
             setElapsed(0);
         } finally {
             setIsLoading(false);
@@ -76,7 +103,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
             setTimer(null);
             setElapsed(0);
         } catch (error: any) {
-            if (error.response && error.response.status === 404) {
+            if (error.status === 404) {
                 setTimer(null);
                 setElapsed(0);
             } else {

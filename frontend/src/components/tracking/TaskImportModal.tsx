@@ -146,15 +146,11 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
         setError(null);
 
         try {
-            const selectedTasks = results.filter(t => selectedIds.has(t.id));
-            const importData = selectedTasks.map(t => ({
-                redmine_id: t.id,
-                subject: t.subject,
-                project_name: t.project_name || "Unknown", // Use project_name from SearchResult
-                custom_group: "Default"
-            }));
 
-            await api.post('/tracked-tasks/import', importData);
+            // The backend ImportTasksRequest expects { issue_ids: number[] }
+            await api.post('/tracked-tasks/import', {
+                issue_ids: Array.from(selectedIds)
+            });
 
             onImportSuccess?.();
             onClose();

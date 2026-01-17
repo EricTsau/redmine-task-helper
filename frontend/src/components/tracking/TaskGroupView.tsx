@@ -82,8 +82,8 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
 
     const handleUpdateGroup = async (taskId: number, group: string | null) => {
         try {
-            const updated = await api.patch<TrackedTask>(`/tracked-tasks/${taskId}/group`, null, {
-                params: { custom_group: group || '' }
+            const updated = await api.patch<TrackedTask>(`/tracked-tasks/${taskId}/group`, {
+                custom_group: group || ''
             });
             setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
             setEditingGroup(null);

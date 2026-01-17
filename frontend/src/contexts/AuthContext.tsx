@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
 interface User {
+    id: number;
     username: string;
     is_admin: boolean;
     full_name?: string;
@@ -12,7 +13,7 @@ interface User {
 interface AuthContextType {
     user: User | null;
     token: string | null;
-    login: (token: string, username: string, is_admin: boolean) => void;
+    login: (token: string, username: string, is_admin: boolean, refreshToken?: string) => void;
     logout: () => void;
     isLoading: boolean;
 }
@@ -49,13 +50,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const login = (newToken: string, username: string, is_admin: boolean) => {
+    const login = (newToken: string, _username: string, _is_admin: boolean, refreshToken?: string) => {
+        if (refreshToken) {
+            api.setRefreshToken(refreshToken);
+        }
         setToken(newToken);
         // User will be fetched by the useEffect
     };
 
     const logout = () => {
         setToken(null);
+        api.setRefreshToken(null);
         setUser(null);
     };
 
