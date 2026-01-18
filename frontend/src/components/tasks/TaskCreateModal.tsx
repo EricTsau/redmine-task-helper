@@ -17,6 +17,7 @@ interface ProjectMetadata {
     priorities: { id: number; name: string }[];
     members: { id: number; name: string }[];
     current_user?: { id: number; name: string };
+    sub_projects?: { id: number; name: string }[];
 }
 
 export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTaskCreated }: TaskCreateModalProps) {
@@ -35,18 +36,33 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
     const [estimatedHours, setEstimatedHours] = useState<string>('');
     const [trackImmediately, setTrackImmediately] = useState(true);
 
+    const [selectedProjectId, setSelectedProjectId] = useState(projectId);
+    const [rootSubProjects, setRootSubProjects] = useState<{ id: number; name: string }[]>([]);
+
     useEffect(() => {
         if (isOpen && projectId) {
-            fetchMetadata();
+            setSelectedProjectId(projectId);
+            setRootSubProjects([]);
         }
     }, [isOpen, projectId]);
 
-    const fetchMetadata = async () => {
+    useEffect(() => {
+        if (isOpen && selectedProjectId) {
+            fetchMetadata(selectedProjectId);
+        }
+    }, [isOpen, selectedProjectId]);
+
+    const fetchMetadata = async (pid: number) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.get<ProjectMetadata>(`/projects/${projectId}/metadata`);
+            const res = await api.get<ProjectMetadata>(`/projects/${pid}/metadata`);
             setMetadata(res);
+
+            // Capture sub-projects from the root project
+            if (pid === projectId && res.sub_projects) {
+                setRootSubProjects(res.sub_projects);
+            }
 
             // Set defaults
             if (res.trackers.length > 0) setTrackerId(res.trackers[0].id);
@@ -76,7 +92,7 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
         try {
             // 1. Create Task in Redmine
             const taskRes = await api.post<{ id: number }>('/tasks', {
-                project_id: projectId,
+                project_id: selectedProjectId,
                 subject,
                 description,
                 tracker_id: trackerId,
@@ -123,7 +139,9 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
                 <div className="flex items-center justify-between p-4 border-b">
                     <div>
                         <h2 className="text-lg font-semibold">New Task</h2>
-                        <p className="text-xs text-muted-foreground">in {projectName}</p>
+                        <p className="text-xs text-muted-foreground">
+                            in {selectedProjectId === projectId ? projectName : rootSubProjects.find(p => p.id === selectedProjectId)?.name || projectName}
+                        </p>
                     </div>
                     <button onClick={onClose} className="p-1 hover:bg-muted rounded-full">
                         <X className="h-5 w-5" />
@@ -146,6 +164,21 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
 
                             {/* Standard Fields */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {rootSubProjects.length > 0 && (
+                                    <div className="col-span-full">
+                                        <label className="text-sm font-medium">Project</label>
+                                        <select
+                                            className="w-full mt-1 p-2 border rounded-md bg-background"
+                                            value={selectedProjectId}
+                                            onChange={e => setSelectedProjectId(Number(e.target.value))}
+                                        >
+                                            <option value={projectId}>{projectName} (Main)</option>
+                                            {rootSubProjects.map(p => (
+                                                <option key={p.id} value={p.id}>↳ {p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="col-span-full">
                                     <label className="text-sm font-medium">Subject <span className="text-destructive">*</span></label>
                                     <input

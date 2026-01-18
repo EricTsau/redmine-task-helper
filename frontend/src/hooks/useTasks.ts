@@ -5,8 +5,11 @@ import { api } from '@/lib/api';
 export interface Task {
     id: number;
     subject: string;
+    project_id: number;
     project_name: string;
     status_name: string;
+    estimated_hours: number | null;
+    spent_hours: number;
     updated_on: string;
 }
 
@@ -18,17 +21,7 @@ export function useTasks() {
     const fetchTasks = useCallback(async () => {
         setLoading(true);
         try {
-            // For now, let's assume we need to pass them.
-            // Or if Backend 1.1 implemented it to read from DB? 
-            // Viewed code says: "Depends(get_redmine_service)" -> reads Headers.
-            // So Frontend MUST send headers.
-            // Since 1.6 Settings is not done, we have no credentials.
-            // I will implement a temporary hardcoded credential or fail gracefully.
-            const apiKey = 'mock'; // Temporary mock for X-Redmine-API-Key
-            const headers: Record<string, string> = {};
-            if (apiKey) headers['X-Redmine-API-Key'] = apiKey;
-
-            const res = await api.get<Task[]>('/tasks', {}, { headers });
+            const res = await api.get<Task[]>('/tasks');
 
             setTasks(res);
             setError(null);

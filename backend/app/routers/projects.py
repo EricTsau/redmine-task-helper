@@ -49,11 +49,22 @@ async def get_project_metadata(
     members = service.get_project_members(project_id)
     current_redmine_user = service.get_current_user()
     
+    # Fetch all projects to find sub-projects
+    # Note: This might be optimized later by fetching only children if Redmine API supports it easily
+    # or relying on a local cache of projects.
+    all_projects = service.get_my_projects()
+    sub_projects = [
+        {"id": p.id, "name": p.name}
+        for p in all_projects
+        if hasattr(p, 'parent') and p.parent.id == project_id
+    ]
+
     return {
         "trackers": [{"id": t.id, "name": t.name} for t in trackers],
         "statuses": [{"id": s.id, "name": s.name} for s in statuses],
         "priorities": [{"id": p.id, "name": p.name} for p in priorities],
         "members": members,
+        "sub_projects": sub_projects,
         "current_user": {
             "id": current_redmine_user.id,
             "name": f"{current_redmine_user.firstname} {current_redmine_user.lastname}"

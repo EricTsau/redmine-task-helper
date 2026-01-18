@@ -3,9 +3,12 @@
  * 支援依 Project / Status / Custom Group 分類
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2 } from 'lucide-react';
+import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp } from 'lucide-react';
 
 import { api } from '@/lib/api';
+import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
+import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
+import { TaskGroupStats } from '../tasks/TaskGroupStats';
 
 interface TrackedTask {
     id: number;
@@ -14,6 +17,9 @@ interface TrackedTask {
     project_name: string;
     subject: string;
     status: string;
+    estimated_hours: number | null;
+    spent_hours: number;
+    updated_on: string | null;
     assigned_to_id: number | null;
     assigned_to_name: string | null;
     custom_group: string | null;
@@ -37,10 +43,45 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     const [editingGroup, setEditingGroup] = useState<number | null>(null);
     const [newGroupName, setNewGroupName] = useState('');
 
+    // State to track expanded groups
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+    // Helper helper to expand/collapse groups
+    const toggleGroup = (groupName: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) {
+                next.delete(groupName);
+            } else {
+                next.add(groupName);
+            }
+            return next;
+        });
+    };
+
+    const expandAll = () => {
+        const allGroups = new Set(Object.keys(groupedData));
+        setExpandedGroups(allGroups);
+    };
+
+    const collapseAll = () => {
+        setExpandedGroups(new Set());
+    };
+
+    const [warningDays, setWarningDays] = useState(2);
+    const [severeDays, setSevereDays] = useState(3);
+
     const loadTasks = useCallback(async () => {
         try {
-            const res = await api.get<TrackedTask[]>('/tracked-tasks/');
-            setTasks(res);
+            const [tasksRes, settingsRes] = await Promise.all([
+                api.get<TrackedTask[]>('/tracked-tasks/'),
+                api.get<any>('/settings')
+            ]);
+            setTasks(tasksRes);
+            if (settingsRes) {
+                setWarningDays(settingsRes.task_warning_days ?? 2);
+                setSevereDays(settingsRes.task_severe_warning_days ?? 3);
+            }
             setError(null);
         } catch (e) {
             console.error(e);
@@ -53,6 +94,27 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     useEffect(() => {
         loadTasks();
     }, [loadTasks]);
+
+    // Update expanded groups when tasks or grouping changes
+    useEffect(() => {
+        // Initially expand all groups when groupedData changes significantly (e.g. first load)
+        // Or maintain state if just refreshing tasks. 
+        // For simplicity, let's auto-expand all if the expanded set is empty on load
+        if (tasks.length > 0 && expandedGroups.size === 0) {
+            const groups = new Set<string>();
+            tasks.forEach(task => {
+                let key: string;
+                switch (groupBy) {
+                    case 'project': key = task.project_name; break;
+                    case 'status': key = task.status; break;
+                    case 'custom': key = task.custom_group || '未分類'; break;
+                    default: key = 'Other';
+                }
+                groups.add(key);
+            });
+            setExpandedGroups(groups);
+        }
+    }, [tasks.length, groupBy]); // Only re-calc default expansion on major changes
 
     const handleSync = async () => {
         setSyncing(true);
@@ -93,8 +155,21 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
         }
     };
 
+    // Helper to determine status based on updated_on
+    // Helper to determine status based on updated_on
+    const getTaskStatus = (task: TrackedTask): TaskHealthStatus => {
+        return getTaskHealthStatus(task, { warningDays, severeDays });
+    };
+
+    // Calculate stats per group
+    interface GroupStats {
+        total: number;
+        warning: number;
+        severe: number;
+    }
+
     // 分組邏輯
-    const groupedTasks = tasks.reduce<Record<string, TrackedTask[]>>((acc, task) => {
+    const groupedData = tasks.reduce<Record<string, { tasks: TrackedTask[], stats: GroupStats }>>((acc, task) => {
         let key: string;
         switch (groupBy) {
             case 'project':
@@ -109,8 +184,21 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
             default:
                 key = 'Other';
         }
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(task);
+
+        if (!acc[key]) {
+            acc[key] = {
+                tasks: [],
+                stats: { total: 0, warning: 0, severe: 0 }
+            };
+        }
+
+        acc[key].tasks.push(task);
+        acc[key].stats.total++;
+
+        const status = getTaskStatus(task);
+        if (status === 'warning') acc[key].stats.warning++;
+        if (status === 'severe') acc[key].stats.severe++;
+
         return acc;
     }, {});
 
@@ -148,6 +236,24 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                     >
                         <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                     </button>
+
+                    {/* Expand/Collapse All */}
+                    <div className="flex items-center border rounded overflow-hidden">
+                        <button
+                            onClick={expandAll}
+                            className="p-2 hover:bg-muted border-r"
+                            title="全部展開"
+                        >
+                            <ChevronsDown className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={collapseAll}
+                            className="p-2 hover:bg-muted"
+                            title="全部收合"
+                        >
+                            <ChevronsUp className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -158,101 +264,120 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
             )}
 
             {/* Task Groups */}
-            {Object.keys(groupedTasks).length > 0 ? (
+            {Object.keys(groupedData).length > 0 ? (
                 <div className="space-y-6">
-                    {Object.entries(groupedTasks).map(([groupName, groupTasks]) => (
+                    {Object.entries(groupedData).map(([groupName, { tasks: groupTasks, stats }]) => (
                         <div key={groupName} className="space-y-2">
                             {/* Group Header */}
-                            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <div
+                                className="flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                                onClick={() => toggleGroup(groupName)}
+                            >
+                                {expandedGroups.has(groupName) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 {groupBy === 'project' && <FolderOpen className="h-4 w-4" />}
                                 {groupBy === 'status' && <CheckCircle className="h-4 w-4" />}
                                 {groupBy === 'custom' && <Tag className="h-4 w-4" />}
                                 <span>{groupName}</span>
-                                <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                                    {groupTasks.length}
-                                </span>
+                                <TaskGroupStats
+                                    stats={stats}
+                                    warningDays={warningDays}
+                                    severeDays={severeDays}
+                                />
                             </div>
 
                             {/* Tasks */}
-                            <div className="grid gap-2">
-                                {groupTasks.map(task => (
-                                    <div
-                                        key={task.id}
-                                        className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors group"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-medium truncate">{task.subject}</div>
-                                            <div className="text-sm text-muted-foreground">
-                                                #{task.redmine_issue_id} • {task.project_name} • {task.status}
-                                                {task.custom_group && (
-                                                    <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
-                                                        {task.custom_group}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                            {expandedGroups.has(groupName) && (
+                                <div className="grid gap-2">
+                                    {groupTasks.map(task => {
+                                        const status = getTaskStatus(task);
+                                        const bgClass = getTaskHealthColorClass(status);
 
-                                        {/* Actions */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {/* Edit Group */}
-                                            {editingGroup === task.id ? (
-                                                <div className="flex items-center gap-1">
-                                                    <input
-                                                        type="text"
-                                                        value={newGroupName}
-                                                        onChange={(e) => setNewGroupName(e.target.value)}
-                                                        placeholder="分組名稱"
-                                                        className="px-2 py-1 text-sm border rounded w-24"
-                                                        autoFocus
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                handleUpdateGroup(task.id, newGroupName);
-                                                            } else if (e.key === 'Escape') {
-                                                                setEditingGroup(null);
-                                                            }
-                                                        }}
-                                                    />
+                                        return (
+                                            <div
+                                                key={task.id}
+                                                className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium truncate">{task.subject}</div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        #{task.redmine_issue_id} • {task.project_name} • {task.status}
+                                                        <TaskMetaInfo
+                                                            estimated_hours={task.estimated_hours}
+                                                            spent_hours={task.spent_hours}
+                                                            updated_on={task.updated_on}
+                                                            status={status}
+                                                        />
+                                                        {task.custom_group && (
+                                                            <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
+                                                                {task.custom_group}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {/* Edit Group */}
+                                                    {editingGroup === task.id ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="text"
+                                                                value={newGroupName}
+                                                                onChange={(e) => setNewGroupName(e.target.value)}
+                                                                placeholder="分組名稱"
+                                                                className="px-2 py-1 text-sm border rounded w-24"
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        handleUpdateGroup(task.id, newGroupName);
+                                                                    } else if (e.key === 'Escape') {
+                                                                        setEditingGroup(null);
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() => handleUpdateGroup(task.id, newGroupName)}
+                                                                className="p-1 hover:bg-muted rounded"
+                                                            >
+                                                                <CheckCircle className="h-4 w-4 text-primary" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingGroup(task.id);
+                                                                setNewGroupName(task.custom_group || '');
+                                                            }}
+                                                            className="p-1.5 hover:bg-muted rounded"
+                                                            title="設定分組"
+                                                        >
+                                                            <Tag className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Remove */}
                                                     <button
-                                                        onClick={() => handleUpdateGroup(task.id, newGroupName)}
-                                                        className="p-1 hover:bg-muted rounded"
+                                                        onClick={() => handleRemove(task.id)}
+                                                        className="p-1.5 hover:bg-destructive/10 text-destructive rounded"
+                                                        title="移除追蹤"
                                                     >
-                                                        <CheckCircle className="h-4 w-4 text-primary" />
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+
+                                                    {/* Start Timer */}
+                                                    <button
+                                                        onClick={() => startTimer(task.redmine_issue_id)}
+                                                        className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                                                        title="開始計時"
+                                                    >
+                                                        <Play className="h-4 w-4 fill-current" />
                                                     </button>
                                                 </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingGroup(task.id);
-                                                        setNewGroupName(task.custom_group || '');
-                                                    }}
-                                                    className="p-1.5 hover:bg-muted rounded"
-                                                    title="設定分組"
-                                                >
-                                                    <Tag className="h-4 w-4" />
-                                                </button>
-                                            )}
-
-                                            {/* Remove */}
-                                            <button
-                                                onClick={() => handleRemove(task.id)}
-                                                className="p-1.5 hover:bg-destructive/10 text-destructive rounded"
-                                                title="移除追蹤"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-
-                                            {/* Start Timer */}
-                                            <button
-                                                onClick={() => startTimer(task.redmine_issue_id)}
-                                                className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                                                title="開始計時"
-                                            >
-                                                <Play className="h-4 w-4 fill-current" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

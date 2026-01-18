@@ -16,6 +16,8 @@ class SettingsUpdate(BaseModel):
     openai_url: Optional[str] = None
     openai_key: Optional[str] = None
     openai_model: Optional[str] = None
+    task_warning_days: Optional[int] = None
+    task_severe_warning_days: Optional[int] = None
 
 class SettingsResponse(BaseModel):
     redmine_url: Optional[str] = None
@@ -24,6 +26,8 @@ class SettingsResponse(BaseModel):
     openai_url: Optional[str] = None
     openai_key: Optional[str] = None  # Masked
     openai_model: Optional[str] = None
+    task_warning_days: int = 2
+    task_severe_warning_days: int = 3
 
 def mask_key(key: Optional[str]) -> Optional[str]:
     if not key:
@@ -48,7 +52,9 @@ async def get_settings(
         redmine_default_activity_id=settings.redmine_default_activity_id,
         openai_url=settings.openai_url,
         openai_key=mask_key(settings.openai_key),
-        openai_model=settings.openai_model
+        openai_model=settings.openai_model,
+        task_warning_days=settings.task_warning_days,
+        task_severe_warning_days=settings.task_severe_warning_days
     )
 
 @router.put("", response_model=SettingsResponse)
@@ -77,6 +83,11 @@ async def update_settings(
         settings.openai_key = update.openai_key
     if update.openai_model is not None:
         settings.openai_model = update.openai_model
+        
+    if update.task_warning_days is not None:
+        settings.task_warning_days = update.task_warning_days
+    if update.task_severe_warning_days is not None:
+        settings.task_severe_warning_days = update.task_severe_warning_days
     
     settings.updated_at = datetime.utcnow()
     session.add(settings)
@@ -89,5 +100,7 @@ async def update_settings(
         redmine_default_activity_id=settings.redmine_default_activity_id,
         openai_url=settings.openai_url,
         openai_key=mask_key(settings.openai_key),
-        openai_model=settings.openai_model
+        openai_model=settings.openai_model,
+        task_warning_days=settings.task_warning_days,
+        task_severe_warning_days=settings.task_severe_warning_days
     )

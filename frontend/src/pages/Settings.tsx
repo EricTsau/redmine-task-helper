@@ -12,6 +12,8 @@ interface SettingsData {
     openai_url: string;
     openai_key: string;
     openai_model: string;
+    task_warning_days?: number;
+    task_severe_warning_days?: number;
 }
 
 export function Settings() {
@@ -22,7 +24,9 @@ export function Settings() {
         redmine_default_activity_id: '',
         openai_url: 'https://api.openai.com/v1',
         openai_key: '',
-        openai_model: 'gpt-4o-mini'
+        openai_model: 'gpt-4o-mini',
+        task_warning_days: 2,
+        task_severe_warning_days: 3
     });
     const [status, setStatus] = useState<string>('');
     const [testStatus, setTestStatus] = useState<string>('');
@@ -43,7 +47,9 @@ export function Settings() {
                         redmine_default_activity_id: data.redmine_default_activity_id?.toString() || '',
                         openai_url: data.openai_url || 'https://api.openai.com/v1',
                         openai_key: data.openai_key || '',
-                        openai_model: data.openai_model || 'gpt-4o-mini'
+                        openai_model: data.openai_model || 'gpt-4o-mini',
+                        task_warning_days: data.task_warning_days ?? 2,
+                        task_severe_warning_days: data.task_severe_warning_days ?? 3
                     });
                 }
             })
@@ -57,6 +63,8 @@ export function Settings() {
                 redmine_url: settings.redmine_url,
                 redmine_token: settings.redmine_token,
                 redmine_default_activity_id: settings.redmine_default_activity_id ? parseInt(settings.redmine_default_activity_id) : null,
+                task_warning_days: settings.task_warning_days,
+                task_severe_warning_days: settings.task_severe_warning_days
             };
 
             const data = await api.put<SettingsData>('/settings', backendSettings);
@@ -85,6 +93,23 @@ export function Settings() {
             setTimeout(() => setStatus(''), 2000);
         } catch (e: any) {
             setStatus('Error: ' + e.message);
+        }
+    };
+
+    const saveTaskWarnings = async () => {
+        // Prevent saving if values are invalid
+        if (!settings.task_warning_days || !settings.task_severe_warning_days) return;
+
+        setStatus('Saving warning settings...');
+        try {
+            await api.put<SettingsData>('/settings', {
+                task_warning_days: settings.task_warning_days,
+                task_severe_warning_days: settings.task_severe_warning_days
+            });
+            setStatus('✓ Warning settings saved');
+            setTimeout(() => setStatus(''), 2000);
+        } catch (e: any) {
+            setStatus('Error saving warnings: ' + e.message);
         }
     };
 
@@ -209,6 +234,39 @@ export function Settings() {
                         </div>
                     </form>
                 )}
+            </section>
+
+            {/* Task Warnings Section */}
+            <section className="space-y-4 p-6 border rounded-xl bg-card shadow-sm">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-500" /> Task Warning Settings
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Warning Threshold (Days)</label>
+                        <input
+                            type="number"
+                            value={settings.task_warning_days}
+                            onChange={(e) => setSettings(p => ({ ...p, task_warning_days: parseInt(e.target.value) }))}
+                            onBlur={saveTaskWarnings}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            min="1"
+                        />
+                        <p className="text-xs text-muted-foreground">Tasks unupdated for this long will show a warning.</p>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Severe Threshold (Days)</label>
+                        <input
+                            type="number"
+                            value={settings.task_severe_warning_days}
+                            onChange={(e) => setSettings(p => ({ ...p, task_severe_warning_days: parseInt(e.target.value) }))}
+                            onBlur={saveTaskWarnings}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            min="1"
+                        />
+                        <p className="text-xs text-muted-foreground">Tasks unupdated for this long will show a severe warning.</p>
+                    </div>
+                </div>
             </section>
 
             {/* Redmine Section */}

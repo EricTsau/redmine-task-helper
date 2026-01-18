@@ -13,8 +13,11 @@ from app.dependencies import get_redmine_service
 class TaskResponse(BaseModel):
     id: int
     subject: str
+    project_id: int
     project_name: str
     status_name: str
+    estimated_hours: Optional[float] = None
+    spent_hours: float = 0.0
     updated_on: str
 
 @router.get("", response_model=List[TaskResponse])
@@ -25,8 +28,11 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
         TaskResponse(
             id=issue.id,
             subject=issue.subject,
+            project_id=issue.project.id,
             project_name=issue.project.name,
             status_name=issue.status.name,
+            estimated_hours=getattr(issue, 'estimated_hours', None),
+            spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
             updated_on=str(issue.updated_on)
         ) for issue in issues
     ]
@@ -41,6 +47,8 @@ class SearchTaskResponse(BaseModel):
     status_name: str
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None
+    estimated_hours: Optional[float] = None
+    spent_hours: float = 0.0
     updated_on: str
 
 
@@ -91,6 +99,8 @@ async def search_tasks(
             status_name=issue.status.name,
             assigned_to_id=assigned_id,
             assigned_to_name=assigned_name,
+            estimated_hours=getattr(issue, 'estimated_hours', None),
+            spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
             updated_on=str(issue.updated_on)
         ))
     
@@ -127,6 +137,7 @@ async def create_task(
         return TaskResponse(
             id=issue.id,
             subject=issue.subject,
+            project_id=issue.project.id,
             project_name=issue.project.name,
             status_name=issue.status.name,
             updated_on=str(issue.updated_on)

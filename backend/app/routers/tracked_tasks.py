@@ -28,6 +28,12 @@ class TrackedTaskResponse(BaseModel):
     project_name: str
     subject: str
     status: str
+    
+    # New fields
+    estimated_hours: Optional[float] = None
+    spent_hours: float = 0.0
+    updated_on: Optional[datetime] = None
+    
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None
     custom_group: Optional[str] = None
@@ -87,6 +93,13 @@ async def import_tasks(
                 existing.project_name = issue.project.name
                 existing.subject = issue.subject
                 existing.status = issue.status.name
+                
+                # Update new fields
+                existing.estimated_hours = getattr(issue, 'estimated_hours', None)
+                existing.spent_hours = getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0
+                if hasattr(issue, 'updated_on'):
+                    existing.updated_on = issue.updated_on
+                
                 existing.assigned_to_id = assigned_to_id
                 existing.assigned_to_name = assigned_to_name
                 existing.last_synced_at = datetime.utcnow()
@@ -100,7 +113,11 @@ async def import_tasks(
                     project_id=issue.project.id,
                     project_name=issue.project.name,
                     subject=issue.subject,
+
                     status=issue.status.name,
+                    estimated_hours=getattr(issue, 'estimated_hours', None),
+                    spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
+                    updated_on=getattr(issue, 'updated_on', None),
                     assigned_to_id=assigned_to_id,
                     assigned_to_name=assigned_to_name,
                     last_synced_at=datetime.utcnow()
@@ -238,7 +255,14 @@ async def sync_tracked_tasks(
             task.project_id = issue.project.id
             task.project_name = issue.project.name
             task.subject = issue.subject
+
             task.status = issue.status.name
+            
+            task.estimated_hours = getattr(issue, 'estimated_hours', None)
+            task.spent_hours = getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0
+            if hasattr(issue, 'updated_on'):
+                task.updated_on = issue.updated_on
+            
             task.assigned_to_id = assigned_to_id
             task.assigned_to_name = assigned_to_name
             task.last_synced_at = datetime.utcnow()

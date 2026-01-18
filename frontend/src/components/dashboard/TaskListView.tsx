@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useTasks, type Task } from '@/hooks/useTasks';
 import { api } from '@/lib/api';
-import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus } from 'lucide-react';
+import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp } from 'lucide-react';
 import { TaskCreateModal } from '../tasks/TaskCreateModal';
+import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
+import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
+import { TaskGroupStats } from '../tasks/TaskGroupStats';
 
 interface TaskListViewProps {
     startTimer: (id: number, comment?: string) => void;
@@ -14,6 +17,23 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
     const { tasks, loading, error, refresh } = useTasks();
     const [groupBy, setGroupBy] = useState<GroupBy>('project');
     const [refreshing, setRefreshing] = useState(false);
+    const [warningDays, setWarningDays] = useState(2);
+    const [severeDays, setSevereDays] = useState(3);
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await api.get<any>('/settings');
+                if (res) {
+                    setWarningDays(res.task_warning_days ?? 2);
+                    setSevereDays(res.task_severe_warning_days ?? 3);
+                }
+            } catch (e) {
+                console.error("Failed to fetch settings", e);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     // Create Task Modal State
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -26,6 +46,92 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
     };
 
     const [watchlist, setWatchlist] = useState<{ redmine_project_id: number; project_name: string }[]>([]);
+    const [allProjects, setAllProjects] = useState<{ id: number; name: string; parent_id?: number | null }[]>([]);
+
+    useEffect(() => {
+        const fetchProjects = async () => {
+            try {
+                const res = await api.get<{ id: number; name: string; parent_id?: number | null }[]>('/projects');
+                setAllProjects(res);
+            } catch (e) {
+                console.error("Failed to fetch projects", e);
+            }
+        };
+        fetchProjects();
+    }, []);
+
+    // Expand/Collapse state
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+    const toggleGroup = (groupName: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) {
+                next.delete(groupName);
+            } else {
+                next.add(groupName);
+            }
+            return next;
+        });
+    };
+
+    const expandAll = () => {
+        const currentKeys = Object.keys(deriveGroupedTasks());
+        setExpandedGroups(new Set(currentKeys));
+    };
+
+    const collapseAll = () => {
+        setExpandedGroups(new Set());
+    };
+
+    // Helper to check if a project is monitored (in watchlist or child of watchlist)
+    const isProjectMonitored = (projectId: number) => {
+        // Direct match
+        if (watchlist.some(w => w.redmine_project_id === projectId)) return true;
+
+        // Parent match
+        const project = allProjects.find(p => p.id === projectId);
+        if (project?.parent_id) {
+            // Check if parent is in watchlist
+            // Note: recursive check would be better for deep nesting, but start with 1 level
+            if (watchlist.some(w => w.redmine_project_id === project.parent_id)) return true;
+        }
+        return false;
+    };
+
+    // Duplicate derivation for use in handlers (optimization: memoize this later if needed)
+    const deriveGroupedTasks = () => {
+        return tasks.reduce<Record<string, GroupData>>((acc, task) => {
+            // Filter out non-monitored projects if we are grouping by project
+            // Logic: strictly hide if NOT monitored.
+            // But we should allow 'All Tasks' if groupBy is not project? 
+            // User request implies "In my task list page", "Logistics CRM ... not monitored should not be displayed".
+            // So we should filter GLOBALLY for this view?
+            // Yes, "My Tasks" usually implies "Tasks I care about".
+
+            if (!isProjectMonitored(task.project_id)) {
+                return acc;
+            }
+
+            let key: string;
+            switch (groupBy) {
+                case 'project': key = task.project_name; break;
+                case 'status': key = task.status_name; break;
+                default: key = 'All Tasks';
+            }
+            if (!acc[key]) {
+                acc[key] = { tasks: [], stats: { total: 0, warning: 0, severe: 0 } };
+            }
+            acc[key].tasks.push(task);
+            acc[key].stats.total++;
+            const status = getTaskStatus(task);
+            if (status === 'warning') acc[key].stats.warning++;
+            if (status === 'severe') acc[key].stats.severe++;
+            return acc;
+        }, groupBy === 'project'
+            ? watchlist.reduce((acc, p) => ({ ...acc, [p.project_name]: { tasks: [], stats: { total: 0, warning: 0, severe: 0 } } }), {} as Record<string, GroupData>)
+            : {});
+    };
 
     useEffect(() => {
         const fetchWatchlist = async () => {
@@ -44,33 +150,33 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
         return watchlist.find(p => p.project_name === name)?.redmine_project_id;
     };
 
-    const openCreateModal = (projectName: string) => {
-        const pid = getProjectIdByName(projectName);
+    const openCreateModal = (projectName: string, projectId?: number) => {
+        const pid = projectId || getProjectIdByName(projectName);
         if (pid) {
             setCreateProjectCtx({ id: pid, name: projectName });
             setCreateModalOpen(true);
         }
     };
 
-    // Grouping logic
-    const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
-        let key: string;
-        switch (groupBy) {
-            case 'project':
-                key = task.project_name;
-                break;
-            case 'status':
-                key = task.status_name;
-                break;
-            default:
-                key = 'All Tasks';
+    // Helper to determine status based on updated_on
+    const getTaskStatus = (task: Task): TaskHealthStatus => {
+        return getTaskHealthStatus(task, { warningDays, severeDays });
+    };
+
+    interface GroupData {
+        tasks: Task[];
+        stats: { total: number; warning: number; severe: number };
+    }
+
+    // Grouping logic (Memoized to avoid re-calc on every render if possible, but for now simple variable)
+    const groupedTasks = deriveGroupedTasks();
+
+    // Auto-expand on load/change
+    useEffect(() => {
+        if (Object.keys(groupedTasks).length > 0 && expandedGroups.size === 0) {
+            setExpandedGroups(new Set(Object.keys(groupedTasks)));
         }
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(task);
-        return acc;
-    }, groupBy === 'project'
-        ? watchlist.reduce((acc, p) => ({ ...acc, [p.project_name]: [] }), {} as Record<string, Task[]>)
-        : {});
+    }, [tasks.length, groupBy, watchlist.length, allProjects.length]);
 
     if (loading && !refreshing) {
         return (
@@ -106,29 +212,73 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                     >
                         <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>
+
+                    {/* Expand/Collapse All */}
+                    <div className="flex items-center border rounded overflow-hidden">
+                        <button
+                            onClick={expandAll}
+                            className="p-2 hover:bg-muted border-r"
+                            title="全部展開"
+                        >
+                            <ChevronsDown className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={collapseAll}
+                            className="p-2 hover:bg-muted"
+                            title="全部收合"
+                        >
+                            <ChevronsUp className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Task List */}
             <div className="space-y-6">
-                {Object.entries(groupedTasks).map(([groupName, groupTasks]) => (
+                {Object.entries(groupedTasks).map(([groupName, { tasks: groupTasks, stats }]) => (
                     <div key={groupName} className="space-y-2">
                         {/* Group Header */}
                         {groupBy !== 'none' && (
-                            <div className="flex items-center justify-between text-sm font-medium text-muted-foreground border-b pb-1">
+                            <div
+                                className="flex items-center justify-between text-sm font-medium text-muted-foreground border-b pb-1 cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => toggleGroup(groupName)}
+                            >
                                 <div className="flex items-center gap-2">
+                                    {expandedGroups.has(groupName) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                     {groupBy === 'project' && <FolderOpen className="h-4 w-4" />}
                                     {groupBy === 'status' && <CheckCircle className="h-4 w-4" />}
                                     <span>{groupName}</span>
-                                    <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                                        {groupTasks.length}
-                                    </span>
+                                    <div className="ml-2">
+                                        <TaskGroupStats
+                                            stats={stats}
+                                            warningDays={warningDays}
+                                            severeDays={severeDays}
+                                        />
+                                    </div>
                                 </div>
 
-                                {/* Add Task Button (Only for Projects in Watchlist) */}
-                                {groupBy === 'project' && getProjectIdByName(groupName) && (
+                                {/* Add Task Button (For projects in Watchlist OR their subprojects) */}
+                                {groupBy === 'project' && (
                                     <button
-                                        onClick={() => openCreateModal(groupName)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Try to find project ID from tasks or allProjects
+                                            let pid = getProjectIdByName(groupName); // Check watchlist first
+                                            if (!pid) {
+                                                // Check tasks
+                                                const task = groupTasks[0];
+                                                if (task) pid = task.project_id;
+                                            }
+                                            if (!pid) {
+                                                // Check allProjects by name (fallback)
+                                                const p = allProjects.find(ap => ap.name === groupName);
+                                                if (p) pid = p.id;
+                                            }
+
+                                            if (pid) {
+                                                openCreateModal(groupName, pid);
+                                            }
+                                        }}
                                         className="p-1 hover:bg-muted rounded hover:text-foreground transition-colors"
                                         title={`在 ${groupName} 新增任務`}
                                     >
@@ -139,28 +289,41 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         )}
 
                         {/* Tasks */}
-                        <div className="grid gap-2">
-                            {groupTasks.map(task => (
-                                <div
-                                    key={task.id}
-                                    className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors group"
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-medium truncate">{task.subject}</div>
-                                        <div className="text-sm text-muted-foreground">
-                                            #{task.id} • {task.project_name} • {task.status_name}
+                        {expandedGroups.has(groupName) && (
+                            <div className="grid gap-2">
+                                {groupTasks.map(task => {
+                                    const status = getTaskStatus(task);
+                                    const bgClass = getTaskHealthColorClass(status);
+
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium truncate">{task.subject}</div>
+                                                <div className="text-sm text-muted-foreground">
+                                                    #{task.id} • {task.project_name} • {task.status_name}
+                                                    <TaskMetaInfo
+                                                        estimated_hours={task.estimated_hours}
+                                                        spent_hours={task.spent_hours}
+                                                        updated_on={task.updated_on}
+                                                        status={status}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => startTimer(task.id)}
+                                                className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="開始計時"
+                                            >
+                                                <Play className="h-4 w-4 fill-current" />
+                                            </button>
                                         </div>
-                                    </div>
-                                    <button
-                                        onClick={() => startTimer(task.id)}
-                                        className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="開始計時"
-                                    >
-                                        <Play className="h-4 w-4 fill-current" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 ))}
 

@@ -51,6 +51,10 @@ class UserSettings(SQLModel, table=True):
     openai_key: Optional[str] = None
     openai_model: Optional[str] = Field(default="gpt-4o-mini")
     
+    # Task Warning Settings
+    task_warning_days: int = Field(default=2)
+    task_severe_warning_days: int = Field(default=3)
+    
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     user: User = Relationship(back_populates="settings")
@@ -73,6 +77,12 @@ class TrackedTask(SQLModel, table=True):
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None
     custom_group: Optional[str] = None
+    
+    # New fields for stats and warnings
+    estimated_hours: Optional[float] = None
+    spent_hours: float = Field(default=0.0)
+    updated_on: Optional[datetime] = None
+    
     last_synced_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
