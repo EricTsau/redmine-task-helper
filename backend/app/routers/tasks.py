@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import List, Optional
+from datetime import datetime, timezone
 from pydantic import BaseModel
 from app.services.redmine_client import RedmineService
 
@@ -20,6 +21,20 @@ class TaskResponse(BaseModel):
     spent_hours: float = 0.0
     updated_on: str
 
+def format_iso_datetime(dt) -> str:
+    """Format datetime to ISO string with UTC timezone if naive."""
+    from datetime import timezone
+    if not dt:
+        return ""
+    if isinstance(dt, str):
+        return dt
+    if hasattr(dt, 'isoformat'):
+        # If naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    return str(dt)
+
 @router.get("", response_model=List[TaskResponse])
 async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
     """List issues assigned to the current user."""
@@ -33,7 +48,7 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
             status_name=issue.status.name,
             estimated_hours=getattr(issue, 'estimated_hours', None),
             spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
-            updated_on=str(issue.updated_on)
+            updated_on=format_iso_datetime(issue.updated_on)
         ) for issue in issues
     ]
 
@@ -101,7 +116,7 @@ async def search_tasks(
             assigned_to_name=assigned_name,
             estimated_hours=getattr(issue, 'estimated_hours', None),
             spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
-            updated_on=str(issue.updated_on)
+            updated_on=format_iso_datetime(issue.updated_on)
         ))
     
     return results
@@ -140,7 +155,7 @@ async def create_task(
             project_id=issue.project.id,
             project_name=issue.project.name,
             status_name=issue.status.name,
-            updated_on=str(issue.updated_on)
+            updated_on=format_iso_datetime(issue.updated_on)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

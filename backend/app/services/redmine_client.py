@@ -34,7 +34,7 @@ class RedmineService:
                     journals.append({
                         'id': j.id,
                         'notes': notes,
-                        'created_on': str(getattr(j, 'created_on', '')),
+                        'created_on': j.created_on.isoformat() if hasattr(j, 'created_on', None) and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
                         'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
                     })
             
