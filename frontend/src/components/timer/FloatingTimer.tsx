@@ -2,10 +2,20 @@ import { useTimer } from '@/contexts/TimerContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Play, Pause } from 'lucide-react';
 
+import { useDraggable } from '@/hooks/useDraggable';
+
 export function FloatingTimer() {
     const { timer, elapsed, pauseTimer, startTimer } = useTimer();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Initial position approximation (bottom-6 left-[17.5rem])
+    // 17.5rem = 280px. 
+    // We'll use a safe default and let the user adjust.
+    const { position, handleMouseDown } = useDraggable({
+        initialPosition: { x: 280, y: window.innerHeight - 80 },
+        storageKey: 'floating-timer-position'
+    });
 
     if (!timer || timer.status === 'stopped' || location.pathname === '/focus') {
         return null;
@@ -21,7 +31,11 @@ export function FloatingTimer() {
     const isRunning = timer.status === 'running';
 
     return (
-        <div className="fixed bottom-6 left-[17.5rem] z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div
+            className="fixed z-50 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            style={{ left: position.x, top: position.y }}
+            onMouseDown={handleMouseDown}
+        >
             <div
                 className="flex items-center gap-3 bg-primary text-primary-foreground px-4 py-3 rounded-full shadow-lg cursor-pointer hover:ring-2 ring-primary/20 transition-all border border-primary-foreground/10 group"
                 onClick={() => navigate('/focus')}

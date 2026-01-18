@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Redmine Flow - Stop Script
+# Redmine Task Helper - Stop Script
 # Usage: ./stop.sh
 
-echo "🛑 Stopping Redmine Flow..."
+echo "🛑 Stopping Redmine Task Helper..."
 
 # Kill by saved PIDs
 if [ -f ".pids" ]; then

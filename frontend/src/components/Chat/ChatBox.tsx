@@ -12,11 +12,22 @@ interface ChatResponse {
     intent_filter?: any;
 }
 
+import { useDraggable } from '@/hooks/useDraggable';
 import { api } from '@/lib/api';
 
 export function ChatBox() {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+
+    // Initial position near bottom right
+    const { position, handleMouseDown } = useDraggable({
+        initialPosition: {
+            x: typeof window !== 'undefined' ? window.innerWidth - 100 : 1000,
+            y: typeof window !== 'undefined' ? window.innerHeight - 100 : 800
+        },
+        storageKey: 'chat-box-position'
+    });
+
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -104,20 +115,42 @@ export function ChatBox() {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 p-4 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-all z-50 flex items-center justify-center"
+                className="fixed p-4 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-all z-50 flex items-center justify-center cursor-move"
+                style={{ left: position.x, top: position.y }}
+                onMouseDown={handleMouseDown}
             >
                 <Bot className="h-6 w-6" />
             </button>
         );
     }
 
+    // Correction: the closed button and the open window should probably share the position of "Bottom Right" corner concepts?
+    // Or just top-left of the element.
+    // If I use the same (x,y) for the Button as for the Window:
+    // The button is small (60x60), the window is large (400x600).
+    // If (x,y) is top-left:
+    // Button at (1000, 800) -> OK.
+    // Window at (1000, 800) -> The top-left of window is at button position. This effectively moves the window "down-right" relative to where it would 'grow' from normally.
+    // Usually chat bubbles grow up-left from the trigger.
+    // If we make it draggable, users usually drag the WINDOW.
+    // When closed, where does the button go? To the same top-left?
+    // Let's assume the user drags the "Component".
+    // If I drag the window to (500, 500), then close it. The button appears at (500, 500).
+    // This seems acceptable.
+
     const widthClass = isExpanded ? 'w-[800px]' : 'w-96';
 
     return (
-        <div className={`fixed bottom-6 right-6 ${widthClass} z-50 animate-in slide-in-from-bottom-10 fade-in duration-200 transition-all`}>
+        <div
+            className={`fixed ${widthClass} z-50 animate-in slide-in-from-bottom-10 fade-in duration-200 transition-all`}
+            style={{ left: position.x, top: position.y }}
+        >
             <div className="bg-card border rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
                 {/* Header */}
-                <div className="bg-primary px-4 py-3 flex items-center justify-between text-primary-foreground">
+                <div
+                    className="bg-primary px-4 py-3 flex items-center justify-between text-primary-foreground cursor-move"
+                    onMouseDown={handleMouseDown}
+                >
                     <h3 className="font-semibold flex items-center gap-2">
                         <Bot className="h-5 w-5" />
                         AI Assistant

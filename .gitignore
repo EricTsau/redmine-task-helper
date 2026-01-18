@@ -49,3 +49,6 @@ htmlcov/
 .opencode/
 .pids
 
+test-results/
+playwright-report/
+docs/plans/

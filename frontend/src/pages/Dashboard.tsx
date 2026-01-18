@@ -97,7 +97,7 @@ export function Dashboard() {
                     <Settings className="h-12 w-12 text-muted-foreground" />
                 </div>
                 <div className="text-center space-y-2">
-                    <h2 className="text-xl font-semibold">Welcome to Redmine Flow</h2>
+                    <h2 className="text-xl font-semibold">Welcome to Redmine Task Helper</h2>
                     <p className="text-muted-foreground max-w-md">
                         請先設定 Redmine 連線資訊才能開始使用
                     </p>

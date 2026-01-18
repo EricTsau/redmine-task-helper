@@ -1,7 +1,7 @@
 # 專案背景 (Project Context)
 
 ## 目標 (Purpose)
-**Redmine Flow** 是一個針對 2026 年現代化辦公需求設計的 Redmine 伴侶網頁應用。
+**Redmine Task Helper** 是一個針對 2026 年現代化辦公需求設計的 Redmine 伴侶網頁應用。
 **願景**：將 Redmine 從單純的「填報工具」轉變為「智慧助手」(High Value, Low Friction)。
 **核心理念**：極小化使用者在工時追蹤與狀態更新上的阻力，同時最大化視覺回饋與操作滿足感。
 

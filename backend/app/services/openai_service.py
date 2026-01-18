@@ -15,6 +15,27 @@ class OpenAIService:
         )
         self.model = model
 
+    async def chat_completion(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> str:
+        """
+        通用的 Chat Completion 方法
+        
+        Args:
+            messages: OpenAI 格式的訊息列表 [{"role": "system/user/assistant", "content": "..."}]
+            temperature: 創意程度 (0-1)
+            
+        Returns:
+            AI 回應的純文字內容
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            raise Exception(f"OpenAI API error: {str(e)}")
+
     def extract_time_entry(self, user_input: str) -> TimeEntryExtraction:
         """
         從自然語言中提取工時紀錄資訊。
@@ -383,3 +404,51 @@ class OpenAIService:
                 "tasks": []
             }
 
+
+    def generate_executive_briefing(self, context: str) -> str:
+        """
+        Generate an executive briefing based on the provided context.
+        """
+        system_prompt = """
+        You are a Chief of Staff or Senior Project Manager assistant.
+        Your goal is to write a high-quality, professional Executive Briefing for C-level executives.
+        
+        Input Context:
+        The context contains Project Status summaries, Overdue Risks, and Recent Achievements.
+        
+        Output Requirements:
+        1. Format: Markdown
+        2. Tone: Professional, objective, concise yet insightful.
+        3. Structure:
+           # Executive Briefing {Date}
+           ## 1. Executive Summary
+           (One paragraph summary of the overall portfolio health, major wins, and critical risks)
+           
+           ## 2. Portfolio Status
+           (Bullet points on key projects)
+           
+           ## 3. Risk Assessment
+           (Highlight critical delays/risks and their potential impact)
+           
+           ## 4. Recent Achievements
+           (Briefly mention what was completed)
+           
+           ## 5. Recommendations
+           (Actionable advice based on the risks)
+           
+        4. Language: Traditional Chinese (繁體中文).
+        """
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context}
+                ],
+                temperature=0.5
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Executive Briefing Gen Error: {e}")
+            return f"# Error\nFailed to generate briefing: {str(e)}"

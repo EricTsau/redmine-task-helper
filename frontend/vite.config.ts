@@ -11,9 +11,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5 MB
+      },
       manifest: {
-        name: 'Redmine Flow',
-        short_name: 'RedmineFlow',
+        name: 'Redmine Task Helper',
+        short_name: 'RedmineTaskHelper',
         description: 'Time tracking and task management for Redmine',
         theme_color: '#0ea5e9',
         background_color: '#020817',

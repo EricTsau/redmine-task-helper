@@ -1,4 +1,4 @@
-import { Home, Settings, LayoutDashboard, Shield, LogOut, Brain } from "lucide-react";
+import { Settings, LayoutDashboard, Shield, LogOut, Brain, PieChart } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -9,7 +9,8 @@ interface SidebarProps {
 export function Sidebar({ compact = false }: SidebarProps) {
     const { user, logout } = useAuth();
     const navItems = [
-        { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+        { icon: LayoutDashboard, label: "My Workbench", href: "/" },
+        { icon: PieChart, label: "Executive Dashboard", href: "/executive-dashboard" },
         { icon: Brain, label: "AI 專案規劃", href: "/ai-planner" },
         { icon: Settings, label: "Settings", href: "/settings" },
     ];
@@ -22,8 +23,8 @@ export function Sidebar({ compact = false }: SidebarProps) {
         return (
             <aside className="hidden md:flex flex-col w-16 bg-muted/40 border-r flex-shrink-0">
                 <div className="flex items-center justify-center h-14 border-b">
-                    <Link to="/" className="p-2 rounded-lg hover:bg-muted transition-colors" title="Redmine Flow">
-                        <Home className="h-6 w-6" />
+                    <Link to="/" className="p-2 rounded-lg hover:bg-muted transition-colors" title="Redmine Task Helper">
+                        <img src="/logo.png" alt="Logo" className="h-8 w-8" />
                     </Link>
                 </div>
                 <nav className="flex-1 flex flex-col items-center gap-2 py-4">
@@ -43,7 +44,7 @@ export function Sidebar({ compact = false }: SidebarProps) {
                     <button
                         onClick={logout}
                         className="p-3 mt-auto rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Logout"
+                        title={`Logout ${user?.full_name || user?.username || ''}`}
                     >
                         <LogOut className="h-5 w-5" />
                     </button>
@@ -57,11 +58,11 @@ export function Sidebar({ compact = false }: SidebarProps) {
             <div className="flex h-full max-h-screen flex-col gap-2">
                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                     <Link to="/" className="flex items-center gap-2 font-semibold">
-                        <Home className="h-6 w-6" />
-                        <span className="">Redmine Flow</span>
+                        <img src="/logo.png" alt="Logo" className="h-8 w-8" />
+                        <span className="">Redmine Task Helper</span>
                     </Link>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 flex flex-col">
                     <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                         {navItems.map((item) => (
                             <Link
@@ -78,10 +79,16 @@ export function Sidebar({ compact = false }: SidebarProps) {
                     <div className="mt-auto px-4 pb-4">
                         <button
                             onClick={logout}
-                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:text-destructive hover:bg-destructive/10"
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:text-destructive hover:bg-destructive/10 text-left"
+                            title="Click to logout"
                         >
-                            <LogOut className="h-4 w-4" />
-                            Logout
+                            <LogOut className="h-4 w-4 flex-shrink-0" />
+                            <div className="flex flex-col overflow-hidden">
+                                <span className="truncate w-full font-semibold text-primary">
+                                    {user?.full_name || user?.username || 'User'}
+                                </span>
+                                <span className="text-xs opacity-70">Logout</span>
+                            </div>
                         </button>
                     </div>
                 </div>

@@ -1,23 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { PRDEditor } from '@/components/prd/PRDEditor';
+import { PRDChatPanel } from '@/components/prd/PRDChatPanel';
+import { TaskListView } from '@/components/planner/TaskListView';
+import { GanttEditor } from '@/components/planner/GanttEditor';
 import {
-    Send,
-    Loader2,
-    FolderOpen,
-    MessageSquare,
-    CheckCircle2,
-    Calendar,
-    Clock,
-    ListTodo,
-    Sparkles,
-    ChevronDown,
-    RefreshCw
+    FileText,
+    Plus,
+    Trash2,
+    CalendarRange,
+    Layout,
+    Settings,
+    ListTodo
 } from 'lucide-react';
+import { ProjectSelectModal } from '@/components/planner/ProjectSelectModal';
+import './AIPlannerPage.css';
 
-interface Project {
+// ============ Interfaces ============
+
+interface PRDDocument {
+    id: number;
+    title: string;
+    project_id: number | null;
+    project_name: string | null;
+    content: string;
+    conversation_history: string; // JSON string
+    status: string;
+}
+
+interface PRDListItem {
+    id: number;
+    title: string;
+    project_id: number | null;
+    project_name: string | null;
+    status: string;
+}
+
+interface PlanningProject {
     id: number;
     name: string;
-    identifier: string;
+    prd_document_id: number | null;
+    redmine_project_id: number | null;
+    redmine_project_name?: string | null;
 }
 
 interface Message {
@@ -25,339 +49,381 @@ interface Message {
     content: string;
 }
 
-interface Task {
-    subject: string;
-    estimated_hours: number;
-    start_date: string;
-    due_date: string;
-    predecessors: number[];
-}
-
-interface ChatResponse {
-    conversation_id: number;
-    ai_message: string;
-    tasks: Task[];
-    project_context: { id: number; name: string };
-}
+// ============ Component ============
 
 export const AIPlannerPage: React.FC = () => {
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [generatedTasks, setGeneratedTasks] = useState<Task[]>([]);
-    const [conversationId, setConversationId] = useState<number | null>(null);
-    const [inputMessage, setInputMessage] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [projectsLoading, setProjectsLoading] = useState(true);
-    const [generating, setGenerating] = useState(false);
-    const [parentTaskSubject, setParentTaskSubject] = useState('');
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    // Sidebar State
+    const [prdList, setPrdList] = useState<PRDListItem[]>([]);
+    const [currentPRD, setCurrentPRD] = useState<PRDDocument | null>(null);
+    const [showNewPRDDialog, setShowNewPRDDialog] = useState(false);
+    const [newPRDTitle, setNewPRDTitle] = useState('');
 
-    // 載入專案列表
+    // Project State
+    const [planningProject, setPlanningProject] = useState<PlanningProject | null>(null);
+
+    // UI State
+    const [activeTab, setActiveTab] = useState<'prd' | 'tasks' | 'gantt'>('prd');
+    const [loadingPRD, setLoadingPRD] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [showProjectModal, setShowProjectModal] = useState(false);
+
+    // Initial Load
     useEffect(() => {
-        fetchProjects();
+        fetchPRDList();
     }, []);
 
-    // 自動捲動到最新訊息
+    // When PRD changes, fetch its Planning Project
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (currentPRD) {
+            fetchPlanningProject(currentPRD.id);
+        } else {
+            setPlanningProject(null);
+        }
+    }, [currentPRD?.id]);
 
-    const fetchProjects = async () => {
-        setProjectsLoading(true);
+    // ============ API Calls ============
+
+    const fetchPRDList = async () => {
         try {
-            const res = await api.get<Project[]>('/projects');
-            setProjects(res);
-        } catch (e) {
-            console.error('Failed to fetch projects', e);
-        } finally {
-            setProjectsLoading(false);
+            const res = await api.get<PRDListItem[]>('/prd');
+            setPrdList(res);
+        } catch (error) {
+            console.error('Failed to fetch PRD list:', error);
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!inputMessage.trim() || !selectedProject || loading) return;
-
-        const userMessage = inputMessage.trim();
-        setInputMessage('');
-        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-        setLoading(true);
-
+    const fetchPRD = async (id: number) => {
+        setLoadingPRD(true);
         try {
-            const res = await api.post<ChatResponse>(
-                `/pm-copilot/projects/${selectedProject.id}/prd-chat`,
-                {
-                    message: userMessage,
-                    conversation_id: conversationId
-                }
-            );
+            const res = await api.get<PRDDocument>(`/prd/${id}`);
+            setCurrentPRD(res);
+            // Reset tab to PRD when switching documents? Or keep?
+            // Keep active tab is usually better UX, but if switching context, maybe PRD is safer.
+            // Let's keep active tab unless it's Gantt/Tasks and no project exists.
+        } catch (error) {
+            console.error('Failed to fetch PRD:', error);
+        } finally {
+            setLoadingPRD(false);
+        }
+    };
 
-            setConversationId(res.conversation_id);
-            setMessages(prev => [...prev, { role: 'assistant', content: res.ai_message }]);
-
-            if (res.tasks && res.tasks.length > 0) {
-                setGeneratedTasks(res.tasks);
-                // 自動設定 Parent Task Subject
-                if (!parentTaskSubject && res.tasks.length > 0) {
-                    setParentTaskSubject(`${selectedProject.name} - PRD 任務`);
-                }
+    const fetchPlanningProject = async (prdId: number) => {
+        try {
+            const res = await api.get<PlanningProject[]>(`/planning/projects?prd_document_id=${prdId}`);
+            if (res.length > 0) {
+                setPlanningProject(res[0]); // Use the most recent one
+            } else {
+                setPlanningProject(null);
             }
-        } catch (e: any) {
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `錯誤：${e.message || '無法連接到 AI 服務'}`
-            }]);
-        } finally {
-            setLoading(false);
+        } catch (error) {
+            console.error('Failed to fetch planning project:', error);
+            setPlanningProject(null);
         }
     };
 
-    const handleGenerateTasks = async () => {
-        if (!conversationId || generatedTasks.length === 0 || !selectedProject || generating) return;
-
-        setGenerating(true);
+    const createPRD = async () => {
+        if (!newPRDTitle.trim()) return;
         try {
-            const res = await api.post<{ parent_issue_id: number; child_issue_ids: number[]; status: string }>(
-                `/pm-copilot/projects/${selectedProject.id}/generate-tasks`,
-                {
-                    conversation_id: conversationId,
-                    parent_task_subject: parentTaskSubject || `${selectedProject.name} - PRD 任務`,
-                    tasks: generatedTasks
-                }
-            );
-
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `✅ 任務已成功產生到 Redmine！\n\n**Parent Issue**: #${res.parent_issue_id}\n**子任務數量**: ${res.child_issue_ids.length} 個\n\n任務 ID: ${res.child_issue_ids.map(id => `#${id}`).join(', ')}`
-            }]);
-            setGeneratedTasks([]);
-        } catch (e: any) {
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `❌ 產生任務失敗：${e.message}`
-            }]);
-        } finally {
-            setGenerating(false);
+            const res = await api.post<PRDDocument>('/prd', { title: newPRDTitle.trim() });
+            setPrdList([res, ...prdList]);
+            setCurrentPRD(res);
+            setShowNewPRDDialog(false);
+            setNewPRDTitle('');
+        } catch (error) {
+            console.error('Failed to create PRD:', error);
         }
     };
 
-    const resetConversation = () => {
-        setMessages([]);
-        setGeneratedTasks([]);
-        setConversationId(null);
-        setParentTaskSubject('');
+    const deletePRD = async (id: number) => {
+        if (!confirm('確定要刪除此 PRD 嗎？相關的規劃專案可能也會受到影響。')) return;
+        try {
+            await api.delete(`/prd/${id}`);
+            setPrdList(prdList.filter(p => p.id !== id));
+            if (currentPRD?.id === id) {
+                setCurrentPRD(null);
+                setPlanningProject(null);
+            }
+        } catch (error) {
+            console.error('Failed to delete PRD:', error);
+        }
     };
+
+    const createPlanningProject = async () => {
+        if (!currentPRD) return;
+        if (!confirm(`確定要為 "${currentPRD.title}" 建立規劃專案嗎？`)) return;
+
+        try {
+            const res = await api.post<PlanningProject>('/planning/projects', {
+                name: currentPRD.title,
+                prd_document_id: currentPRD.id
+            });
+            setPlanningProject(res);
+            // Switch to tasks tab to show progression
+            setActiveTab('tasks');
+        } catch (error) {
+            console.error('Failed to create planning project:', error);
+        }
+    };
+
+    // ============ Handlers ============
+
+    const handlePRDContentChange = (content: string) => {
+        if (currentPRD) {
+            setCurrentPRD({ ...currentPRD, content });
+        }
+    };
+
+    const handlePRDSave = async () => {
+        if (currentPRD) {
+            await api.put(`/prd/${currentPRD.id}`, { content: currentPRD.content });
+            fetchPRDList(); // Refresh list to update timestamps or snippets if we had them
+        }
+    };
+
+    const handleMessageSent = (messages: Message[], updatedContent: string) => {
+        if (currentPRD) {
+            setCurrentPRD({
+                ...currentPRD,
+                content: updatedContent,
+                conversation_history: JSON.stringify(messages),
+            });
+        }
+    };
+
+    const getConversationHistory = (): Message[] => {
+        if (!currentPRD) return [];
+        try {
+            return JSON.parse(currentPRD.conversation_history);
+        } catch {
+            return [];
+        }
+    };
+
+    const handleSetRedmineProject = async (redmineProjectId: number, name: string) => {
+        if (!planningProject) return;
+        try {
+            await api.put(`/planning/projects/${planningProject.id}`, {
+                redmine_project_id: redmineProjectId,
+                redmine_project_name: name
+            });
+            // Update local state
+            setPlanningProject(prev => prev ? ({ ...prev, redmine_project_id: redmineProjectId, redmine_project_name: name }) : null);
+            setShowProjectModal(false);
+            alert(`已將預設專案設為: ${name}`);
+        } catch (e) {
+            console.error(e);
+            alert('設定失敗');
+        }
+    };
+
+    // ============ Render ============
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-                        <Sparkles className="h-8 w-8 text-primary" />
-                        AI 專案規劃
-                    </h1>
-                    <p className="text-muted-foreground text-lg mt-1">
-                        透過 AI 協助拆解 PRD，自動產生任務到 Redmine
-                    </p>
+        <div className="planner-page">
+            {/* Sidebar */}
+            <div className={`planner-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                <div className="sidebar-header">
+                    {!sidebarCollapsed && <h2>AI 專案規劃</h2>}
+                    <button
+                        className="icon-btn"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        title={sidebarCollapsed ? "展開側邊欄" : "收起側邊欄"}
+                    >
+                        <Layout size={18} />
+                    </button>
+                </div>
+
+                {!sidebarCollapsed && (
+                    <div className="sidebar-actions">
+                        <button className="new-prd-btn" onClick={() => setShowNewPRDDialog(true)}>
+                            <Plus size={16} />
+                            新 PRD
+                        </button>
+                    </div>
+                )}
+
+                <div className="sidebar-list">
+                    {prdList.map(prd => (
+                        <div
+                            key={prd.id}
+                            className={`sidebar-item ${currentPRD?.id === prd.id ? 'active' : ''}`}
+                            onClick={() => fetchPRD(prd.id)}
+                            title={prd.title}
+                        >
+                            <FileText size={16} />
+                            {!sidebarCollapsed && (
+                                <>
+                                    <span className="item-title">{prd.title}</span>
+                                    <button
+                                        className="delete-item-btn"
+                                        onClick={(e) => { e.stopPropagation(); deletePRD(prd.id); }}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[600px]">
-                {/* 左側：專案選擇 + 對話 */}
-                <div className="lg:col-span-2 flex flex-col gap-4">
-                    {/* 專案選擇器 */}
-                    <div className="bg-card border rounded-xl p-4 shadow-sm">
-                        <label className="text-sm font-semibold text-muted-foreground mb-2 block">
-                            選擇專案
-                        </label>
-                        <div className="relative">
-                            <select
-                                className="w-full h-12 px-4 pr-10 rounded-xl border bg-background appearance-none cursor-pointer font-medium focus:ring-2 focus:ring-primary outline-none"
-                                value={selectedProject?.id || ''}
-                                onChange={(e) => {
-                                    const project = projects.find(p => p.id === parseInt(e.target.value));
-                                    setSelectedProject(project || null);
-                                    resetConversation();
-                                }}
-                                disabled={projectsLoading}
-                            >
-                                <option value="">-- 請選擇專案 --</option>
-                                {projects.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                        </div>
+            {/* Main Content */}
+            <div className="planner-main">
+                {!currentPRD ? (
+                    <div className="empty-state">
+                        <FileText size={48} className="text-gray-300 mb-4" />
+                        <h3>請選擇或建立 PRD 文件</h3>
+                        <button className="primary-btn mt-4" onClick={() => setShowNewPRDDialog(true)}>
+                            建立新 PRD
+                        </button>
                     </div>
-
-                    {/* 對話區域 */}
-                    <div className="bg-card border rounded-xl flex-1 flex flex-col shadow-sm min-h-[400px]">
-                        <div className="flex items-center justify-between p-4 border-b">
-                            <h3 className="font-bold flex items-center gap-2">
-                                <MessageSquare className="h-5 w-5" />
-                                PRD 對話
-                            </h3>
-                            {messages.length > 0 && (
-                                <button
-                                    onClick={resetConversation}
-                                    className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg border hover:bg-muted transition-colors"
-                                >
-                                    <RefreshCw className="h-3 w-3" />
-                                    重新開始
-                                </button>
-                            )}
-                        </div>
-
-                        {/* 訊息列表 */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {!selectedProject ? (
-                                <div className="h-full flex items-center justify-center text-muted-foreground">
-                                    <div className="text-center">
-                                        <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                        <p>請先選擇一個專案</p>
+                ) : loadingPRD ? (
+                    <div className="loading">載入中...</div>
+                ) : (
+                    <>
+                        {/* Header */}
+                        <div className="planner-header">
+                            <div className="header-info">
+                                <h1>{currentPRD.title}</h1>
+                                <span className={`status-badge ${currentPRD.status}`}>{currentPRD.status}</span>
+                                {planningProject && (
+                                    <div className="flex items-center gap-2 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded ml-4">
+                                        <span className="font-medium opacity-75">PLAN: {planningProject.name}</span>
+                                        <span className="text-gray-300">|</span>
+                                        {planningProject.redmine_project_id ? (
+                                            <button
+                                                className="hover:underline font-medium flex items-center gap-1"
+                                                onClick={() => setShowProjectModal(true)}
+                                                title={`R#${planningProject.redmine_project_id} ${planningProject.redmine_project_name || ''}`}
+                                            >
+                                                {planningProject.redmine_project_name || `R#${planningProject.redmine_project_id}`}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setShowProjectModal(true)}
+                                                className="flex items-center gap-1 hover:underline text-blue-600"
+                                            >
+                                                <Settings className="w-3 h-3" />
+                                                <span>設定 Redmine</span>
+                                            </button>
+                                        )}
                                     </div>
-                                </div>
-                            ) : messages.length === 0 ? (
-                                <div className="h-full flex items-center justify-center text-muted-foreground">
-                                    <div className="text-center max-w-md">
-                                        <Sparkles className="h-12 w-12 mx-auto mb-3 text-primary opacity-70" />
-                                        <p className="font-medium mb-2">開始描述您的專案需求</p>
-                                        <p className="text-sm opacity-70">
-                                            例如：「我們要開發一個新登入頁面，需要兩週，包含 UI 設計和後端 API」
-                                        </p>
-                                    </div>
-                                </div>
-                            ) : (
-                                messages.map((msg, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        <div
-                                            className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-muted'
-                                                }`}
-                                        >
-                                            <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                            {loading && (
-                                <div className="flex justify-start">
-                                    <div className="bg-muted rounded-2xl px-4 py-3 flex items-center gap-2">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        <span className="text-sm">AI 思考中...</span>
-                                    </div>
-                                </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* 輸入區 */}
-                        <div className="p-4 border-t">
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    className="flex-1 h-12 px-4 rounded-xl border bg-background focus:ring-2 focus:ring-primary outline-none"
-                                    placeholder={selectedProject ? "描述您的需求..." : "請先選擇專案"}
-                                    value={inputMessage}
-                                    onChange={(e) => setInputMessage(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                    disabled={!selectedProject || loading}
-                                />
-                                <button
-                                    onClick={handleSendMessage}
-                                    disabled={!selectedProject || loading || !inputMessage.trim()}
-                                    className="h-12 px-6 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                >
-                                    <Send className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 右側：任務預覽 */}
-                <div className="bg-card border rounded-xl flex flex-col shadow-sm">
-                    <div className="p-4 border-b">
-                        <h3 className="font-bold flex items-center gap-2">
-                            <ListTodo className="h-5 w-5" />
-                            任務預覽
-                            {generatedTasks.length > 0 && (
-                                <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                    {generatedTasks.length} 個任務
-                                </span>
-                            )}
-                        </h3>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4">
-                        {generatedTasks.length === 0 ? (
-                            <div className="h-full flex items-center justify-center text-muted-foreground">
-                                <div className="text-center">
-                                    <Calendar className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                                    <p className="text-sm">尚未產生任務</p>
-                                    <p className="text-xs opacity-70 mt-1">與 AI 對話後會顯示任務清單</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {generatedTasks.map((task, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="p-3 bg-muted/50 rounded-xl border hover:border-primary/30 transition-colors"
-                                    >
-                                        <div className="font-medium text-sm mb-2">{task.subject}</div>
-                                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                            <span className="flex items-center gap-1 bg-background px-2 py-1 rounded-md">
-                                                <Clock className="h-3 w-3" />
-                                                {task.estimated_hours}h
-                                            </span>
-                                            <span className="flex items-center gap-1 bg-background px-2 py-1 rounded-md">
-                                                <Calendar className="h-3 w-3" />
-                                                {task.start_date} → {task.due_date}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 產生任務按鈕 */}
-                    {generatedTasks.length > 0 && (
-                        <div className="p-4 border-t space-y-3">
-                            <input
-                                type="text"
-                                className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:ring-2 focus:ring-primary outline-none"
-                                placeholder="Parent Task 名稱"
-                                value={parentTaskSubject}
-                                onChange={(e) => setParentTaskSubject(e.target.value)}
-                            />
-                            <button
-                                onClick={handleGenerateTasks}
-                                disabled={generating}
-                                className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
-                            >
-                                {generating ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        產生中...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        生成並儲存到 Redmine
-                                    </>
                                 )}
-                            </button>
+                            </div>
+
+                            <div className="header-tabs">
+                                <button
+                                    className={`tab-btn ${activeTab === 'prd' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('prd')}
+                                >
+                                    <FileText size={16} />
+                                    PRD 工作區
+                                </button>
+                                <button
+                                    className={`tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('tasks')}
+                                >
+                                    <ListTodo size={16} />
+                                    任務清單
+                                </button>
+                                <button
+                                    className={`tab-btn ${activeTab === 'gantt' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('gantt')}
+                                >
+                                    <CalendarRange size={16} />
+                                    甘特圖
+                                </button>
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Tab Content */}
+                        <div className="planner-content">
+                            {/* PRD Tab */}
+                            <div className={`tab-pane ${activeTab === 'prd' ? 'active' : ''}`}>
+                                <div className="prd-split-view">
+                                    <div className="prd-chat-section">
+                                        <PRDChatPanel
+                                            prdId={currentPRD.id}
+                                            conversationHistory={getConversationHistory()}
+                                            onMessageSent={handleMessageSent}
+                                        />
+                                    </div>
+                                    <div className="prd-editor-section">
+                                        <PRDEditor
+                                            prdId={currentPRD.id}
+                                            content={currentPRD.content}
+                                            onContentChange={handlePRDContentChange}
+                                            onSave={handlePRDSave}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tasks Tab */}
+                            <div className={`tab-pane ${activeTab === 'tasks' ? 'active' : ''}`}>
+                                {planningProject ? (
+                                    <TaskListView projectId={planningProject.id} />
+                                ) : (
+                                    <div className="project-not-found">
+                                        <h3>尚未建立規劃專案</h3>
+                                        <p>您需要先為此 PRD 建立規劃專案，才能開始生成和管理任務。</p>
+                                        <button className="primary-btn mt-4" onClick={createPlanningProject}>
+                                            初始化規劃專案
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Gantt Tab */}
+                            <div className={`tab-pane ${activeTab === 'gantt' ? 'active' : ''}`}>
+                                {planningProject ? (
+                                    <div className="h-full w-full">
+                                        <GanttEditor planningProjectId={planningProject.id} />
+                                    </div>
+                                ) : (
+                                    <div className="project-not-found">
+                                        <h3>尚未建立規劃專案</h3>
+                                        <button className="primary-btn mt-4" onClick={createPlanningProject}>
+                                            初始化規劃專案
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* New PRD Dialog */}
+            {showNewPRDDialog && (
+                <div className="modal-overlay" onClick={() => setShowNewPRDDialog(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <h3>建立新 PRD</h3>
+                        <input
+                            type="text"
+                            placeholder="輸入 PRD 標題..."
+                            value={newPRDTitle}
+                            onChange={e => setNewPRDTitle(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && createPRD()}
+                            autoFocus
+                        />
+                        <div className="modal-actions">
+                            <button className="cancel-btn" onClick={() => setShowNewPRDDialog(false)}>取消</button>
+                            <button className="primary-btn" onClick={createPRD}>建立</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Project Select Modal */}
+            {showProjectModal && (
+                <ProjectSelectModal
+                    isOpen={showProjectModal}
+                    onClose={() => setShowProjectModal(false)}
+                    onSelect={handleSetRedmineProject}
+                    currentProjectId={planningProject?.redmine_project_id}
+                />
+            )}
         </div>
     );
 };

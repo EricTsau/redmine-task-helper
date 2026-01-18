@@ -174,15 +174,101 @@ class HolidaySettings(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class PRDConversation(SQLModel, table=True):
-    """AI PRD 對話歷史"""
+class PRDDocument(SQLModel, table=True):
+    """PRD 文件主體"""
     id: Optional[int] = Field(default=None, primary_key=True)
     owner_id: int = Field(foreign_key="user.id", index=True)
-    project_id: int = Field(index=True)
-    project_name: str
-    messages: str = Field(default="[]")  # JSON 格式儲存對話
-    generated_tasks: Optional[str] = None  # JSON 格式儲存生成的任務
-    status: str = Field(default="draft")  # draft, confirmed, synced
+    
+    # 基本資訊
+    title: str
+    project_id: Optional[int] = None  # Redmine 專案 ID（可選）
+    project_name: Optional[str] = None
+    
+    # 內容
+    content: str = Field(default="")  # Markdown 內容
+    
+    # 對話紀錄
+    conversation_history: str = Field(default="[]")  # JSON 格式
+    
+    # 狀態: draft, confirmed, synced
+    status: str = Field(default="draft")
+    
+    # 時間戳記
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PlanningProject(SQLModel, table=True):
+    """獨立的規劃專案（甘特圖載體）"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    # 基本資訊
+    name: str
+    description: Optional[str] = None
+    
+    # 關聯 PRD（可選）
+    prd_document_id: Optional[int] = Field(default=None, foreign_key="prddocument.id")
+    
+    # 關聯 Redmine 專案（可選，用於同步）
+    redmine_project_id: Optional[int] = None
+    redmine_project_name: Optional[str] = None
+    
+    # 同步設定: "realtime" | "manual"
+    sync_mode: str = Field(default="manual")
+    
+    # 時間戳記
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PlanningTask(SQLModel, table=True):
+    """規劃中的 Task（存在本地 DB）"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    planning_project_id: int = Field(foreign_key="planningproject.id", index=True)
+    
+    # Task 內容
+    subject: str
+    description: Optional[str] = None
+    estimated_hours: Optional[float] = None
+    
+    # 時程
+    start_date: Optional[str] = None  # YYYY-MM-DD
+    due_date: Optional[str] = None
+    progress: float = Field(default=0.0)  # 0.0 ~ 1.0
+    
+    # 階層與順序
+    parent_id: Optional[int] = None  # 自引用
+    sort_order: int = Field(default=0)
+    
+    # Redmine 關聯（若已同步或匯入）
+    redmine_issue_id: Optional[int] = None
+    is_from_redmine: bool = Field(default=False)  # 是否從 Redmine 匯入
+    
+    # 狀態: "local" | "synced" | "modified"
+    sync_status: str = Field(default="local")
+
+    # Redmine Meta Info (Cached)
+    assigned_to_id: Optional[int] = None
+    assigned_to_name: Optional[str] = None
+    status_id: Optional[int] = None
+    status_name: Optional[str] = None
+    redmine_updated_on: Optional[datetime] = None
+    
+    # 時間戳記
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TaskDependency(SQLModel, table=True):
+    """Task 之間的相依關係（甘特圖 Link）"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    
+    source_task_id: int = Field(foreign_key="planningtask.id", index=True)
+    target_task_id: int = Field(foreign_key="planningtask.id", index=True)
+    
+    # DHTMLX 格式: "0"=FS, "1"=SS, "2"=FF, "3"=SF
+    dependency_type: str = Field(default="0")
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 

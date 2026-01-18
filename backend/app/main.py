@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     start_sync_task()
     yield
 
-app = FastAPI(title="Redmine Flow API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Redmine Task Helper API", version="0.1.0", lifespan=lifespan)
 
 from app.routers import auth, tasks, timer
 
@@ -71,10 +71,15 @@ from app.routers import issues
 app.include_router(issues.router, prefix="/api/v1/issues", tags=["issues"])
 
 # AI PM Copilot 模組
-from app.routers import pm_copilot, holidays
+from app.routers import pm_copilot, holidays, prd
 app.include_router(pm_copilot.router, prefix="/api/v1/pm-copilot", tags=["pm-copilot"])
-app.include_router(holidays.router, prefix="/api/v1/admin/holidays", tags=["holidays"])
+app.include_router(holidays.router, prefix="/api/v1/holidays", tags=["holidays"])
+app.include_router(prd.router, prefix="/api/v1", tags=["prd"])
+from app.routers import planning
+app.include_router(planning.router, prefix="/api/v1", tags=["planning"])
+from app.routers import dashboard
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
 @app.get("/")
 async def root():
-    return {"message": "Redmine Flow API is running"}
+    return {"message": "Redmine Task Helper API is running"}

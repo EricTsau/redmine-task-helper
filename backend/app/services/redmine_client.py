@@ -34,7 +34,7 @@ class RedmineService:
                     journals.append({
                         'id': j.id,
                         'notes': notes,
-                        'created_on': j.created_on.isoformat() if hasattr(j, 'created_on', None) and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
+                        'created_on': j.created_on.isoformat() if hasattr(j, 'created_on') and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
                         'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
                     })
             
@@ -50,6 +50,8 @@ class RedmineService:
         except ResourceNotFoundError:
             return None
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Error fetching issue {issue_id} with journals: {e}")
             return None
 
@@ -163,6 +165,8 @@ class RedmineService:
         status: Optional[str] = None,
         query: Optional[str] = None,
         updated_after: Optional[str] = None,
+        include: Optional[List[str]] = None,
+        include_subprojects: bool = False,
         limit: int = 50
     ) -> List[Any]:
         """
@@ -174,6 +178,8 @@ class RedmineService:
             status: 'open', 'closed', 或 'all'
             query: 關鍵字搜尋（Subject）
             updated_after: ISO 日期字串 (YYYY-MM-DD)
+            include: 額外欄位 (e.g. ['relations'])
+            include_subprojects: 是否包含子專案
             limit: 最大回傳筆數
         """
         try:
@@ -182,8 +188,13 @@ class RedmineService:
                 'limit': limit
             }
             
+            if include:
+                filter_params['include'] = include
+
             if project_id:
                 filter_params['project_id'] = project_id
+                if include_subprojects:
+                     filter_params['subproject_id'] = '!*'  # Redmine API syntax for "include all subprojects"
             
             if assigned_to:
                 if assigned_to == 'me':
@@ -254,6 +265,27 @@ class RedmineService:
         
         return self.redmine.issue.update(issue_id, **update_params)
 
+
+    def update_issue(self, issue_id: int, **kwargs) -> bool:
+        """
+        Update an existing Redmine issue with provided fields.
+        """
+        try:
+            print(f"[Redmine Service] Updating issue {issue_id} with: {kwargs}")
+            return self.redmine.issue.update(issue_id, **kwargs)
+        except Exception as e:
+            print(f"[Redmine Service] Error updating issue {issue_id}: {e}")
+            raise e
+
+    def get_project(self, project_id: int) -> Any:
+        """
+        Get project details by ID.
+        """
+        try:
+            return self.redmine.project.get(project_id)
+        except Exception as e:
+            print(f"[Redmine Service] Error fetching project {project_id}: {e}")
+            return None
 
     def get_project_stats(self, project_id: int) -> Dict[str, Any]:
         """
@@ -336,3 +368,127 @@ class RedmineService:
             print(f"Error fetching valid activities for issue {issue_id}: {e}")
             # Fallback to global if anything fails (e.g. issue not found)
             return self.get_activities()
+
+    def get_issue_relations(self, issue_id: int) -> List[Any]:
+        """
+        Get relations for a specific issue.
+        """
+        try:
+            issue = self.redmine.issue.get(issue_id, include=['relations'])
+            return list(issue.relations)
+        except ResourceNotFoundError:
+            return []
+        except Exception as e:
+            print(f"Error fetching relations for issue {issue_id}: {e}")
+            return []
+
+    def update_issue(self, issue_id: int, **kwargs) -> Any:
+        """
+        Generic method to update an issue.
+        """
+        try:
+            return self.redmine.issue.update(issue_id, **kwargs)
+        except Exception as e:
+            print(f"Error updating issue {issue_id}: {e}")
+            raise e
+
+    def update_issue_dates(self, issue_id: int, start_date: Optional[str] = None, due_date: Optional[str] = None, done_ratio: Optional[int] = None) -> Any:
+        # Backward compatibility wrapper or deprecated
+        kwargs = {}
+        if start_date: kwargs['start_date'] = start_date
+        if due_date: kwargs['due_date'] = due_date
+        if done_ratio is not None: kwargs['done_ratio'] = done_ratio
+        
+        return self.update_issue(issue_id, **kwargs)
+
+    def create_issue_relation(self, issue_id: int, related_issue_id: int, relation_type: str = 'precedes') -> Any:
+        """
+        Create a new relation between two issues.
+        """
+        try:
+            return self.redmine.issue_relation.create(
+                issue_id=issue_id,
+                issue_to_id=related_issue_id,
+                relation_type=relation_type
+            )
+        except Exception as e:
+             print(f"Error creating relation: {e}")
+             raise e
+
+    def delete_issue_relation(self, relation_id: int) -> None:
+        """
+        Delete an issue relation by its ID.
+        """
+        try:
+            self.redmine.issue_relation.delete(relation_id)
+        except Exception as e:
+             print(f"Error deleting relation {relation_id}: {e}")
+             raise e
+
+    def delete_issue(self, issue_id: int) -> bool:
+        """
+        Delete an issue by its ID.
+        """
+        try:
+            self.redmine.issue.delete(issue_id)
+            return True
+        except Exception as e:
+            print(f"Error deleting issue {issue_id}: {e}")
+            raise e
+
+    def get_all_projects_summary(self) -> List[Dict[str, Any]]:
+        """
+        Fetch summary of all projects for the dashboard.
+        Returns basic info + status (calculated).
+        """
+        try:
+            projects = self.redmine.project.all(limit=100)
+            summary = []
+            for p in projects:
+                # Basic info
+                # Note: Redmine project object doesn't strictly have a 'status' field in the same way issues do.
+                # However, it has 'status' (1=active, 5=closed, 9=archived).
+                # We can also calculate a "health" status based on issues.
+                
+                # Fetch issue counts for health calculation
+                # To be efficient, we might need a separate query or rely on aggregated data if available.
+                # For now, let's just return basic identity. Health calculation might happen in the router 
+                # to avoid N+1 queries here if possible, or we optimize later.
+                # Actually, fetching open issue count per project is common.
+                
+                # Optimization: Redmine API might not give issue counts in project list.
+                # We will return basic info and let the dashboard router/service handle detailed health checks
+                # perhaps by fetching all issues (batched) or just basic project metadata.
+                summary.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "identifier": p.identifier,
+                    "created_on": str(p.created_on),
+                    # "status": p.status # Integer in Redmine
+                })
+            return summary
+        except Exception as e:
+            print(f"Error fetching all projects summary: {e}")
+            return []
+
+    def get_overdue_tasks(self, limit: int = 10) -> List[Any]:
+        """
+        Fetch overdue tasks across all projects visible to the user.
+        """
+        try:
+            # Redmine API allows filtering by due_date
+            # due_date='<2023-01-01'
+            today = date.today().isoformat()
+            
+            # Filter: Open status, due date < today
+            issues = self.redmine.issue.filter(
+                status_id='open',
+                due_date=f"<{today}",
+                sort='due_date:asc', # Most overdue first
+                limit=limit
+            )
+            return list(issues)
+        except Exception as e:
+            print(f"Error fetching overdue tasks: {e}")
+            return []
+

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { LogIn, Loader2, User, Lock } from 'lucide-react';
+import { Loader2, User, Lock } from 'lucide-react';
 
 export const Login: React.FC = () => {
     const { login } = useAuth();
@@ -44,13 +44,14 @@ export const Login: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background/50 backdrop-blur-sm">
-            <div className="w-full max-w-md p-8 space-y-6 bg-card border rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300">
+        <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative" style={{ backgroundImage: 'url("/login-bg.png")' }}>
+            <div className="absolute inset-0 bg-background/20 backdrop-blur-[1px]"></div>
+            <div className="w-full max-w-md p-8 space-y-6 bg-card/95 border rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-300 relative z-10">
                 <div className="space-y-2 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-                        <LogIn size={32} />
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 mb-4 overflow-hidden shadow-sm">
+                        <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                     </div>
-                    <h1 className="text-3xl font-bold tracking-tight">Redmine Flow</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Redmine Task Helper</h1>
                     <p className="text-muted-foreground">Please sign in to your account</p>
                 </div>
 

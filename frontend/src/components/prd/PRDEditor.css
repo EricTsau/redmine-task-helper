@@ -1,0 +1,176 @@
+/**
+ * PRDEditor 樣式
+ */
+
+.prd-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    background: var(--bg-primary, #ffffff);
+}
+
+.prd-editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+}
+
+.mode-switcher {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-tertiary, #e2e8f0);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.mode-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.mode-btn.active {
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #1e293b);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.mode-btn:hover:not(.active) {
+    color: var(--text-primary, #1e293b);
+}
+
+.save-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.save-btn:hover:not(:disabled) {
+    background: var(--primary-hover, #2563eb);
+}
+
+.save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.prd-editor-content {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+}
+
+/* Markdown 預覽樣式 */
+.prd-editor-content .wmde-markdown {
+    background: transparent;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+/* AI 編輯面板 */
+.ai-edit-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 400px;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.ai-edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    font-weight: 500;
+}
+
+.ai-edit-header button {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.ai-edit-selected {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.ai-edit-selected strong {
+    font-size: 12px;
+    color: var(--text-secondary, #64748b);
+}
+
+.selected-text {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--bg-secondary, #f8fafc);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary, #1e293b);
+    white-space: pre-wrap;
+    max-height: 60px;
+    overflow: hidden;
+}
+
+.ai-edit-input {
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+}
+
+.ai-edit-input input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.ai-edit-input input:focus {
+    outline: none;
+    border-color: var(--primary-color, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ai-edit-input button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.ai-edit-input button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -1,4 +1,7 @@
-# Redmine Flow
+# Redmine Task Helper
+
+![License: GPL 2.0](https://img.shields.io/badge/License-GPL_2.0-blue.svg)
+
 
 時間追蹤與任務管理工具，專為 Redmine 使用者設計。
 
@@ -89,4 +92,5 @@ cd frontend && npm run test
 
 ## 授權
 
-MIT License
+GPL 2.0
+

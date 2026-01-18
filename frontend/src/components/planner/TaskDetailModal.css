@@ -1,0 +1,10 @@
+/* TaskDetailModal.css */
+/* Styles currently handled by Tailwind classes, but keeping file for structure/future use */
+
+.task-detail-modal-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.task-detail-modal-content {
+    background-color: var(--background);
+}

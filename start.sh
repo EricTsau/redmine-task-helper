@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Redmine Flow - Start Script
+# Redmine Task Helper - Start Script
 # Usage: ./start.sh
 
 set -e
 
-echo "🚀 Starting Redmine Flow..."
+echo "🚀 Starting Redmine Task Helper..."
 
 # Start Backend
 echo "📦 Starting Backend (port 8000)..."
@@ -27,7 +27,7 @@ sleep 2
 # Start Frontend
 echo "🎨 Starting Frontend (port 5173)..."
 cd frontend
-npm install --silent
+npm install --legacy-peer-deps --silent
 npm run dev &
 FRONTEND_PID=$!
 echo "Frontend PID: $FRONTEND_PID"
@@ -38,7 +38,7 @@ echo "$BACKEND_PID" > .pids
 echo "$FRONTEND_PID" >> .pids
 
 echo ""
-echo "✅ Redmine Flow is running!"
+echo "✅ Redmine Task Helper is running!"
 echo "   Frontend: http://localhost:5173"
 echo "   Backend:  http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"

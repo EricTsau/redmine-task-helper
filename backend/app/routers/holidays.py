@@ -65,6 +65,17 @@ def list_holidays(
     return holidays
 
 
+@router.get("/public", response_model=List[HolidayResponse])
+def list_public_holidays(
+    session: Session = Depends(get_session)
+):
+    """取得公開假日列表 (無需 Admin 權限)"""
+    holidays = session.exec(
+        select(Holiday).order_by(Holiday.date)
+    ).all()
+    return holidays
+
+
 @router.post("", response_model=HolidayResponse)
 def create_holiday(
     holiday: HolidayCreate,

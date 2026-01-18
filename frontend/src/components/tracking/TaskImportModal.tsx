@@ -32,9 +32,10 @@ interface TaskImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     onImportSuccess?: () => void;
+    onConfirm?: (ids: number[], tasks: SearchResult[]) => Promise<void>;
 }
 
-export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImportModalProps) {
+export function TaskImportModal({ isOpen, onClose, onImportSuccess, onConfirm }: TaskImportModalProps) {
     // 搜尋表單狀態
     const [keyword, setKeyword] = useState('');
     const [status, setStatus] = useState<'open' | 'closed' | 'all'>('open');
@@ -146,13 +147,37 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess }: TaskImport
         setError(null);
 
         try {
+            if (onConfirm) {
+                // Custom confirm logic (Planner)
+                // Pass back selected IDs and maybe map of tasks (or rely on parent to fetch)
+                // Let's pass selected IDs. 
+                // We should also pass the tasks themselves if needed, but ID is usually sufficient if parent fetches.
+                // Actually, TaskListView will call import-redmine with IDs, and backend fetches. So IDs are enough.
+                // But wait, TaskListView works on "ImportRedmineModal" which selected a *Project*.
+                // Now we select *Tasks*.
+                // TaskListView needs the *Project ID* too, to tell backend which Redmine project we are importing from.
+                // TaskImportModal selects tasks from potentially *any* project if "All Projects" selected.
+                // But usually `selectedProjectId` is used. 
+                // The backend needs `redmine_project_id`.
+                // If tasks are mixed, we have a problem.
+                // But valid use case is probably filtering tasks within ONE project.
+                // I should perhaps return the `selectedProjectId` or infer it.
+                // If I pass `selectedIds`, parent doesn't know project ID unless I pass it.
+                // If I select "All Projects" and pick one task, `selectedProjectId` might be null.
+                // But the task has `project_id`.
 
-            // The backend ImportTasksRequest expects { issue_ids: number[] }
-            await api.post('/tracked-tasks/import', {
-                issue_ids: Array.from(selectedIds)
-            });
+                // I'll filter selected items from `results`.
+                const selectedTasks = results.filter(r => selectedIds.has(r.id));
+                await onConfirm(Array.from(selectedIds), selectedTasks);
+            } else {
+                // Default behavior (Tracked Tasks)
+                // The backend ImportTasksRequest expects { issue_ids: number[] }
+                await api.post('/tracked-tasks/import', {
+                    issue_ids: Array.from(selectedIds)
+                });
+                onImportSuccess?.();
+            }
 
-            onImportSuccess?.();
             onClose();
             setSelectedIds(new Set());
         } catch (e) {
