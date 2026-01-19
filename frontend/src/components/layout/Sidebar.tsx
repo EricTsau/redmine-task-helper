@@ -1,4 +1,4 @@
-import { Settings, LayoutDashboard, Shield, LogOut, Brain, PieChart } from "lucide-react";
+import { Settings, LayoutDashboard, Shield, LogOut, Brain, PieChart, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -12,6 +12,7 @@ export function Sidebar({ compact = false }: SidebarProps) {
         { icon: LayoutDashboard, label: "My Workbench", href: "/" },
         { icon: PieChart, label: "Executive Dashboard", href: "/executive-dashboard" },
         { icon: Brain, label: "AI 專案規劃", href: "/ai-planner" },
+        { icon: FileText, label: "AI 工作總結", href: "/ai-summary" },
         { icon: Settings, label: "Settings", href: "/settings" },
     ];
 

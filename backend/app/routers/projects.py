@@ -13,6 +13,18 @@ class ProjectResponse(BaseModel):
     identifier: str
     parent_id: Optional[int] = None
 
+class Member(BaseModel):
+    id: int
+    name: str
+
+@router.get("/{project_id}/members", response_model=List[Member])
+async def get_project_members(
+    project_id: int,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Get all members of a project."""
+    return service.get_project_members(project_id)
+
 @router.get("", response_model=List[ProjectResponse])
 async def list_projects(
     service: RedmineService = Depends(get_redmine_service)

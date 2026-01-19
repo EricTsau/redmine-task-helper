@@ -5,6 +5,7 @@ import { FocusPage } from "@/pages/FocusPage";
 import { Login } from "@/pages/Login";
 import { Administration } from "@/pages/Administration";
 import { AIPlannerPage } from "@/pages/AIPlannerPage";
+import AIWorkSummaryPage from "@/pages/AIWorkSummaryPage";
 import { ExecutiveDashboard } from "@/pages/ExecutiveDashboard";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { CommandPalette } from "@/components/command/CommandPalette";
@@ -41,6 +42,7 @@ function AppContent() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/focus" element={<FocusPage />} />
           <Route path="/ai-planner" element={<AIPlannerPage />} />
+          <Route path="/ai-summary" element={<AIWorkSummaryPage />} />
           <Route path="/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

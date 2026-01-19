@@ -25,6 +25,8 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"primaryjoin": "User.id==RefreshToken.user_id", "lazy": "dynamic"}
     )
     settings: Optional["UserSettings"] = Relationship(back_populates="user")
+    work_summary_settings: Optional["AIWorkSummarySettings"] = Relationship(back_populates="owner")
+    work_summary_reports: List["AIWorkSummaryReport"] = Relationship(back_populates="owner")
 
 class LDAPSettings(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
@@ -272,3 +274,36 @@ class TaskDependency(SQLModel, table=True):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+class AIWorkSummarySettings(SQLModel, table=True):
+    """使用者 AI 工作總結的設定"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    # 關注清單 (JSON list of IDs)
+    target_project_ids: str = Field(default="[]") 
+    target_user_ids: str = Field(default="[]")
+    
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="work_summary_settings")
+
+
+class AIWorkSummaryReport(SQLModel, table=True):
+    """AI 生成的工作總結報告歷史"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    title: str = Field(default="工作總結")
+    date_range_start: Optional[str] = None # YYYY-MM-DD
+    date_range_end: Optional[str] = None   # YYYY-MM-DD
+    
+    # 報告內容
+    summary_markdown: str = Field(default="")
+    
+    # 對話紀錄 for Follow-up
+    conversation_history: str = Field(default="[]") # JSON
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="work_summary_reports")

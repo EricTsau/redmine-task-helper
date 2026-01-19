@@ -53,7 +53,7 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
     const [isLoading, setIsLoading] = useState(false);
 
     // Notes state
-    const [notes, setNotes] = useState<any[]>([]); // TODO: Fetch from backend if we cache them, currently we only fetch issue journals via Redmine API directly or assume task sync brings them?
+    // const [notes, setNotes] = useState<any[]>([]); // TODO: Fetch from backend if we cache them, currently we only fetch issue journals via Redmine API directly or assume task sync brings them?
     // Actually, our current PlanningTask doesn't store journals.
     // If we want to show notes, we might need a separate endpoint to fetch them LIVE from Redmine, 
     // or rely on what we have. 

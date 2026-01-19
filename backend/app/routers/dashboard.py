@@ -6,10 +6,7 @@ from app.services.redmine_client import RedmineService
 from app.dependencies import get_redmine_service, get_current_user
 from app.models import User
 
-router = APIRouter(
-    prefix="/dashboard",
-    tags=["dashboard"]
-)
+router = APIRouter()
 
 @router.get("/executive-summary")
 def get_executive_summary(
