@@ -165,3 +165,63 @@ class WorkSummaryService:
         ])
         
         return {"summary_markdown": response}
+
+    async def chat_with_report(self, report_id: int, message: str, action: str) -> Dict[str, Any]:
+        report = self.get_report(report_id)
+        if not report:
+            raise Exception("Report not found")
+            
+        history = json.loads(report.conversation_history or "[]")
+        
+        # Build context from summary
+        system_prompt = f"""
+        你是專業的專案經理助手。使用者正在檢視一份工作總結報告。
+        
+        目前的報告內容:
+        {report.summary_markdown}
+        
+        請根據使用者的指示進行回應。
+        """
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add history
+        # Simplify history to last 5 rounds to save tokens
+        for msg in history[-10:]: 
+            messages.append(msg)
+            
+        messages.append({"role": "user", "content": message})
+        
+        if action == "refine":
+            # Add instruction for refinement
+            messages.append({"role": "system", "content": "使用者要求根據上述指示「重新撰寫」或「補充」整份報告。請輸出完整的、更新後的 Markdown 報告內容。"})
+            
+        response_text = await self.openai.chat_completion(messages)
+        
+        # Update history
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": response_text})
+        report.conversation_history = json.dumps(history)
+        
+        result = {"response": response_text}
+        
+        if action == "refine":
+            report.summary_markdown = response_text
+            result["updated_summary"] = response_text
+            
+        self.session.add(report)
+        self.session.commit()
+        self.session.refresh(report)
+        
+        return result
+
+    def update_report_content(self, report_id: int, content: str) -> Optional[AIWorkSummaryReport]:
+        report = self.get_report(report_id)
+        if not report:
+            return None
+            
+        report.summary_markdown = content
+        self.session.add(report)
+        self.session.commit()
+        self.session.refresh(report)
+        return report

@@ -73,8 +73,11 @@ export default function AIWorkSummaryPage() {
         }
     };
 
+    const [isSetupCollapsed, setIsSetupCollapsed] = useState(false);
+    const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
+
     return (
-        <div className="container mx-auto p-6 h-screen flex flex-col overflow-hidden">
+        <div className="p-6 h-screen flex flex-col overflow-hidden w-full">
             <h1 className="text-3xl font-bold mb-6">AI 工作總結</h1>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
@@ -83,9 +86,10 @@ export default function AIWorkSummaryPage() {
                     <TabsTrigger value="history">歷史紀錄</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="generate" className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
+                <TabsContent value="generate" className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden relative">
                     {/* Left: Config & Control */}
-                    <div className="w-full md:w-1/3 flex flex-col gap-4 overflow-y-auto pb-4">
+                    <div className={`transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto pb-4 ${isSetupCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-full md:w-1/3"
+                        }`}>
                         <SummaryConfig onConfigSaved={() => { }} />
 
                         <div className="border p-4 rounded-lg bg-card text-card-foreground shadow-sm">
@@ -115,8 +119,24 @@ export default function AIWorkSummaryPage() {
                         </div>
                     </div>
 
+                    {/* Toggle Button for collapsing/expanding setup */}
+                    <div className="absolute top-2 left-2 md:relative md:top-auto md:left-auto z-10">
+                        {/* We can place a small toggle button near the divider or floating */}
+                    </div>
+
                     {/* Right: View */}
-                    <div className="w-full md:w-2/3 h-full overflow-hidden">
+                    <div className={`h-full overflow-hidden transition-all duration-300 ease-in-out ${isSetupCollapsed ? "w-full" : "w-full md:w-2/3"
+                        }`}>
+                        <div className="flex justify-start mb-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsSetupCollapsed(!isSetupCollapsed)}
+                            >
+                                {isSetupCollapsed ? "顯示設定" : "隱藏設定 >>"}
+                            </Button>
+                        </div>
+
                         {currentReport ? (
                             <SummaryView report={currentReport} />
                         ) : (
@@ -128,10 +148,21 @@ export default function AIWorkSummaryPage() {
                 </TabsContent>
 
                 <TabsContent value="history" className="flex-1 flex gap-6 overflow-hidden">
-                    <div className="w-1/3 overflow-y-auto">
+                    <div className={`transition-all duration-300 ease-in-out overflow-y-auto ${isHistoryCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-full md:w-1/3"
+                        }`}>
                         <SummaryHistory reports={reports} onSelectReport={handleSelectReport} />
                     </div>
-                    <div className="w-2/3 h-full overflow-hidden">
+                    <div className={`h-full overflow-hidden transition-all duration-300 ease-in-out ${isHistoryCollapsed ? "w-full" : "w-full md:w-2/3"
+                        }`}>
+                        <div className="flex justify-start mb-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsHistoryCollapsed(!isHistoryCollapsed)}
+                            >
+                                {isHistoryCollapsed ? "顯示紀錄" : "隱藏紀錄 >>"}
+                            </Button>
+                        </div>
                         {currentReport ? (
                             <SummaryView report={currentReport} />
                         ) : (

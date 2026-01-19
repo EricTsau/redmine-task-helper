@@ -97,3 +97,52 @@ def get_history(service: WorkSummaryService = Depends(get_work_summary_service))
         }
         for r in reports
     ]
+
+# --- Chat / Refine ---
+
+class ChatRequest(BaseModel):
+    message: str
+    action: str = "chat"  # "chat" or "refine"
+
+class ChatResponse(BaseModel):
+    response: str
+    updated_summary: Optional[str] = None  # Returned if action was refine
+
+@router.post("/{report_id}/chat", response_model=ChatResponse)
+async def chat_with_report(
+    report_id: int,
+    request: ChatRequest,
+    service: WorkSummaryService = Depends(get_work_summary_service)
+):
+    try:
+        result = await service.chat_with_report(report_id, request.message, request.action)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class UpdateReportRequest(BaseModel):
+    summary_markdown: str
+
+@router.put("/{report_id}", response_model=ReportResponse)
+def update_report(
+    report_id: int,
+    request: UpdateReportRequest,
+    service: WorkSummaryService = Depends(get_work_summary_service)
+):
+    try:
+        updated_report = service.update_report_content(report_id, request.summary_markdown)
+        if not updated_report:
+             raise HTTPException(status_code=404, detail="Report not found")
+             
+        return {
+            "id": updated_report.id,
+            "title": updated_report.title,
+            "date_range_start": updated_report.date_range_start or "",
+            "date_range_end": updated_report.date_range_end or "",
+            "summary_markdown": updated_report.summary_markdown,
+            "created_at": updated_report.created_at.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -8,7 +8,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
     const location = useLocation();
-    const isFullWidthObj = ["/ai-planner", "/gantt"];
+    const isFullWidthObj = ["/ai-planner", "/gantt", "/ai-summary"];
     const isFullWidth = isFullWidthObj.some(path => location.pathname.startsWith(path));
 
     return (
