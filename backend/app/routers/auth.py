@@ -161,14 +161,24 @@ async def logout(
     return {"status": "success"}
 
 @router.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # Fetch user settings to get redmine_url
+    redmine_url = None
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+    if settings and settings.redmine_url:
+        redmine_url = settings.redmine_url
+
     return {
         "id": current_user.id,
         "username": current_user.username,
         "full_name": current_user.full_name,
         "email": current_user.email,
         "is_admin": current_user.is_admin,
-        "auth_source": current_user.auth_source
+        "auth_source": current_user.auth_source,
+        "redmine_url": redmine_url
     }
 
 class PasswordChangeRequest(BaseModel):

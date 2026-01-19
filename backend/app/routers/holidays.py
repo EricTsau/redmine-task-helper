@@ -175,6 +175,23 @@ async def import_holidays(
 
 # ============ Holiday Settings ============
 
+@router.get("/settings/public", response_model=HolidaySettingsResponse)
+def get_public_holiday_settings(
+    session: Session = Depends(get_session)
+):
+    """取得假日設定 (公開)"""
+    settings = session.exec(
+        select(HolidaySettings).where(HolidaySettings.id == 1)
+    ).first()
+    
+    if not settings:
+        settings = HolidaySettings(id=1)
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    
+    return settings
+
 @router.get("/settings", response_model=HolidaySettingsResponse)
 def get_holiday_settings(
     session: Session = Depends(get_session),

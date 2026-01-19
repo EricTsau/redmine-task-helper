@@ -8,6 +8,7 @@ interface User {
     full_name?: string;
     email?: string;
     auth_source: string;
+    redmine_url?: string;
 }
 
 interface AuthContextType {

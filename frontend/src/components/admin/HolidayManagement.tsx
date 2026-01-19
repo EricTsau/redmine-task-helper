@@ -47,8 +47,8 @@ export const HolidayManagement: React.FC<HolidayManagementProps> = ({ onStatus }
         setLoading(true);
         try {
             const [holidaysRes, settingsRes] = await Promise.all([
-                api.get<Holiday[]>('/admin/holidays'),
-                api.get<HolidaySettings>('/admin/holidays/settings')
+                api.get<Holiday[]>('/holidays'),
+                api.get<HolidaySettings>('/holidays/settings')
             ]);
             setHolidays(holidaysRes);
             setSettings(settingsRes);
@@ -63,7 +63,7 @@ export const HolidayManagement: React.FC<HolidayManagementProps> = ({ onStatus }
         if (!newHoliday.date || !newHoliday.name) return;
 
         try {
-            await api.post('/admin/holidays', newHoliday);
+            await api.post('/holidays', newHoliday);
             onStatus({ type: 'success', message: '假日新增成功' });
             setNewHoliday({ date: '', name: '' });
             setShowAddForm(false);
@@ -75,7 +75,7 @@ export const HolidayManagement: React.FC<HolidayManagementProps> = ({ onStatus }
 
     const handleDeleteHoliday = async (id: number) => {
         try {
-            await api.delete(`/admin/holidays/${id}`);
+            await api.delete(`/holidays/${id}`);
             onStatus({ type: 'success', message: '假日已刪除' });
             fetchData();
         } catch (e: any) {
@@ -86,7 +86,7 @@ export const HolidayManagement: React.FC<HolidayManagementProps> = ({ onStatus }
     const handleSaveSettings = async () => {
         setSaving(true);
         try {
-            await api.put('/admin/holidays/settings', {
+            await api.put('/holidays/settings', {
                 exclude_saturday: settings.exclude_saturday,
                 exclude_sunday: settings.exclude_sunday
             });
@@ -111,7 +111,7 @@ export const HolidayManagement: React.FC<HolidayManagementProps> = ({ onStatus }
                 imported: number;
                 skipped: number;
                 errors: string[];
-            }>('/admin/holidays/import', formData);
+            }>('/holidays/import', formData);
 
             let message = `匯入完成：${res.imported} 個新增, ${res.skipped} 個已存在`;
             if (res.errors.length > 0) {

@@ -22,6 +22,7 @@ import { TaskDetailModal } from './TaskDetailModal';
 import { PlannerTaskCreateModal } from './PlannerTaskCreateModal';
 import { api } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import './TaskListView.css';
 
 interface PlanningTask {
@@ -58,6 +59,7 @@ interface SortableTaskItemProps {
 
 // 可排序的任務項目元件 (Optimized)
 export const SortableTaskItem = memo(({ task, onDelete, onUpdate, onEdit }: SortableTaskItemProps) => {
+    const { user } = useAuth(); // Get user context for redmine_url
     const {
         attributes,
         listeners,
@@ -147,7 +149,19 @@ export const SortableTaskItem = memo(({ task, onDelete, onUpdate, onEdit }: Sort
             </div>
             <div className="flex items-center gap-1">
                 {task.is_from_redmine && task.redmine_issue_id && (
-                    <span className="text-xs text-blue-600 bg-blue-50 px-1 rounded mr-1">#{task.redmine_issue_id}</span>
+                    user?.redmine_url ? (
+                        <a
+                            href={`${user.redmine_url.replace(/\/$/, '')}/issues/${task.redmine_issue_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 bg-blue-50 px-1 rounded mr-1 hover:underline cursor-pointer"
+                            title="開啟 Redmine 議題"
+                        >
+                            #{task.redmine_issue_id}
+                        </a>
+                    ) : (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-1 rounded mr-1">#{task.redmine_issue_id}</span>
+                    )
                 )}
                 <button className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-primary" onClick={() => onEdit(task)} title="詳細內容 & 筆記">
                     <Wand2 size={16} />

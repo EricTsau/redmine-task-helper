@@ -34,6 +34,8 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, ref
     const [isLoading, setIsLoading] = useState(false);
     const [editingTask, setEditingTask] = useState<PlanningTask | null>(null);
     const tasksDataRef = useRef<PlanningTask[]>([]);
+    const holidaysRef = useRef<Set<string>>(new Set());
+    const holidaySettingsRef = useRef<{ exclude_saturday: boolean; exclude_sunday: boolean } | null>(null);
     const eventIdsRef = useRef<string[]>([]);
     const dpRef = useRef<any>(null);
 
@@ -42,13 +44,21 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, ref
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [tasksRes, linksRes] = await Promise.all([
+            const [tasksRes, linksRes, holidaysRes, settingsRes] = await Promise.all([
                 api.get<PlanningTask[]>(`/planning/projects/${planningProjectId}/tasks`),
-                api.get<any[]>(`/planning/projects/${planningProjectId}/links`)
+                api.get<any[]>(`/planning/projects/${planningProjectId}/links`),
+                api.get<any[]>('/holidays/public'),
+                api.get<any>('/holidays/settings/public')
             ]);
 
-            // Store original task data for modal
+            // Process holidays
+            const holidaySet = new Set<string>();
+            holidaysRes.forEach(h => holidaySet.add(h.date)); // h.date is YYYY-MM-DD
+
+            // Store original task data via ref
             tasksDataRef.current = tasksRes;
+            holidaysRef.current = holidaySet;
+            holidaySettingsRef.current = settingsRes;
 
             // Map Tasks
             const tasks = tasksRes.map(t => ({
@@ -96,22 +106,27 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, ref
     useEffect(() => {
         switch (zoom) {
             case 'day':
-                gantt.config.scales = [{ unit: "day", step: 1, date: "%d %M" }];
+                // Show Year/Month/Day in scale
+                gantt.config.scales = [
+                    { unit: "month", step: 1, date: "%Y年%m月" },
+                    { unit: "day", step: 1, date: "%M %d(%D)" }
+                ];
                 gantt.config.min_column_width = 80;
                 break;
             case 'week':
                 gantt.config.scales = [
-                    { unit: "week", step: 1, format: (date: Date) => "Week #" + gantt.date.date_to_str("%W")(date) },
-                    { unit: "day", step: 1, date: "%D" }
+                    { unit: "month", step: 1, format: "%Y年%m月" },
+                    { unit: "week", step: 1, format: (date: Date) => "W" + gantt.date.date_to_str("%W")(date) },
+                    { unit: "day", step: 1, date: "%d" }
                 ];
                 gantt.config.min_column_width = 50;
                 break;
             case 'month':
                 gantt.config.scales = [
-                    { unit: "month", step: 1, format: "%F, %Y" },
-                    { unit: "week", step: 1, format: "W%W" }
+                    { unit: "year", step: 1, format: "%Y年" },
+                    { unit: "month", step: 1, format: "%M" }
                 ];
-                gantt.config.min_column_width = 120;
+                gantt.config.min_column_width = 100;
                 break;
         }
         gantt.render();
@@ -137,7 +152,35 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, ref
         gantt.config.scale_height = 50;
 
         // Initial scales based on zoom (will be overridden by effect but good to have default)
-        gantt.config.scales = [{ unit: "day", step: 1, date: "%d %M" }];
+        gantt.config.scales = [
+            { unit: "month", step: 1, date: "%Y年%m月" },
+            { unit: "day", step: 1, date: "%M %d(%D)" }
+        ];
+
+        // Holiday styling
+        // Holiday styling
+        gantt.templates.timeline_cell_class = function (_item, date) {
+            const state = gantt.getState();
+            // Typically only show holidays in day-based views
+            if (state.scale_unit === "month" || state.scale_unit === "year") return "";
+
+            const dateStr = formatDate(date);
+
+            // Check specific holidays
+            if (holidaysRef.current.has(dateStr)) {
+                return "holiday-cell";
+            }
+
+            // Check weekends config
+            const day = date.getDay();
+            const settings = holidaySettingsRef.current;
+            if (settings) {
+                if (settings.exclude_sunday && day === 0) return "holiday-cell";
+                if (settings.exclude_saturday && day === 6) return "holiday-cell";
+            }
+
+            return "";
+        };
 
         gantt.config.columns = [
             { name: "text", label: "任務名稱", width: "*", tree: true },
@@ -317,10 +360,12 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, ref
         // Let's try to use the export API if available in the version
         if (gantt.exportToPNG) {
             gantt.exportToPNG({
-                header: "<h1>專案時程表</h1>",
-                footer: "Generated by Redmine AI Copilot",
+                // header: "<h1>專案時程表</h1>",
+                // footer: "Generated by Redmine AI Copilot",
                 locale: "cn",
-                name: "gantt.png"
+                name: "gantt.png",
+                full_tasks: true, // 確保所有任務都包含在內,
+                raw: true
             });
         } else {
             // Fallback: window print or alert

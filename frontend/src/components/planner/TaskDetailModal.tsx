@@ -5,6 +5,7 @@ import { X, Calendar, User, Info } from 'lucide-react';
 import { WorkLogEditor } from '../timer/WorkLogEditor';
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import './TaskDetailModal.css';
 
 interface PlanningTask {
@@ -46,6 +47,7 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProps) {
     const { showSuccess, showWarning, showError } = useToast();
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details');
     const [description, setDescription] = useState(task.description || '');
     const [isLoading, setIsLoading] = useState(false);
@@ -167,9 +169,21 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
                                 </h2>
                             )}
                             {task.is_from_redmine && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                                    #{task.redmine_issue_id}
-                                </span>
+                                user?.redmine_url ? (
+                                    <a
+                                        href={`${user.redmine_url.replace(/\/$/, '')}/issues/${task.redmine_issue_id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full hover:underline cursor-pointer"
+                                        title="開啟 Redmine 議題"
+                                    >
+                                        #{task.redmine_issue_id}
+                                    </a>
+                                ) : (
+                                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                                        #{task.redmine_issue_id}
+                                    </span>
+                                )
                             )}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">

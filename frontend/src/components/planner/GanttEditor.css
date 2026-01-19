@@ -67,3 +67,10 @@
     font-size: 12px;
     font-weight: 500;
 }
+
+/* Holiday styling */
+.holiday-cell {
+    background-color: #fce4e4 !important;
+    /* Light red */
+    opacity: 0.6;
+}
