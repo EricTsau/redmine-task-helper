@@ -3,10 +3,13 @@ import { gantt } from 'dhtmlx-gantt';
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css';
 import { api } from '@/lib/api';
 import { TaskDetailModal } from './TaskDetailModal';
+import { PlannerTaskCreateModal } from './PlannerTaskCreateModal';
 import './GanttEditor.css';
 
 interface GanttEditorProps {
     planningProjectId: number;
+    refreshTrigger?: number;
+    onDataChange?: () => void;
 }
 
 interface PlanningTask {
@@ -26,13 +29,15 @@ interface PlanningTask {
     redmine_issue_id?: number | null;
 }
 
-export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) => {
+export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId, refreshTrigger = 0, onDataChange }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [editingTask, setEditingTask] = useState<PlanningTask | null>(null);
     const tasksDataRef = useRef<PlanningTask[]>([]);
     const eventIdsRef = useRef<string[]>([]);
     const dpRef = useRef<any>(null);
+
+    const [zoom, setZoom] = useState<'day' | 'week' | 'month'>('day');
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -53,7 +58,7 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
                 duration: t.estimated_hours ? t.estimated_hours / 8 : 1,
                 end_date: t.due_date ? t.due_date : null,
                 progress: t.progress,
-                parent: 0,
+                parent: 0, // Simplified for now, real hierarchy needs processing logic if parent_id exists
                 open: true
             }));
 
@@ -72,8 +77,45 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
             console.error("Failed to load Gantt data", error);
         } finally {
             setIsLoading(false);
+            // Check if script already exists to avoid duplicates
+            if (!document.querySelector('script[src="https://export.dhtmlx.com/gantt/api.js"]')) {
+                const script = document.createElement('script');
+                script.src = "https://export.dhtmlx.com/gantt/api.js";
+                script.async = true;
+                document.body.appendChild(script);
+            }
         }
-    }, [planningProjectId]);
+    }, [planningProjectId, refreshTrigger]);
+
+    // State for create modal
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createModalParentId, setCreateModalParentId] = useState<number | undefined>(undefined);
+    const [createModalStartDate, setCreateModalStartDate] = useState<string | undefined>(undefined);
+
+    // Effect for Zoom
+    useEffect(() => {
+        switch (zoom) {
+            case 'day':
+                gantt.config.scales = [{ unit: "day", step: 1, date: "%d %M" }];
+                gantt.config.min_column_width = 80;
+                break;
+            case 'week':
+                gantt.config.scales = [
+                    { unit: "week", step: 1, format: (date: Date) => "Week #" + gantt.date.date_to_str("%W")(date) },
+                    { unit: "day", step: 1, date: "%D" }
+                ];
+                gantt.config.min_column_width = 50;
+                break;
+            case 'month':
+                gantt.config.scales = [
+                    { unit: "month", step: 1, format: "%F, %Y" },
+                    { unit: "week", step: 1, format: "W%W" }
+                ];
+                gantt.config.min_column_width = 120;
+                break;
+        }
+        gantt.render();
+    }, [zoom]);
 
     useEffect(() => {
         if (!planningProjectId) return;
@@ -93,10 +135,9 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
 
         // Date display format (year-month-day order)
         gantt.config.scale_height = 50;
-        gantt.config.scales = [
-            { unit: "month", step: 1, format: "%Y年 %M" },
-            { unit: "day", step: 1, format: "%d日" }
-        ];
+
+        // Initial scales based on zoom (will be overridden by effect but good to have default)
+        gantt.config.scales = [{ unit: "day", step: 1, date: "%d %M" }];
 
         gantt.config.columns = [
             { name: "text", label: "任務名稱", width: "*", tree: true },
@@ -110,9 +151,20 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
         // Prevent DHTMLX from eating error alerts, etc.
         gantt.config.show_errors = false;
 
-        // Keep default lightbox enabled for + button
-        gantt.config.details_on_dblclick = true;
-        gantt.config.details_on_create = true;
+        // Disable default details on create to use custom modal
+        gantt.config.details_on_create = false;
+
+        // Custom task creation handling
+        const beforeTaskAddId = gantt.attachEvent("onBeforeTaskAdd", function (_id: string | number, task: any) {
+            // Cancel default add and show our modal
+            setCreateModalParentId(task.parent ? Number(task.parent) : undefined);
+            setCreateModalStartDate(formatDate(task.start_date));
+            setShowCreateModal(true);
+            return false;
+        });
+        eventIdsRef.current.push(beforeTaskAddId);
+
+
 
         // Handle double-click to open custom modal (but still allow default behavior for create)
         const dblClickId = gantt.attachEvent("onTaskDblClick", function (id: string) {
@@ -121,34 +173,23 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
                 setEditingTask(taskData);
                 return false; // Prevent default lightbox only when we have task data
             }
-            return true; // Allow default for new tasks
+            return true; // Use default for otherwise
         });
         eventIdsRef.current.push(dblClickId);
 
-        // Handle task created via lightbox
-        const afterTaskAddId = gantt.attachEvent("onAfterTaskAdd", function (id: any, task: any) {
-            // Sync with backend
-            handleTaskCreate(task).then((result) => {
-                if (result && result.id) {
-                    gantt.changeTaskId(id, result.id);
-                }
-            });
-        });
-        eventIdsRef.current.push(afterTaskAddId);
-
         gantt.init(containerRef.current!);
 
-        // Data Processor for CRUD (but not for create since we handle it manually)
+        // Data Processor for CRUD (create is handled manually now)
         dpRef.current = gantt.createDataProcessor({
             task: {
-                create: () => Promise.resolve(), // Handled by onAfterTaskAdd
-                update: (data: any, id: string) => handleTaskUpdate(id, data),
-                delete: (id: string) => handleTaskDelete(id)
+                create: () => Promise.resolve(), // Handled manually
+                update: (data: any, id: string) => handleTaskUpdate(id, data).then(res => { if (res) onDataChange?.(); return res; }),
+                delete: (id: string) => handleTaskDelete(id).then(res => { if (res) onDataChange?.(); return res; })
             },
             link: {
-                create: (data: any) => handleLinkCreate(data),
-                update: (data: any, id: string) => handleLinkUpdate(id, data),
-                delete: (id: string) => handleLinkDelete(id)
+                create: (data: any) => handleLinkCreate(data).then(res => { if (res) onDataChange?.(); return res; }),
+                update: (data: any, id: string) => handleLinkUpdate(id, data).then(res => { if (res) onDataChange?.(); return res; }),
+                delete: (id: string) => handleLinkDelete(id).then(res => { if (res) onDataChange?.(); return res; })
             }
         });
 
@@ -166,7 +207,10 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
         };
     }, [planningProjectId, fetchData]);
 
+    // ... (CRUD handlers same as before)
     // CRUD Handlers
+    /* handleTaskCreate is no longer used here as creation is handled by PlannerTaskCreateModal */
+    /*
     const handleTaskCreate = async (data: any): Promise<{ id: number } | false> => {
         try {
             const res = await api.post<{ id: number }>(`/planning/projects/${planningProjectId}/tasks`, {
@@ -181,6 +225,7 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
             return false;
         }
     };
+    */
 
     const handleTaskUpdate = async (id: string, data: any) => {
         try {
@@ -266,16 +311,91 @@ export const GanttEditor: React.FC<GanttEditorProps> = ({ planningProjectId }) =
         setEditingTask(null);
     };
 
+    const handleExport = () => {
+        // DHTMLX Gantt export service (free tier has watermark, but often used)
+        // Or simple print
+        // Let's try to use the export API if available in the version
+        if (gantt.exportToPNG) {
+            gantt.exportToPNG({
+                header: "<h1>專案時程表</h1>",
+                footer: "Generated by Redmine AI Copilot",
+                locale: "cn",
+                name: "gantt.png"
+            });
+        } else {
+            // Fallback: window print or alert
+            alert("Export plugin not enabled. Using browser print.");
+            window.print();
+        }
+    };
+
     return (
-        <div className="gantt-container">
-            {isLoading && <div className="loading-overlay">Loading...</div>}
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }}></div>
+        <div className="gantt-container flex flex-col h-full">
+            <div className="gantt-toolbar bg-white border-b px-4 py-2 flex items-center justify-between shrink-0 h-14">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium mr-2">顯示模式:</span>
+                    <button
+                        onClick={() => setZoom('day')}
+                        className={`px-3 py-1 text-sm rounded border ${zoom === 'day' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                    >
+                        日
+                    </button>
+                    <button
+                        onClick={() => setZoom('week')}
+                        className={`px-3 py-1 text-sm rounded border ${zoom === 'week' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                    >
+                        週
+                    </button>
+                    <button
+                        onClick={() => setZoom('month')}
+                        className={`px-3 py-1 text-sm rounded border ${zoom === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                    >
+                        月
+                    </button>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleExport}
+                        className="px-3 py-1 text-sm rounded border flex items-center gap-2 hover:bg-muted"
+                        title="匯出圖片 (投影片大小)"
+                    >
+                        {/* Assuming we have an icon or just text */}
+                        <span>匯出圖片</span>
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 relative overflow-hidden">
+                {isLoading && <div className="loading-overlay">Loading...</div>}
+                <div ref={containerRef} style={{ width: '100%', height: '100%' }}></div>
+            </div>
+
+            {
+                showCreateModal && (
+                    <PlannerTaskCreateModal
+                        isOpen={showCreateModal}
+                        onClose={() => setShowCreateModal(false)}
+                        projectId={planningProjectId}
+                        onTaskCreated={() => {
+                            fetchData();
+                            onDataChange?.();
+                        }}
+                        initialData={{
+                            parent_id: createModalParentId,
+                            start_date: createModalStartDate
+                        }}
+                    />
+                )
+            }
 
             {editingTask && (
                 <TaskDetailModal
                     task={editingTask}
                     onClose={handleModalClose}
-                    onUpdate={handleModalUpdate}
+                    onUpdate={() => {
+                        handleModalUpdate();
+                        onDataChange?.();
+                    }}
                 />
             )}
         </div>

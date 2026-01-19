@@ -277,6 +277,30 @@ async def update_task(
     session.refresh(task)
     return task
 
+@router.put("/projects/{project_id}/tasks/reorder")
+async def reorder_tasks(
+    project_id: int,
+    reorder_data: List[dict],  # [{"id": 1, "sort_order": 0}, ...]
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """批次更新任務順序"""
+    project = session.get(PlanningProject, project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    for item in reorder_data:
+        task_id = item.get("id")
+        sort_order = item.get("sort_order")
+        if task_id is not None and sort_order is not None:
+             task = session.get(PlanningTask, task_id)
+             if task and task.planning_project_id == project_id:
+                 task.sort_order = sort_order
+                 session.add(task)
+    
+    session.commit()
+    return {"status": "ok"}
+
 @router.patch("/tasks/{task_id}", response_model=TaskResponse)
 async def patch_task(
     task_id: int,

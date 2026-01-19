@@ -5,6 +5,7 @@ import { type TimeEntry } from '@/contexts/TimerContext';
 import { Play, Pause, Square, Clock, FileText, Edit3, X } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
+import { useToast } from '@/contexts/ToastContext';
 import type { PendingFile } from '@/hooks/useFileAttachments';
 
 const AuthenticatedImage = ({ src, alt, attachments }: { src?: string; alt?: string; attachments?: any[] }) => {
@@ -112,6 +113,7 @@ export function FocusMode({
     onUpdateLog,
     onSubmit
 }: FocusModeProps) {
+    const { showSuccess, showError } = useToast();
     const [showConfirm, setShowConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [issueDetails, setIssueDetails] = useState<IssueDetails | null>(null);
@@ -179,7 +181,7 @@ export function FocusMode({
             setShowConfirm(false);
         } catch (e) {
             console.error("Stop and Submit failed", e);
-            alert("Failed to submit to Redmine. Timer stopped.");
+            showError("提交失敗，計時器已停止。");
         } finally {
             setIsSubmitting(false);
         }
@@ -205,7 +207,7 @@ export function FocusMode({
             await fetchIssueDetails();
         } catch (e) {
             console.error("Failed to save note:", e);
-            alert("Failed to save note to Redmine.");
+            showError("儲存筆記失敗。");
         } finally {
             setIsSubmitting(false);
         }
@@ -236,7 +238,7 @@ export function FocusMode({
             await fetchIssueDetails();
         } catch (e) {
             console.error("Failed to save note with files:", e);
-            alert("Failed to save note to Redmine.");
+            showError("儲存筆記失敗。");
         } finally {
             setIsSubmitting(false);
         }
@@ -499,7 +501,7 @@ export function FocusMode({
                                 <button
                                     onClick={() => {
                                         navigator.clipboard.writeText(editedNotes);
-                                        alert('已複製到剪貼簿');
+                                        showSuccess('已複製到剪貼簿');
                                     }}
                                     className="px-4 py-2 text-sm border rounded-lg hover:bg-muted transition-colors"
                                 >

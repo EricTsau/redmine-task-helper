@@ -5,6 +5,7 @@
 import React, { useState, useCallback } from 'react';
 import MDEditor from '@uiw/react-md-editor';
 import { api } from '../../lib/api';
+import { useToast } from '@/contexts/ToastContext';
 import './PRDEditor.css';
 
 interface PRDEditorProps {
@@ -22,6 +23,7 @@ export const PRDEditor: React.FC<PRDEditorProps> = ({
     onSave,
     saving = false,
 }) => {
+    const { showError } = useToast();
     const [mode, setMode] = useState<'preview' | 'edit'>('preview');
     const [selectedText, setSelectedText] = useState('');
     const [aiInstruction, setAiInstruction] = useState('');
@@ -60,7 +62,7 @@ export const PRDEditor: React.FC<PRDEditorProps> = ({
             setAiInstruction('');
         } catch (error) {
             console.error('AI 編輯失敗:', error);
-            alert('AI 編輯失敗，請稍後再試');
+            showError('AI 編輯失敗，請稍後再試');
         } finally {
             setAiLoading(false);
         }

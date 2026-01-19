@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { X, Calendar, User, Info } from 'lucide-react';
 import { WorkLogEditor } from '../timer/WorkLogEditor';
 import ReactMarkdown from 'react-markdown';
+import { useToast } from '@/contexts/ToastContext';
 import './TaskDetailModal.css';
 
 interface PlanningTask {
@@ -44,6 +45,7 @@ interface TaskDetailModalProps {
 }
 
 export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProps) {
+    const { showSuccess, showWarning, showError } = useToast();
     const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details');
     const [description, setDescription] = useState(task.description || '');
     const [isLoading, setIsLoading] = useState(false);
@@ -62,11 +64,39 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
     const [newNote, setNewNote] = useState('');
     const [liveDetails, setLiveDetails] = useState<IssueDetails | null>(null);
 
+    // Title editing
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editedTitle, setEditedTitle] = useState(task.subject);
+
+    useEffect(() => {
+        setEditedTitle(task.subject);
+    }, [task.subject]);
+
+    const handleSaveTitle = async () => {
+        if (editedTitle === task.subject) {
+            setIsEditingTitle(false);
+            return;
+        }
+        try {
+            await api.patch(`/planning/tasks/${task.id}`, { subject: editedTitle });
+            onUpdate();
+            showSuccess('標題已更新');
+            setIsEditingTitle(false);
+        } catch (e) {
+            console.error(e);
+            showError('更新標題失敗');
+        }
+    };
+
     useEffect(() => {
         if (task.is_from_redmine && task.redmine_issue_id && activeTab === 'notes') {
             fetchLiveDetails();
         }
     }, [task, activeTab]);
+
+    useEffect(() => {
+        setDescription(task.description || '');
+    }, [task.description]);
 
     const fetchLiveDetails = async () => {
         try {
@@ -82,10 +112,11 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
         try {
             await api.patch(`/planning/tasks/${task.id}`, { description });
             onUpdate();
-            alert('儲存成功！' + (task.is_from_redmine ? ' (已同步至 Redmine)' : ''));
+            showSuccess('儲存成功！' + (task.is_from_redmine ? ' (已同步至 Redmine)' : ''));
+            onClose();
         } catch (e) {
             console.error(e);
-            alert('儲存失敗');
+            showError('儲存失敗');
         } finally {
             setIsLoading(false);
         }
@@ -95,12 +126,12 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
         if (!newNote.trim()) return;
         try {
             await api.post(`/planning/tasks/${task.id}/note`, { notes: newNote });
-            alert('筆記已發送'); // Simple feedback
+            showSuccess('筆記已發送');
             setNewNote('');
             // TODO: Refresh journals
         } catch (e) {
             console.error(e);
-            alert('發送筆記失敗');
+            showError('發送筆記失敗');
         }
     };
 
@@ -111,7 +142,30 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
                 <div className="p-4 border-b flex items-start justify-between">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-xl font-semibold">{task.subject}</h2>
+                            {isEditingTitle ? (
+                                <input
+                                    className="text-xl font-semibold border rounded px-1"
+                                    value={editedTitle}
+                                    onChange={(e) => setEditedTitle(e.target.value)}
+                                    onBlur={handleSaveTitle}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveTitle();
+                                        if (e.key === 'Escape') {
+                                            setEditedTitle(task.subject);
+                                            setIsEditingTitle(false);
+                                        }
+                                    }}
+                                    autoFocus
+                                />
+                            ) : (
+                                <h2
+                                    className="text-xl font-semibold cursor-pointer hover:bg-muted/50 rounded px-1"
+                                    onClick={() => setIsEditingTitle(true)}
+                                    title="點擊修改標題"
+                                >
+                                    {task.subject}
+                                </h2>
+                            )}
                             {task.is_from_redmine && (
                                 <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
                                     #{task.redmine_issue_id}
@@ -228,7 +282,7 @@ export function TaskDetailModal({ task, onClose, onUpdate }: TaskDetailModalProp
                                     }}
                                     onSubmitWithFiles={async (content, files, _uploads) => {
                                         if (files.length > 0) {
-                                            alert("目前筆記功能暫不支援附件上傳，僅傳送文字內容。");
+                                            showWarning("目前筆記功能暫不支援附件上傳，僅傳送文字內容。");
                                         }
                                         setNewNote(content);
                                         await handleSendNote();

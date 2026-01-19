@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { useToast } from '@/contexts/ToastContext';
 import { PRDEditor } from '@/components/prd/PRDEditor';
 import { PRDChatPanel } from '@/components/prd/PRDChatPanel';
 import { TaskListView } from '@/components/planner/TaskListView';
@@ -52,6 +53,8 @@ interface Message {
 // ============ Component ============
 
 export const AIPlannerPage: React.FC = () => {
+    const { showSuccess, showError } = useToast();
+
     // Sidebar State
     const [prdList, setPrdList] = useState<PRDListItem[]>([]);
     const [currentPRD, setCurrentPRD] = useState<PRDDocument | null>(null);
@@ -66,6 +69,12 @@ export const AIPlannerPage: React.FC = () => {
     const [loadingPRD, setLoadingPRD] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showProjectModal, setShowProjectModal] = useState(false);
+
+    // Data Synchronization
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const handleDataChange = () => {
+        setRefreshTrigger(prev => prev + 1);
+    };
 
     // Initial Load
     useEffect(() => {
@@ -158,6 +167,7 @@ export const AIPlannerPage: React.FC = () => {
                 prd_document_id: currentPRD.id
             });
             setPlanningProject(res);
+            setRefreshTrigger(prev => prev + 1); // Trigger refresh
             // Switch to tasks tab to show progression
             setActiveTab('tasks');
         } catch (error) {
@@ -208,11 +218,12 @@ export const AIPlannerPage: React.FC = () => {
             });
             // Update local state
             setPlanningProject(prev => prev ? ({ ...prev, redmine_project_id: redmineProjectId, redmine_project_name: name }) : null);
+            setRefreshTrigger(prev => prev + 1); // Trigger data refresh
             setShowProjectModal(false);
-            alert(`已將預設專案設為: ${name}`);
+            showSuccess(`已將預設專案設為: ${name}`);
         } catch (e) {
             console.error(e);
-            alert('設定失敗');
+            showError('設定失敗');
         }
     };
 
@@ -362,7 +373,11 @@ export const AIPlannerPage: React.FC = () => {
                             {/* Tasks Tab */}
                             <div className={`tab-pane ${activeTab === 'tasks' ? 'active' : ''}`}>
                                 {planningProject ? (
-                                    <TaskListView projectId={planningProject.id} />
+                                    <TaskListView
+                                        projectId={planningProject.id}
+                                        refreshTrigger={refreshTrigger}
+                                        onDataChange={handleDataChange}
+                                    />
                                 ) : (
                                     <div className="project-not-found">
                                         <h3>尚未建立規劃專案</h3>
@@ -378,7 +393,11 @@ export const AIPlannerPage: React.FC = () => {
                             <div className={`tab-pane ${activeTab === 'gantt' ? 'active' : ''}`}>
                                 {planningProject ? (
                                     <div className="h-full w-full">
-                                        <GanttEditor planningProjectId={planningProject.id} />
+                                        <GanttEditor
+                                            planningProjectId={planningProject.id}
+                                            refreshTrigger={refreshTrigger}
+                                            onDataChange={handleDataChange}
+                                        />
                                     </div>
                                 ) : (
                                     <div className="project-not-found">

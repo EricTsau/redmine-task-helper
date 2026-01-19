@@ -19,7 +19,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { Plus, GripVertical, Trash2, Wand2, RefreshCw, Download, Upload, X } from 'lucide-react';
 import { TaskImportModal } from '@/components/tracking';
 import { TaskDetailModal } from './TaskDetailModal';
+import { PlannerTaskCreateModal } from './PlannerTaskCreateModal';
 import { api } from '@/lib/api';
+import { useToast } from '@/contexts/ToastContext';
 import './TaskListView.css';
 
 interface PlanningTask {
@@ -160,7 +162,14 @@ export const SortableTaskItem = memo(({ task, onDelete, onUpdate, onEdit }: Sort
     return prev.task === next.task;
 });
 
-export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
+interface TaskListViewProps {
+    projectId: number;
+    refreshTrigger?: number;
+    onDataChange?: () => void;
+}
+
+export const TaskListView: React.FC<TaskListViewProps> = ({ projectId, refreshTrigger = 0, onDataChange }) => {
+    const { showSuccess, showWarning, showError } = useToast();
     const [tasks, setTasks] = useState<PlanningTask[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -179,7 +188,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
 
     useEffect(() => {
         fetchTasks();
-    }, [projectId]);
+    }, [projectId, refreshTrigger]);
 
     const fetchTasks = async () => {
         setLoading(true);
@@ -200,27 +209,22 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
         try {
             await api.post(`/planning/projects/${projectId}/generate-tasks`);
             fetchTasks();
+            showSuccess('任務生成完成');
+            onDataChange?.();
         } catch (error) {
             console.error('Task generation failed:', error);
-            alert('產生任務失敗，請確認已連結 PRD 且內容不為空。');
+            showError('產生任務失敗，請確認已連結 PRD 且內容不為空。');
         } finally {
             setGenerating(false);
         }
     };
 
-    const handleAddTask = async () => {
-        try {
-            const newTask = await api.post<PlanningTask>(`/planning/projects/${projectId}/tasks`, {
-                subject: '新任務',
-                estimated_hours: 0,
-                start_date: new Date().toISOString().split('T')[0],
-                due_date: new Date().toISOString().split('T')[0]
-            });
-            setTasks(prev => [...prev, newTask]);
-        } catch (error) {
-            console.error('Failed to add task:', error);
-            alert('新增任務失敗');
-        }
+    const [showCreateModal, setShowCreateModal] = useState(false);
+
+    // ... (existing code)
+
+    const handleAddTask = () => {
+        setShowCreateModal(true);
     };
 
     const handleDeleteTask = useCallback(async (id: number) => {
@@ -228,19 +232,21 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
         try {
             await api.delete(`/planning/projects/${projectId}/tasks/${id}`);
             setTasks(prev => prev.filter(t => t.id !== id));
+            onDataChange?.();
         } catch (error) {
             console.error('Failed to delete task:', error);
         }
-    }, [projectId]);
+    }, [projectId, onDataChange]);
 
     const handleUpdateTask = useCallback(async (id: number, updates: Partial<PlanningTask>) => {
         setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
         try {
             await api.put(`/planning/projects/${projectId}/tasks/${id}`, updates);
+            onDataChange?.();
         } catch (error) {
             console.error('Failed to update task:', error);
         }
-    }, [projectId]);
+    }, [projectId, onDataChange]);
 
 
     // Use explicit type for tasks if possible, or any for now since SearchResult is not exported from ImportModal directly (unless I export it or replicate)
@@ -254,7 +260,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
         const isMixed = tasks.some(t => t.project_id !== redmineProjectId);
 
         if (isMixed) {
-            alert('為了保持專案一致性，請一次僅匯入來自同一個 Redmine 專案的任務。');
+            showWarning('為了保持專案一致性，請一次僅匯入來自同一個 Redmine 專案的任務。');
             return;
         }
 
@@ -263,6 +269,7 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
             issue_ids: issueIds
         });
         fetchTasks();
+        onDataChange?.();
     };
 
     const handleSyncRedmine = async () => {
@@ -270,24 +277,44 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
         setSyncing(true);
         try {
             const res = await api.post<{ message: string, synced: number, created: number }>(`/planning/projects/${projectId}/sync-redmine`);
-            alert(`同步完成！\n已更新: ${res.synced}\n已建立: ${res.created}`);
+            showSuccess(`同步完成！已更新: ${res.synced}，已建立: ${res.created}`);
             fetchTasks();
+            onDataChange?.();
         } catch (error) {
             console.error('Sync failed:', error);
-            alert('同步失敗，請檢查網路連線或 Redmine 設定。');
+            showError('同步失敗，請檢查網路連線或 Redmine 設定。');
         } finally {
             setSyncing(false);
         }
     };
 
-    const handleDragEnd = (event: DragEndEvent) => {
+    const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
             setTasks((items) => {
                 const oldIndex = items.findIndex((item) => item.id === active.id);
                 const newIndex = items.findIndex((item) => item.id === over.id);
-                return arrayMove(items, oldIndex, newIndex);
+                const newItems = arrayMove(items, oldIndex, newIndex);
+
+                // Update sort_order for all items based on new index
+                // We send this to backend
+                const reorderData = newItems.map((item, index) => ({
+                    id: item.id,
+                    sort_order: index
+                }));
+
+                // Call backend asynchronously
+                api.put(`/planning/projects/${projectId}/tasks/reorder`, reorderData)
+                    .then(() => {
+                        onDataChange?.();
+                    })
+                    .catch(err => {
+                        console.error("Failed to persist order", err);
+                        // showWarning("任務順序儲存失敗"); // Optional: notify user
+                    });
+
+                return newItems;
             });
         }
     };
@@ -376,13 +403,29 @@ export const TaskListView: React.FC<TaskListViewProps> = ({ projectId }) => {
             }
 
             {
+                showCreateModal && (
+                    <PlannerTaskCreateModal
+                        isOpen={showCreateModal}
+                        onClose={() => setShowCreateModal(false)}
+                        projectId={projectId}
+                        onTaskCreated={(newTask) => {
+                            setTasks(prev => [...prev, newTask]);
+                            showSuccess('任務已建立');
+                            onDataChange?.();
+                        }}
+                    />
+                )
+            }
+
+            {
                 editingTask && (
                     <TaskDetailModal
                         task={editingTask}
                         onClose={() => setEditingTask(null)}
                         onUpdate={() => {
-                            fetchTasks(); // Refresh to show updated info (e.g. description)
-                            // If we implemented live sync of meta, this would help too.
+                            fetchTasks();
+                            setEditingTask(null);
+                            onDataChange?.();
                         }}
                     />
                 )

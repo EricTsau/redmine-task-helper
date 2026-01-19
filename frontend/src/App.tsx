@@ -10,6 +10,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { CommandPalette } from "@/components/command/CommandPalette";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, isLoading } = useAuth();
@@ -51,7 +52,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }
