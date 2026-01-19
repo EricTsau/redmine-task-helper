@@ -339,6 +339,7 @@ class OpenAIService:
     "tasks": [
         {{
             "subject": "任務名稱",
+            "description": "任務描述（包含：目標 (Goal) 與 完成定義 (DOD)）",
             "estimated_hours": 8,
             "start_date": "YYYY-MM-DD",
             "due_date": "YYYY-MM-DD",
@@ -350,6 +351,7 @@ class OpenAIService:
 規則：
 - 如果需求還不夠清晰，tasks 陣列可以為空，並在 message 中詢問更多細節
 - 如果需求清晰，拆解為 3-10 個具體可執行的子任務
+-description 必須包含具體的「目標」與「DOD (Definition of Done)」
 - estimated_hours 應該是合理的工時預估 (1-40 小時)
 - start_date 從今天開始，根據任務順序安排
 - due_date 根據 estimated_hours 計算 (假設每天 8 工作小時)

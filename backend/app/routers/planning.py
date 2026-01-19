@@ -33,6 +33,7 @@ class ProjectResponse(BaseModel):
     description: Optional[str]
     prd_document_id: Optional[int]
     redmine_project_id: Optional[int]
+    redmine_project_name: Optional[str] = None
     sync_mode: str
     created_at: datetime
     updated_at: datetime
@@ -430,6 +431,8 @@ async def generate_tasks_from_prd(
     ]
     project_context = {"id": project.id, "name": project.name}
     
+    result = openai.parse_prd_to_tasks(fake_conversation, project_context)
+    
     print(f"[Generate Tasks] Generated result: {result}")
     
     # 將生成的 Tasks 存入 DB
@@ -452,11 +455,30 @@ async def generate_tasks_from_prd(
              except (ValueError, TypeError):
                  est = 0
                  
+        # Default start_date to today if missing, to ensure visibility in Gantt
+        start_date = task_data.get("start_date")
+        if not start_date:
+            start_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Handle description - could be dict with goal/DOD or plain string
+        description_raw = task_data.get("description")
+        if isinstance(description_raw, dict):
+            # Convert dict to formatted string
+            parts = []
+            if description_raw.get("goal"):
+                parts.append(f"## 目標\n{description_raw['goal']}")
+            if description_raw.get("DOD"):
+                parts.append(f"## Definition of Done\n{description_raw['DOD']}")
+            description = "\n\n".join(parts) if parts else None
+        else:
+            description = description_raw
+            
         task = PlanningTask(
             planning_project_id=project_id,
             subject=task_data.get("subject", "未命名任務"),
+            description=description,  # Save description (Goal & DOD)
             estimated_hours=est,
-            start_date=task_data.get("start_date"),
+            start_date=start_date,
             due_date=task_data.get("due_date"),
             sort_order=current_order
         )

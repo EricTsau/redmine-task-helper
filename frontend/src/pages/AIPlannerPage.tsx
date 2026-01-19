@@ -294,9 +294,9 @@ export const AIPlannerPage: React.FC = () => {
                                             <button
                                                 className="hover:underline font-medium flex items-center gap-1"
                                                 onClick={() => setShowProjectModal(true)}
-                                                title={`R#${planningProject.redmine_project_id} ${planningProject.redmine_project_name || ''}`}
+                                                title={planningProject.redmine_project_name || `Redmine #${planningProject.redmine_project_id}`}
                                             >
-                                                {planningProject.redmine_project_name || `R#${planningProject.redmine_project_id}`}
+                                                {planningProject.redmine_project_name || '(未命名專案)'}
                                             </button>
                                         ) : (
                                             <button
