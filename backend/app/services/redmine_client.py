@@ -7,7 +7,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 
 class RedmineService:
-    def __init__(self, url: str, api_key: str, verify: Optional[Union[bool, str]] = True):
+    def __init__(self, url: str, api_key: str, verify: Optional[Union[bool, str]] = False):
         """
         url: Redmine base URL
         api_key: API key
