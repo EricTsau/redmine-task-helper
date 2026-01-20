@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlmodel import Session, select
 from typing import List, Optional
 from app.database import get_session
-from app.models import ProjectWatchlist
+from app.models import ProjectWatchlist, User
+from app.dependencies import get_current_user
 from pydantic import BaseModel
 
 router = APIRouter(tags=["watchlist"])
@@ -12,22 +13,32 @@ class WatchlistCreate(BaseModel):
     project_name: str
 
 @router.get("/", response_model=List[ProjectWatchlist])
-def get_watchlist(session: Session = Depends(get_session)):
-    """Get all watched projects."""
-    watchlist = session.exec(select(ProjectWatchlist)).all()
+def get_watchlist(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
+    """Get all watched projects for the current user."""
+    watchlist = session.exec(select(ProjectWatchlist).where(ProjectWatchlist.owner_id == current_user.id)).all()
     return watchlist
 
 @router.post("/", response_model=ProjectWatchlist)
-def add_to_watchlist(project: WatchlistCreate, session: Session = Depends(get_session)):
+def add_to_watchlist(
+    project: WatchlistCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     """Add a project to the watchlist."""
     # Check if exists
-    existing = session.exec(select(ProjectWatchlist).where(ProjectWatchlist.redmine_project_id == project.redmine_project_id)).first()
+    existing = session.exec(
+        select(ProjectWatchlist).where(
+            (ProjectWatchlist.redmine_project_id == project.redmine_project_id)
+            & (ProjectWatchlist.owner_id == current_user.id)
+        )
+    ).first()
     if existing:
         return existing
     
     new_watch = ProjectWatchlist(
+        owner_id=current_user.id,
         redmine_project_id=project.redmine_project_id,
-        project_name=project.project_name
+        project_name=project.project_name,
     )
     session.add(new_watch)
     session.commit()
@@ -35,9 +46,14 @@ def add_to_watchlist(project: WatchlistCreate, session: Session = Depends(get_se
     return new_watch
 
 @router.delete("/{project_id}")
-def remove_from_watchlist(project_id: int, session: Session = Depends(get_session)):
+def remove_from_watchlist(project_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     """Remove a project from watchlist by Redmine Project ID."""
-    watch_item = session.exec(select(ProjectWatchlist).where(ProjectWatchlist.redmine_project_id == project_id)).first()
+    watch_item = session.exec(
+        select(ProjectWatchlist).where(
+            (ProjectWatchlist.redmine_project_id == project_id)
+            & (ProjectWatchlist.owner_id == current_user.id)
+        )
+    ).first()
     if not watch_item:
         raise HTTPException(status_code=404, detail="Project not found in watchlist")
     
@@ -46,6 +62,7 @@ def remove_from_watchlist(project_id: int, session: Session = Depends(get_sessio
 @router.get("/stats")
 def get_watchlist_stats(
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     x_redmine_url: Optional[str] = Header(None, alias="X-Redmine-Url"),
     x_redmine_key: Optional[str] = Header(None, alias="X-Redmine-Key")
 ):
@@ -53,7 +70,7 @@ def get_watchlist_stats(
     Get stats for all watched projects.
     Requires Redmine credentials in headers.
     """
-    watchlist = session.exec(select(ProjectWatchlist)).all()
+    watchlist = session.exec(select(ProjectWatchlist).where(ProjectWatchlist.owner_id == current_user.id)).all()
     
     if not x_redmine_url or not x_redmine_key:
         # Return empty stats if no credentials provided (or handle as 401)

@@ -4,6 +4,8 @@ from httpx import AsyncClient, ASGITransport
 from sqlmodel import Session, SQLModel, create_engine
 from app.main import app
 from app.database import get_session
+from app.models import User
+from app.auth_utils import get_password_hash
 
 @pytest.fixture(name="session")
 def session_fixture():
@@ -14,6 +16,16 @@ def session_fixture():
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
+        # Create a default user for tests (id will be 1)
+        user = User(
+            username="testuser",
+            hashed_password=get_password_hash("testpass"),
+            full_name="Test User",
+            is_admin=False
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
         yield session
 
 @pytest_asyncio.fixture(name="client")

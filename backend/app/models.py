@@ -70,7 +70,7 @@ class AppSettings(SQLModel, table=True):
 class TrackedTask(SQLModel, table=True):
     """使用者追蹤的 Redmine 任務"""
     id: Optional[int] = Field(default=None, primary_key=True)
-    owner_id: int = Field(foreign_key="user.id", index=True)
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     redmine_issue_id: int = Field(index=True)
     project_id: int
     project_name: str
@@ -109,7 +109,7 @@ class TimerSession(SQLModel, table=True):
     Represent a work session for an issue, which may contain multiple time spans (Pause/Resume).
     """
     id: Optional[int] = Field(default=None, primary_key=True)
-    owner_id: int = Field(foreign_key="user.id", index=True)
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     redmine_issue_id: int
     start_time: datetime = Field(default_factory=datetime.utcnow)
     end_time: Optional[datetime] = None
@@ -142,7 +142,7 @@ class TimeEntryExtraction(SQLModel):
 
 class ProjectWatchlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    owner_id: int = Field(foreign_key="user.id", index=True)
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     redmine_project_id: int = Field(index=True)
     project_name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)

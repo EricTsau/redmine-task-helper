@@ -1,10 +1,13 @@
 from redminelib import Redmine
 from redminelib.exceptions import AuthError, ResourceNotFoundError
 from typing import Optional, List, Dict, Any
+from datetime import date
 
 class RedmineService:
     def __init__(self, url: str, api_key: str):
-        self.redmine = Redmine(url, key=api_key, requests={'verify': False})
+        # Normalize and store base URL for link generation elsewhere
+        self.base_url = url.rstrip('/') if isinstance(url, str) else ''
+        self.redmine = Redmine(self.base_url, key=api_key, requests={'verify': False})
 
     def get_current_user(self) -> Dict[str, Any]:
         """Fetches the current authenticated user to validate credentials."""
@@ -165,6 +168,7 @@ class RedmineService:
         status: Optional[str] = None,
         query: Optional[str] = None,
         updated_after: Optional[str] = None,
+        updated_before: Optional[str] = None,
         include: Optional[List[str]] = None,
         include_subprojects: bool = False,
         limit: int = 50
@@ -210,7 +214,18 @@ class RedmineService:
                 # 'all' = don't add status filter
             
             if updated_after:
+                # start boundary inclusive
                 filter_params['updated_on'] = f'>={updated_after}'
+            if updated_before:
+                # end boundary inclusive
+                # If updated_on already present, combine using comma (Redmine allows range '>=YYYY-MM-DD|<=YYYY-MM-DD' not standard across instances,
+                # so we set updated_on to a '>=' string and rely on client-side filtering for safety. Still, include a hint param for servers that support it.
+                # Try to set updated_on as a range if not present (some Redmine servers may accept '<=YYYY-MM-DD')
+                if 'updated_on' in filter_params:
+                    # leave start filter, server-side filtering of end may not be supported; we keep as is and let caller client-filter
+                    print(f"[RedmineService] search_issues_advanced: requested updated_before={updated_before}, server-side may ignore end-boundary")
+                else:
+                    filter_params['updated_on'] = f'<={updated_before}'
             
             issues = self.redmine.issue.filter(**filter_params)
             result_list = list(issues)
@@ -226,6 +241,78 @@ class RedmineService:
             return result_list
         except Exception as e:
             print(f"Error in advanced search: {e}")
+            return []
+
+    def search_time_entries(
+        self,
+        user_ids: Optional[list] = None,
+        project_id: Optional[int] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Any]:
+        """
+        搜尋 time entries（工時紀錄）。
+        支援以使用者、專案與日期區間過濾。
+        """
+        try:
+            # Build base params
+            base_params: Dict[str, Any] = { 'limit': limit }
+            if project_id:
+                base_params['project_id'] = project_id
+            if from_date and to_date:
+                base_params['from'] = from_date
+                base_params['to'] = to_date
+
+            results = []
+
+            # If multiple user_ids provided, query per-user to avoid server-side parsing issues
+            if user_ids:
+                seen_ids = set()
+                for uid in user_ids:
+                    try:
+                        params = dict(base_params)
+                        params['user_id'] = int(uid)
+                        entries = self.redmine.time_entry.filter(**params)
+                        for e in entries:
+                            eid = getattr(e, 'id', None)
+                            if eid and eid not in seen_ids:
+                                seen_ids.add(eid)
+                                results.append(e)
+                    except Exception as inner_e:
+                        # Log but continue with other user ids
+                        print(f"Error searching time entries for user {uid}: {inner_e}")
+                return results
+
+            # No specific user filter, query once
+            entries = self.redmine.time_entry.filter(**base_params)
+            return list(entries)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            # If python-redmine returns a server-side message, print args for debugging
+            print(f"Error searching time entries: {e} | args: {getattr(e, 'args', None)}")
+            return []
+
+    def get_issue_journals(self, issue_id: int) -> List[Dict[str, Any]]:
+        """
+        Get journals for an issue and return a simplified list.
+        """
+        try:
+            issue = self.redmine.issue.get(issue_id, include=['journals'])
+            journals = []
+            for j in getattr(issue, 'journals', []):
+                notes = getattr(j, 'notes', '')
+                if notes and notes.strip():
+                    journals.append({
+                        'id': j.id,
+                        'notes': notes,
+                        'created_on': j.created_on.isoformat() if hasattr(j, 'created_on') and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
+                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
+                    })
+            return journals
+        except Exception as e:
+            print(f"Error fetching journals for issue {issue_id}: {e}")
             return []
 
     def create_time_entry(
