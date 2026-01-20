@@ -1,13 +1,29 @@
 from redminelib import Redmine
 from redminelib.exceptions import AuthError, ResourceNotFoundError
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import date
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
 
 class RedmineService:
-    def __init__(self, url: str, api_key: str):
+    def __init__(self, url: str, api_key: str, verify: Optional[Union[bool, str]] = True):
+        """
+        url: Redmine base URL
+        api_key: API key
+        verify: True/False or path to CA bundle file. If False, TLS verification is disabled (not recommended).
+        """
         # Normalize and store base URL for link generation elsewhere
         self.base_url = url.rstrip('/') if isinstance(url, str) else ''
-        self.redmine = Redmine(self.base_url, key=api_key, requests={'verify': False})
+        self.verify = verify
+
+        # If user explicitly disables verification, suppress the urllib3 InsecureRequestWarning
+        if verify is False:
+            urllib3.disable_warnings(InsecureRequestWarning)
+
+        # Pass requests options to python-redmine's underlying requests usage
+        requests_opts = {'verify': verify}
+        self.redmine = Redmine(self.base_url, key=api_key, requests=requests_opts)
 
     def get_current_user(self) -> Dict[str, Any]:
         """Fetches the current authenticated user to validate credentials."""
