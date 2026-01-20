@@ -169,11 +169,50 @@ export function SummaryView({ report }: SummaryViewProps) {
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
                         />
                     ) : (
-                        <article className="prose prose-sm dark:prose-invert max-w-none pb-10">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {currentMarkdown}
-                            </ReactMarkdown>
-                        </article>
+                        <>
+                            {/* If report indicates no updates, show clearer guidance */}
+                            {(currentMarkdown.includes('Found 0 updated issues') || currentMarkdown.includes('無更新')) && (
+                                <div className="mb-4 p-4 rounded border bg-yellow-50 text-sm">
+                                    <strong>注意：</strong> 系統在指定期間未偵測到 Redmine 的更新或工時紀錄。
+                                    <div className="mt-2 text-xs">
+                                        建議檢查：
+                                        <ul className="list-disc ml-4">
+                                            <li>確認報告的時間範圍是否正確。</li>
+                                            <li>確認您的 Redmine 帳號有存取該專案的權限。</li>
+                                            <li>確認是否有 team member 尚未在 Redmine 登錄工時或更新 Issue。</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+
+                            <article className="prose prose-sm dark:prose-invert max-w-none pb-10">
+                                <div className="w-full flex justify-center">
+                                    <div className="w-full max-w-[900px] px-2">
+                                        <div className="overflow-auto">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        a: ({node, ...props}) => {
+                                            // open external links in new tab safely
+                                            const href = (props as any).href || '';
+                                            const isHash = href.startsWith('#');
+                                            return (
+                                                <a
+                                                    {...props}
+                                                    target={isHash ? undefined : '_blank'}
+                                                    rel={isHash ? undefined : 'noopener noreferrer'}
+                                                />
+                                            );
+                                        }
+                                    }}
+                                >
+                                    {currentMarkdown}
+                                </ReactMarkdown>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        </>
                     )}
                 </div>
 
@@ -194,12 +233,27 @@ export function SummaryView({ report }: SummaryViewProps) {
                         )}
                         {chatHistory.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                                <div className={`max-w-[85%] rounded-lg p-3 text-sm ${msg.role === "user"
+                                <div className={`max-w-[85%] rounded-lg p-3 text-sm break-words break-all whitespace-pre-wrap ${msg.role === "user"
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-secondary text-secondary-foreground"
                                     }`}>
                                     <div className="prose-sm dark:prose-invert">
-                                        <ReactMarkdown>
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                a: ({node, ...props}) => {
+                                                    const href = (props as any).href || '';
+                                                    const isHash = href.startsWith('#');
+                                                    return (
+                                                        <a
+                                                            {...props}
+                                                            target={isHash ? undefined : '_blank'}
+                                                            rel={isHash ? undefined : 'noopener noreferrer'}
+                                                        />
+                                                    );
+                                                }
+                                            }}
+                                        >
                                             {msg.content}
                                         </ReactMarkdown>
                                     </div>

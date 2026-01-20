@@ -31,6 +31,10 @@
 - 🤖 **AI 專案規劃 (PRD)** - 與 AI 對話生成專案需求文件 (PRD) 與 WBS
 - 📊 **互動式甘特圖** - 可視化專案進度，支援拖成調整時間與相依性，自動計算工時
 - 📝 **AI 工作總結** - 每週自動根據 Redmine 紀錄生成工作報告，支援手動編輯與 Markdown 下載
+	- 報告會自動擷取產生的 Markdown 文件中第一個標題作為 `Title`，並保存於報告紀錄。
+	- 工作項目會自動以使用者在 Settings 設定的 `Redmine URL` 組成超連結，方便直接跳轉到 Redmine Issue。
+	- 若 Issue `subject` 包含多個子主題 (例如使用 `/` 或 `;` 分隔)，報告會拆分成多個 subject 條目以利閱讀。
+	- 範例 Issue 連結格式: [Issue #123](https://your-redmine.example.com/issues/123)
 - 📅 **假日管理** - 系統級假日設定，自動排除非工作日排程
 - 👥 **關注清單** - 自訂關注專案與成員，自動化生成針對性報告
 
@@ -51,6 +55,16 @@ cd frontend
 npm install
 npm run dev
 ```
+
+### Windows 快速啟停 (Batch)
+
+如果你在 Windows 上開發，可以使用專案根目錄提供的批次檔來啟動或停止服務：
+
+- 啟動：執行 `start.bat`（會於新視窗中啟動 Backend 與 Frontend）。
+- 停止：執行 `stop.bat`（嘗試透過視窗標題或監聽埠號終止進程）。
+
+注意：`start.bat` 會使用 `venv\Scripts\activate.bat` 啟用虛擬環境，並以新命令視窗啟動 `uvicorn` 與 `npm run dev`。如需在同一視窗執行，請改在各自資料夾手動執行命令。
+
 
 ### 生產環境 (Docker)
 
