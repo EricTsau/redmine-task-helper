@@ -52,4 +52,4 @@ htmlcov/
 
 test-results/
 playwright-report/
-docs/plans/
+docs/plans/tools/mock_generate_summary.py
