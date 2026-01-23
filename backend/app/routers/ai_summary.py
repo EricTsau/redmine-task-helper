@@ -121,7 +121,8 @@ async def chat_with_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 class UpdateReportRequest(BaseModel):
-    summary_markdown: str
+    summary_markdown: Optional[str] = None
+    title: Optional[str] = None
 
 @router.put("/{report_id}", response_model=ReportResponse)
 def update_report(
@@ -130,7 +131,7 @@ def update_report(
     service: WorkSummaryService = Depends(get_work_summary_service)
 ):
     try:
-        updated_report = service.update_report_content(report_id, request.summary_markdown)
+        updated_report = service.update_report_content(report_id, request.summary_markdown, request.title)
         if not updated_report:
              raise HTTPException(status_code=404, detail="Report not found")
              
@@ -142,6 +143,21 @@ def update_report(
             "summary_markdown": updated_report.summary_markdown,
             "created_at": updated_report.created_at.isoformat()
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{report_id}")
+def delete_report(
+    report_id: int,
+    service: WorkSummaryService = Depends(get_work_summary_service)
+):
+    try:
+        success = service.delete_report(report_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Report not found")
+        return {"status": "success"}
     except HTTPException:
         raise
     except Exception as e:

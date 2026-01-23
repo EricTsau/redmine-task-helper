@@ -130,10 +130,14 @@ class WorkSummaryService:
         projects_set = set(state["project_ids"])
 
         # 1. Fetch Issues updated in range
-        issues = self.redmine.search_issues_advanced(
-            updated_after=start_date,
-            limit=500
-        )
+        try:
+            issues = self.redmine.search_issues_advanced(
+                updated_after=start_date,
+                limit=500
+            )
+        except Exception as e:
+            print(f"Error fetching issues: {e}")
+            issues = []
 
         filtered_issues = []
         structured_issues = []
@@ -260,7 +264,7 @@ class WorkSummaryService:
         時間範圍: {state['start_date']} 到 {state['end_date']}
 
         要求:
-        - 報告需包含「工作主題」(Title)、一個針對此範圍的內部描述 summary（以簡短段落呈現），以及一個清楚的 Markdown 表格或列表，列出主要工作項目。
+        - 報告需包含一個**富有創意且專業的總結標題 (Title)**(請在文件開頭以 # H1 標示)，一個針對此範圍的內部描述 summary（以簡短段落呈現），以及一個清楚的 Markdown 表格或列表，列出主要工作項目。
         - 表格欄位包含: 日期, 專案, 人員, 任務(含 Redmine 連結), 工作內容摘要, 耗時(若有)。
         - 使用以下 Issue 連結格式: [Issue #ID]({redmine_base}/issues/ID)
 
@@ -334,13 +338,26 @@ class WorkSummaryService:
         
         return result
 
-    def update_report_content(self, report_id: int, content: str) -> Optional[AIWorkSummaryReport]:
+    def update_report_content(self, report_id: int, content: Optional[str] = None, title: Optional[str] = None) -> Optional[AIWorkSummaryReport]:
         report = self.get_report(report_id)
         if not report:
             return None
             
-        report.summary_markdown = content
+        if content is not None:
+            report.summary_markdown = content
+        
+        if title is not None:
+            report.title = title
+
         self.session.add(report)
         self.session.commit()
         self.session.refresh(report)
         return report
+
+    def delete_report(self, report_id: int) -> bool:
+        report = self.get_report(report_id)
+        if not report:
+            return False
+        self.session.delete(report)
+        self.session.commit()
+        return True
