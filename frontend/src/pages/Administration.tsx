@@ -143,114 +143,141 @@ export const Administration: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Administration</h1>
-                    <p className="text-muted-foreground text-lg">Manage users, security, and system settings</p>
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-10">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-primary/10 rounded-2xl border border-primary/20 shadow-glow">
+                            <ShieldCheck className="w-6 h-6 text-primary" />
+                        </div>
+                        <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+                            Command Center
+                        </h1>
+                    </div>
+                    <p className="text-muted-foreground font-medium ml-1">Manage infrastructure, security protocols, and operational users</p>
                 </div>
-                <div className="flex gap-2 p-1 bg-muted rounded-xl shadow-inner border">
-                    <button
-                        onClick={() => setActiveTab('users')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'users' ? 'bg-background shadow-md text-primary scale-105' : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        <Users size={18} /> Users
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('ldap')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'ldap' ? 'bg-background shadow-md text-primary scale-105' : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        <Server size={18} /> LDAP
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('holidays')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'holidays' ? 'bg-background shadow-md text-primary scale-105' : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        <Calendar size={18} /> 假日
-                    </button>
+
+                <div className="flex bg-muted/20 p-1 rounded-2xl border border-white/5 backdrop-blur-sm">
+                    {[
+                        { id: 'users', icon: Users, label: 'Operators' },
+                        { id: 'ldap', icon: Server, label: 'LDAP Node' },
+                        { id: 'holidays', icon: Calendar, label: 'Timeline Adjust' },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id
+                                ? 'bg-primary shadow-glow text-primary-foreground scale-105'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                        >
+                            <tab.icon size={14} />
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {status && (
-                <div className={`p-4 rounded-xl border flex items-center justify-between animate-in slide-in-from-top-4 duration-300 ${status.type === 'success' ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-destructive/5 border-destructive/20 text-destructive'
+                <div className={`p-5 rounded-2xl border flex items-center justify-between animate-in slide-in-from-top-4 duration-300 backdrop-blur-md ${status.type === 'success' ? 'bg-tech-cyan/10 border-tech-cyan/20 text-tech-cyan shadow-[0_0_20px_rgba(6,182,212,0.1)]' : 'bg-tech-rose/10 border-tech-rose/20 text-tech-rose shadow-[0_0_20px_rgba(244,63,94,0.1)]'
                     }`}>
-                    <div className="flex items-center gap-3 font-medium">
-                        {status.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                    <div className="flex items-center gap-4 font-bold text-sm">
+                        {status.type === 'success' ? <CheckCircle2 size={24} className="shadow-glow-cyan" /> : <XCircle size={24} className="shadow-glow-rose" />}
                         {status.message}
                     </div>
-                    <button onClick={() => setStatus(null)} className="text-sm opacity-60 hover:opacity-100 transition-opacity">Dismiss</button>
+                    <button onClick={() => setStatus(null)} className="text-xs font-black uppercase opacity-60 hover:opacity-100 transition-opacity tracking-widest">Acknowledge</button>
                 </div>
             )}
 
-            <div className="bg-card border rounded-2xl shadow-xl overflow-hidden min-h-[500px]">
+            <div className="glass-card border-border/20 rounded-[32px] overflow-hidden min-h-[600px] flex flex-col">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tech-indigo opacity-30" />
+
                 {loading ? (
-                    <div className="h-full flex flex-col items-center justify-center gap-4 py-32 opacity-50">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <p className="font-medium">Loading records...</p>
+                    <div className="flex-1 flex flex-col items-center justify-center gap-6 py-32">
+                        <div className="h-12 w-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin shadow-glow" />
+                        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Retrieving System State</p>
                     </div>
                 ) : activeTab === 'users' ? (
-                    <div className="p-8 space-y-8">
-                        <div className="flex items-center justify-between border-b pb-6">
-                            <h3 className="text-xl font-bold flex items-center gap-2">
-                                User Directory <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{users.length} total</span>
-                            </h3>
-                            <div className="flex gap-3">
+                    <div className="flex flex-col flex-1">
+                        <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-white/5">
+                            <div className="flex items-center gap-4">
+                                <h3 className="text-xl font-black tracking-tight">Access Directory</h3>
+                                <span className="text-[10px] font-black bg-primary/20 text-primary px-3 py-1 rounded-full uppercase tracking-tighter shadow-glow-sm">
+                                    {users.length} AUTHENTICATED ENTITIES
+                                </span>
+                            </div>
+                            <div className="flex gap-4">
                                 <button
                                     onClick={() => setShowBulkAdd(true)}
-                                    className="flex items-center gap-2 px-4 py-2 border rounded-xl hover:bg-muted font-semibold transition-all"
+                                    className="flex items-center gap-2 px-5 py-2.5 glass-card border-border/30 rounded-xl hover:bg-white/10 font-bold text-xs uppercase tracking-widest transition-all"
                                 >
-                                    <UserPlus size={18} /> Bulk Create
+                                    <UserPlus size={16} /> Bulk Sync
                                 </button>
                                 <button
                                     onClick={() => setShowAddUser(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 font-bold shadow-lg shadow-primary/20 transition-all"
+                                    className="flex items-center gap-2 px-6 py-2.5 tech-button-primary rounded-xl font-black text-xs uppercase tracking-widest transition-all"
                                 >
-                                    <Plus size={18} /> New User
+                                    <Plus size={18} /> New Entry
                                 </button>
                             </div>
                         </div>
 
-                        <div className="border rounded-2xl overflow-hidden">
-                            <table className="w-full text-left">
-                                <thead className="bg-muted/50 border-b">
-                                    <tr>
-                                        <th className="px-6 py-4 font-bold text-sm text-muted-foreground uppercase tracking-wider">Username</th>
-                                        <th className="px-6 py-4 font-bold text-sm text-muted-foreground uppercase tracking-wider">Full Name</th>
-                                        <th className="px-6 py-4 font-bold text-sm text-muted-foreground uppercase tracking-wider">Source</th>
-                                        <th className="px-6 py-4 font-bold text-sm text-muted-foreground uppercase tracking-wider">Role</th>
-                                        <th className="px-6 py-4 font-bold text-sm text-muted-foreground uppercase tracking-wider">Actions</th>
+                        <div className="flex-1 overflow-x-auto p-2">
+                            <table className="w-full text-left border-separate border-spacing-0">
+                                <thead>
+                                    <tr className="bg-muted/10 text-muted-foreground font-black text-[10px] uppercase tracking-widest">
+                                        <th className="px-8 py-5 rounded-tl-2xl">Identity Signature</th>
+                                        <th className="px-8 py-5">Designated Title</th>
+                                        <th className="px-8 py-5 text-center">Auth Vector</th>
+                                        <th className="px-8 py-5 text-center">Security Clear.</th>
+                                        <th className="px-8 py-5 text-right rounded-tr-2xl">Override</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y">
+                                <tbody className="divide-y divide-white/5">
                                     {users.map(u => (
-                                        <tr key={u.id} className="hover:bg-muted/30 transition-colors group">
-                                            <td className="px-6 py-4 font-semibold text-foreground">{u.username}</td>
-                                            <td className="px-6 py-4 text-muted-foreground">{u.full_name || '-'}</td>
-                                            <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase ${u.auth_source === 'ldap' ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600'
-                                                    }`}>
-                                                    <Server size={12} className={u.auth_source === 'ldap' ? 'block' : 'hidden'} />
-                                                    {u.auth_source}
-                                                </span>
+                                        <tr key={u.id} className="group hover:bg-white/5 transition-colors">
+                                            <td className="px-8 py-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-tech-indigo/20 border border-primary/20 flex items-center justify-center font-black text-primary text-xs shadow-glow-sm">
+                                                        {u.username.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-foreground group-hover:text-primary transition-colors">{u.username}</div>
+                                                        <div className="text-[10px] font-medium text-muted-foreground lowercase opacity-60">{u.email || 'no-email@system.local'}</div>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                {u.is_admin ? (
-                                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase">
-                                                        <ShieldCheck size={12} /> Admin
+                                            <td className="px-8 py-6 font-bold text-sm text-foreground/80">{u.full_name || 'UNDEFINED'}</td>
+                                            <td className="px-8 py-6">
+                                                <div className="flex justify-center">
+                                                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border ${u.auth_source === 'ldap' ? 'bg-tech-indigo/10 border-tech-indigo/20 text-tech-indigo' : 'bg-tech-cyan/10 border-tech-cyan/20 text-tech-cyan'
+                                                        }`}>
+                                                        {u.auth_source === 'ldap' ? <Server size={10} /> : <ShieldCheck size={10} />}
+                                                        {u.auth_source}
                                                     </span>
-                                                ) : (
-                                                    <span className="text-muted-foreground text-xs font-medium uppercase tracking-tighter">Standard</span>
-                                                )}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-8 py-6">
+                                                <div className="flex justify-center">
+                                                    {u.is_admin ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-tech-rose/10 text-tech-rose border border-tech-rose/20 rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse shadow-glow-rose-sm">
+                                                            <ShieldCheck size={12} /> Root admin
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground/40 text-[10px] font-black uppercase tracking-[0.2em]">Standard</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
                                                 <button
                                                     onClick={() => handleToggleAdmin(u.id)}
-                                                    className="px-3 py-1 text-xs font-bold border rounded-lg hover:bg-muted transition-all"
+                                                    className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${u.is_admin
+                                                        ? 'bg-muted/50 text-muted-foreground hover:bg-tech-rose hover:text-white'
+                                                        : 'bg-white/5 border border-white/10 text-primary hover:bg-primary hover:text-white'
+                                                        }`}
                                                 >
-                                                    {u.is_admin ? 'Demote' : 'Promote to Admin'}
+                                                    {u.is_admin ? 'RESCIND' : 'ELEVATE'}
                                                 </button>
                                             </td>
                                         </tr>
@@ -260,48 +287,57 @@ export const Administration: React.FC = () => {
                         </div>
                     </div>
                 ) : activeTab === 'ldap' ? (
-                    <div className="p-10 space-y-10">
-                        <div className="space-y-2 border-b pb-6">
-                            <h3 className="text-2xl font-bold text-foreground">LDAP Configuration</h3>
-                            <p className="text-muted-foreground">Configure global authentication for LDAP users</p>
+                    <div className="p-12 space-y-12">
+                        <div className="space-y-2 border-b border-white/5 pb-8">
+                            <h3 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
+                                <div className="p-2 bg-tech-indigo/10 rounded-xl border border-tech-indigo/20">
+                                    <Server className="w-6 h-6 text-tech-indigo" />
+                                </div>
+                                LDAP Core Configuration
+                            </h3>
+                            <p className="text-muted-foreground font-medium">Synchronize external neural directories with the central command infrastructure</p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-foreground uppercase tracking-wider">Server URL</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                            <div className="space-y-8">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Relay Endpoint URL</label>
                                     <input
-                                        className="flex h-12 w-full rounded-xl border border-input bg-muted/30 px-4 py-2 font-medium focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all"
-                                        placeholder="ldap://ldap.company.com:389"
+                                        className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
+                                        placeholder="ldap://relay.node.network:389"
                                         value={ldapSettings.server_url}
                                         onChange={e => setLdapSettings({ ...ldapSettings, server_url: e.target.value })}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-foreground uppercase tracking-wider">Base DN</label>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Foundation DN Path</label>
                                     <input
-                                        className="flex h-12 w-full rounded-xl border border-input bg-muted/30 px-4 py-2 font-medium focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all"
-                                        placeholder="dc=company,dc=com"
+                                        className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
+                                        placeholder="dc=central,dc=command,dc=io"
                                         value={ldapSettings.base_dn}
                                         onChange={e => setLdapSettings({ ...ldapSettings, base_dn: e.target.value })}
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-foreground uppercase tracking-wider">User DN Template</label>
-                                    <input
-                                        className="flex h-12 w-full rounded-xl border border-input bg-muted/30 px-4 py-2 font-medium focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all"
-                                        placeholder="uid={username},ou=users,dc=company,dc=com"
-                                        value={ldapSettings.user_dn_template}
-                                        onChange={e => setLdapSettings({ ...ldapSettings, user_dn_template: e.target.value })}
-                                    />
-                                    <p className="text-xs text-muted-foreground italic">Use {'{username}'} as placeholder</p>
+                            <div className="space-y-8">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Identity Vector Template</label>
+                                    <div className="space-y-2">
+                                        <input
+                                            className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
+                                            placeholder="uid={username},ou=operators,dc=io"
+                                            value={ldapSettings.user_dn_template}
+                                            onChange={e => setLdapSettings({ ...ldapSettings, user_dn_template: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-tech-indigo font-black uppercase tracking-tighter bg-tech-indigo/10 py-1 px-3 rounded inline-block">Variable: {'{username}'} is dynamic</p>
+                                    </div>
                                 </div>
-                                <div className="pt-8">
-                                    <label className="flex items-center gap-4 cursor-pointer group">
-                                        <div className={`w-14 h-8 rounded-full transition-all duration-300 relative ${ldapSettings.is_active ? 'bg-primary shadow-lg shadow-primary/30' : 'bg-muted border'}`}>
-                                            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 transform ${ldapSettings.is_active ? 'left-7' : 'left-1'}`} />
+                                <div className="pt-4">
+                                    <label className="flex items-center gap-6 cursor-pointer group p-6 glass-card border-border/20 rounded-[28px] hover:border-tech-indigo/30 transition-all">
+                                        <div className={`w-16 h-9 rounded-full transition-all duration-500 relative border ${ldapSettings.is_active ? 'bg-tech-indigo/20 border-tech-indigo/40 shadow-glow-indigo' : 'bg-white/5 border-white/10'
+                                            }`}>
+                                            <div className={`absolute top-1.5 w-5 h-5 rounded-lg transition-all duration-500 transform ${ldapSettings.is_active ? 'left-9 bg-tech-indigo shadow-glow-indigo-sm' : 'left-1.5 bg-muted-foreground/30'
+                                                }`} />
                                         </div>
                                         <input
                                             type="checkbox"
@@ -309,68 +345,87 @@ export const Administration: React.FC = () => {
                                             checked={ldapSettings.is_active}
                                             onChange={e => setLdapSettings({ ...ldapSettings, is_active: e.target.checked })}
                                         />
-                                        <div className="space-y-0.5">
-                                            <span className="font-bold text-foreground">Enable LDAP Login</span>
-                                            <p className="text-xs text-muted-foreground">Allow users to sign in using their LDAP credentials</p>
+                                        <div className="space-y-1">
+                                            <div className="font-black text-xs uppercase tracking-widest">Active Relay Status</div>
+                                            <p className="text-[10px] text-muted-foreground font-medium">Permit cross-link authentication with LDAP nodes</p>
                                         </div>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="pt-10 border-t flex justify-end">
+                        <div className="pt-10 border-t border-white/5 flex justify-end">
                             <button
                                 onClick={saveLDAP}
-                                className="flex items-center gap-3 px-8 py-3 bg-primary text-primary-foreground rounded-2xl font-bold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 active:scale-95"
+                                className="flex items-center gap-3 px-10 py-4 tech-button-primary rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all active:scale-95"
                             >
-                                <Save size={20} /> Save Configuration
+                                <Save size={20} /> Commit Operational State
                             </button>
                         </div>
                     </div>
                 ) : activeTab === 'holidays' ? (
-                    <HolidayManagement onStatus={setStatus} />
+                    <div className="p-8 flex-1 bg-white/5">
+                        <HolidayManagement onStatus={setStatus} />
+                    </div>
                 ) : null}
             </div>
 
-            {/* Modals could be implemented here */}
+            {/* Modals - Redesigned with Tech Style */}
             {showAddUser && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    {/* Simple Modal Implementation */}
-                    <div className="bg-card border rounded-3xl shadow-2xl max-w-lg w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
-                        <h2 className="text-2xl font-bold tracking-tight">Create New User</h2>
-                        <form onSubmit={handleAddUser} className="space-y-4">
-                            <input
-                                className="flex h-12 w-full rounded-xl border px-4 focus:ring-2 focus:ring-primary outline-none"
-                                placeholder="Username"
-                                value={newUser.username}
-                                onChange={e => setNewUser({ ...newUser, username: e.target.value })}
-                                required
-                            />
-                            <input
-                                className="flex h-12 w-full rounded-xl border px-4 focus:ring-2 focus:ring-primary outline-none"
-                                type="password"
-                                placeholder="Password"
-                                value={newUser.password}
-                                onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                                required={newUser.auth_source === 'standard'}
-                            />
-                            <div className="grid grid-cols-2 gap-4">
-                                <input
-                                    className="flex h-12 w-full rounded-xl border px-4 focus:ring-2 focus:ring-primary outline-none"
-                                    placeholder="Full Name"
-                                    value={newUser.full_name}
-                                    onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
-                                />
-                                <input
-                                    className="flex h-12 w-full rounded-xl border px-4 focus:ring-2 focus:ring-primary outline-none"
-                                    placeholder="Email"
-                                    value={newUser.email}
-                                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                                />
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+                    <div className="glass-card border-white/10 rounded-[32px] shadow-2xl max-w-lg w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-primary/40" />
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black tracking-tight">Operator Initialization</h2>
+                            <p className="text-muted-foreground text-sm font-medium">Register a human entity for tactical operations</p>
+                        </div>
+                        <form onSubmit={handleAddUser} className="space-y-5">
+                            <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Signature (Username)</label>
+                                    <input
+                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                        placeholder="X-RAY-01"
+                                        value={newUser.username}
+                                        onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Encryption Core (Password)</label>
+                                    <input
+                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={newUser.password}
+                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                        required={newUser.auth_source === 'standard'}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Full Designation</label>
+                                        <input
+                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                            placeholder="Agent Name"
+                                            value={newUser.full_name}
+                                            onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Comm Channel</label>
+                                        <input
+                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                            placeholder="email@local"
+                                            value={newUser.email}
+                                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex gap-4 pt-2">
-                                <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-3 border rounded-xl hover:bg-muted font-bold transition-all">Cancel</button>
-                                <button type="submit" className="flex-1 px-4 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">Create User</button>
+                            <div className="flex gap-4 pt-6">
+                                <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Abort</button>
+                                <button type="submit" className="flex-1 px-4 py-4 tech-button-primary rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Initialize</button>
                             </div>
                         </form>
                     </div>
@@ -378,34 +433,44 @@ export const Administration: React.FC = () => {
             )}
 
             {showBulkAdd && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    <div className="bg-card border rounded-3xl shadow-2xl max-w-2xl w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
-                        <h2 className="text-2xl font-bold tracking-tight">Bulk Create Users</h2>
-                        <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">Format: <code className="bg-muted px-1 rounded">username, Full Name, email</code> (one per line)</p>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+                    <div className="glass-card border-white/10 rounded-[40px] shadow-2xl max-w-2xl w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/40" />
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black tracking-tight">Bulk Node Sync</h2>
+                            <p className="text-muted-foreground text-sm font-medium">Mass population of identity clusters into core directory</p>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="p-4 bg-tech-cyan/5 border border-tech-cyan/10 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-tech-cyan mb-2">Protocol Format:</p>
+                                <code className="text-xs font-mono text-foreground/80 font-bold">username, Full Name, email</code>
+                            </div>
                             <textarea
-                                className="w-full h-48 rounded-2xl border px-4 py-4 focus:ring-2 focus:ring-primary outline-none bg-muted/20 font-mono text-sm leading-relaxed"
-                                placeholder="johndoe, John Doe, john@example.com&#10;janedoe, Jane Doe, jane@example.com"
+                                className="w-full h-64 rounded-3xl border border-white/10 px-6 py-6 focus:ring-2 focus:ring-tech-cyan/30 outline-none bg-black/30 font-mono text-sm leading-relaxed custom-scrollbar placeholder:opacity-20 font-bold"
+                                placeholder="X-01, Alpha Primary, a@node.net&#10;X-02, Beta Secondary, b@node.net"
                                 value={bulkData}
                                 onChange={e => setBulkData(e.target.value)}
                             />
-                            <div className="flex items-center gap-4 py-2">
-                                <input
-                                    className="flex h-12 flex-1 rounded-xl border px-4 focus:ring-2 focus:ring-primary outline-none"
-                                    type="password"
-                                    placeholder="Common Password"
-                                    value={bulkPassword}
-                                    onChange={e => setBulkPassword(e.target.value)}
-                                    disabled={randomPassword}
-                                />
-                                <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm select-none">
-                                    <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-primary text-primary focus:ring-primary" />
-                                    Randomly generate
+                            <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
+                                <div className="relative flex-1 w-full">
+                                    <label className="absolute -top-2.5 left-4 px-2 bg-slate-900 text-[9px] font-black text-tech-cyan uppercase tracking-widest">Global Encryption Key</label>
+                                    <input
+                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all disabled:opacity-20"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={bulkPassword}
+                                        onChange={e => setBulkPassword(e.target.value)}
+                                        disabled={randomPassword}
+                                    />
+                                </div>
+                                <label className="flex items-center gap-3 cursor-pointer group select-none py-2 px-4 glass-card rounded-2xl border-white/5 hover:border-tech-cyan/20 transition-all">
+                                    <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-white/10 bg-white/5 text-tech-cyan focus:ring-tech-cyan" />
+                                    <span className="font-black text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-tech-cyan transition-colors">Generate entropy</span>
                                 </label>
                             </div>
-                            <div className="flex gap-4 pt-4 border-t">
-                                <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-3 border rounded-xl hover:bg-muted font-bold transition-all">Cancel</button>
-                                <button onClick={handleBulkAdd} className="flex-1 px-4 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">Import Users</button>
+                            <div className="flex gap-4 pt-6 border-t border-white/5">
+                                <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
+                                <button onClick={handleBulkAdd} className="flex-1 px-4 py-4 bg-gradient-to-r from-tech-cyan to-tech-indigo text-white shadow-glow-cyan rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Commit Sync</button>
                             </div>
                         </div>
                     </div>

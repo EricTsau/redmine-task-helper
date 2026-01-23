@@ -49,107 +49,128 @@ export const ExecutiveDashboard: React.FC = () => {
 
     const getHealthColor = (status: string) => {
         switch (status) {
-            case 'critical': return 'text-red-500 bg-red-50 dark:bg-red-900/20';
-            case 'warning': return 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20';
-            case 'healthy': return 'text-green-500 bg-green-50 dark:bg-green-900/20';
-            default: return 'text-gray-500';
+            case 'critical': return 'text-tech-rose bg-tech-rose/10 border-tech-rose/20 shadow-[0_0_10px_rgba(244,63,94,0.2)]';
+            case 'warning': return 'text-tech-amber bg-tech-amber/10 border-tech-amber/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]';
+            case 'healthy': return 'text-tech-cyan bg-tech-cyan/10 border-tech-cyan/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]';
+            default: return 'text-muted-foreground bg-muted/20';
         }
     };
 
     if (loading && !data) {
-        return <div className="p-8 flex justify-center"><RefreshCw className="animate-spin w-6 h-6 text-gray-400" /></div>;
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+                <div className="relative h-12 w-12">
+                    <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+                    <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin shadow-glow" />
+                </div>
+                <p className="text-muted-foreground font-bold tracking-widest uppercase text-xs">分析傳輸中...</p>
+            </div>
+        );
     }
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8">
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
             {/* Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        <LayoutDashboard className="w-8 h-8 text-blue-600" />
-                        Executive Dashboard
-                    </h1>
-                    <p className="text-gray-500 mt-1">Real-time portfolio insights and risk assessment</p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-primary/10 rounded-2xl border border-primary/20 shadow-glow">
+                            <LayoutDashboard className="w-6 h-6 text-primary" />
+                        </div>
+                        <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+                            Executive View
+                        </h1>
+                    </div>
+                    <p className="text-muted-foreground font-medium ml-1">Real-time portfolio insights and strategic risk assessment</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-4">
                     <button
                         onClick={fetchDashboard}
-                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        className="p-3 glass-card rounded-2xl border-border/30 hover:text-primary transition-all active:scale-95 group"
                         title="Refresh Data"
                     >
-                        <RefreshCw className="w-5 h-5" />
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
                     </button>
                     <button
                         onClick={() => setBriefingOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-medium shadow-md transition-all hover:shadow-lg"
+                        className="relative group px-6 py-3 rounded-2xl font-bold text-sm overflow-hidden tech-button-primary"
                     >
-                        <FileText className="w-4 h-4" />
-                        Generate AI Briefing
+                        <div className="relative z-10 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            <span>Generate AI Briefing</span>
+                        </div>
                     </button>
                 </div>
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div className="text-sm font-medium text-gray-500 mb-2">Total Projects</div>
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{data?.total_projects}</div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-l-4 border-red-500 dark:border-gray-700">
-                    <div className="text-sm font-medium text-red-600 mb-2 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" /> Critical
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'Total Projects', value: data?.total_projects, color: 'primary' },
+                    { label: 'Critical Risks', value: data?.portfolio_health.critical, color: 'rose', icon: AlertTriangle },
+                    { label: 'Warning Alerts', value: data?.portfolio_health.warning, color: 'amber', icon: Clock },
+                    { label: 'Healthy Systems', value: data?.portfolio_health.healthy, color: 'cyan', icon: CheckCircle },
+                ].map((kpi, i) => (
+                    <div key={i} className="group relative">
+                        <div className={`absolute -inset-0.5 bg-gradient-to-br from-tech-${kpi.color}/20 to-transparent rounded-3xl blur opacity-0 group-hover:opacity-100 transition duration-500`} />
+                        <div className="relative glass-card p-6 rounded-3xl border-border/30 flex flex-col justify-between h-full hover:border-tech-${kpi.color}/40 transition-colors">
+                            <div className="flex justify-between items-start mb-4">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{kpi.label}</span>
+                                {kpi.icon && <kpi.icon className={`w-4 h-4 text-tech-${kpi.color}`} />}
+                            </div>
+                            <div className={`text-4xl font-black tracking-tighter text-tech-${kpi.color} group-hover:scale-105 transition-transform`}>
+                                {kpi.value || 0}
+                            </div>
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{data?.portfolio_health.critical}</div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-l-4 border-yellow-500 dark:border-gray-700">
-                    <div className="text-sm font-medium text-yellow-600 mb-2 flex items-center gap-2">
-                        <Clock className="w-4 h-4" /> Warning
-                    </div>
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{data?.portfolio_health.warning}</div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-l-4 border-green-500 dark:border-gray-700">
-                    <div className="text-sm font-medium text-green-600 mb-2 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" /> Healthy
-                    </div>
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{data?.portfolio_health.healthy}</div>
-                </div>
+                ))}
             </div>
 
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Col: Project List */}
-                <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Project Health Overview</h3>
+                <div className="lg:col-span-2 glass-card rounded-3xl border-border/30 overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-border/20 flex justify-between items-center bg-white/5">
+                        <h3 className="text-lg font-bold tracking-tight">Portfolio Health Matrix</h3>
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 font-medium">
-                                <tr>
-                                    <th className="px-6 py-4">Project Name</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4 text-right">Overdue Tasks</th>
-                                    <th className="px-6 py-4"></th>
+                    <div className="overflow-x-auto flex-1">
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr className="bg-muted/10 text-muted-foreground font-black text-[10px] uppercase tracking-widest">
+                                    <th className="px-8 py-5">Project Identification</th>
+                                    <th className="px-8 py-5 text-center">Health Status</th>
+                                    <th className="px-8 py-5 text-right">Deviations</th>
+                                    <th className="px-8 py-5"></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                            <tbody className="divide-y divide-border/10">
                                 {data?.project_health_list.map(p => (
-                                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{p.name}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getHealthColor(p.health_status)}`}>
-                                                {p.health_status}
-                                            </span>
+                                    <tr key={p.id} className="group hover:bg-primary/5 transition-colors">
+                                        <td className="px-8 py-6">
+                                            <div className="font-bold text-foreground group-hover:text-primary transition-colors">{p.name}</div>
+                                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{p.identifier}</div>
                                         </td>
-                                        <td className="px-6 py-4 text-right text-gray-600 dark:text-gray-400">
+                                        <td className="px-8 py-6">
+                                            <div className="flex justify-center">
+                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all duration-300 ${getHealthColor(p.health_status)}`}>
+                                                    {p.health_status}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
                                             {p.overdue_count > 0 ? (
-                                                <span className="text-red-500 font-bold">{p.overdue_count}</span>
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-tech-rose/10 text-tech-rose border border-tech-rose/20 font-bold text-xs ring-2 ring-tech-rose/5 animate-pulse">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    {p.overdue_count} OVERDUE
+                                                </div>
                                             ) : (
-                                                "-"
+                                                <span className="text-muted-foreground opacity-30">—</span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="text-blue-600 hover:text-blue-700 text-xs font-medium">Details</button>
+                                        <td className="px-8 py-6 text-right">
+                                            <button className="px-4 py-2 rounded-xl bg-muted/50 text-muted-foreground hover:bg-primary hover:text-primary-foreground font-bold text-xs transition-all active:scale-95">
+                                                ANALYZE
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -159,41 +180,53 @@ export const ExecutiveDashboard: React.FC = () => {
                 </div>
 
                 {/* Right Col: Risk Radar */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Activity className="w-5 h-5 text-red-500" />
-                            Risk Radar (Top 5)
-                        </h3>
-                    </div>
-                    <div className="p-6 flex-1 overflow-y-auto">
-                        <div className="space-y-4">
-                            {data?.top_risks.length === 0 && (
-                                <p className="text-gray-500 text-center py-4">No critical risks detected.</p>
-                            )}
-                            {data?.top_risks.map(risk => (
-                                <div key={risk.id} className="group p-4 rounded-lg bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 hover:border-red-200 transition-all">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{risk.project_name}</div>
-                                        <span className="text-xs font-mono text-red-600 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded">
-                                            Due: {risk.due_date}
-                                        </span>
-                                    </div>
-                                    <h4 className="font-medium text-gray-900 dark:text-white mb-2 line-clamp-2" title={risk.subject}>
-                                        {risk.subject}
-                                    </h4>
-                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                        <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-bold">
-                                            {risk.assigned_to.charAt(0)}
-                                        </div>
-                                        {risk.assigned_to}
-                                    </div>
-                                </div>
-                            ))}
+                <div className="flex flex-col gap-8">
+                    <div className="glass-card rounded-3xl border-border/30 flex flex-col overflow-hidden">
+                        <div className="p-6 border-b border-border/20 flex items-center justify-between bg-white/5">
+                            <h3 className="text-lg font-bold tracking-tight flex items-center gap-2">
+                                <Activity className="w-5 h-5 text-tech-rose" />
+                                Critical Risk Radar
+                            </h3>
+                            <span className="text-[10px] font-black bg-tech-rose/20 text-tech-rose px-2 py-0.5 rounded uppercase">Real-time</span>
                         </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 text-center">
-                        <button className="text-sm text-gray-500 hover:text-gray-700 transition-colors">View All Risks</button>
+                        <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+                            {data?.top_risks.length === 0 ? (
+                                <div className="text-center py-12 space-y-3">
+                                    <CheckCircle className="w-12 h-12 text-tech-cyan/20 mx-auto" />
+                                    <p className="text-muted-foreground font-medium">All systems operational.</p>
+                                </div>
+                            ) : (
+                                data?.top_risks.map((risk, i) => (
+                                    <div key={risk.id} className="group relative p-4 rounded-2xl bg-gradient-to-br from-white/5 to-transparent border border-border/20 hover:border-tech-rose/30 transition-all duration-500 animate-in fade-in slide-in-from-right-4" style={{ animationDelay: `${i * 100}ms` }}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate max-w-[150px]">{risk.project_name}</div>
+                                            <span className="text-[9px] font-black text-tech-rose border border-tech-rose/20 bg-tech-rose/10 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                                                Due: {risk.due_date}
+                                            </span>
+                                        </div>
+                                        <h4 className="font-bold text-foreground leading-tight mb-4 line-clamp-2 group-hover:text-tech-rose transition-colors">
+                                            {risk.subject}
+                                        </h4>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-tech-indigo flex items-center justify-center text-[10px] font-black text-white shadow-glow">
+                                                    {risk.assigned_to.charAt(0)}
+                                                </div>
+                                                <span className="text-xs font-bold text-muted-foreground">{risk.assigned_to}</span>
+                                            </div>
+                                            <div className="h-1 w-12 bg-border/20 rounded-full overflow-hidden">
+                                                <div className="h-full bg-tech-rose animate-pulse" style={{ width: '70%' }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-border/10 bg-muted/5">
+                            <button className="w-full py-2.5 text-xs font-black text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all uppercase tracking-widest">
+                                Expand Intelligence Report
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -52,7 +52,27 @@ export default {
 					'3': 'hsl(var(--chart-3))',
 					'4': 'hsl(var(--chart-4))',
 					'5': 'hsl(var(--chart-5))'
+				},
+				// Tech-Lumina Specific Colors
+				tech: {
+					cyan: '#06b6d4',
+					violet: '#8b5cf6',
+					indigo: '#6366f1',
+					rose: '#f43f5e',
+					amber: '#f59e0b',
+					glow: {
+						cyan: 'rgba(6, 182, 212, 0.5)',
+						violet: 'rgba(139, 92, 246, 0.5)',
+					}
 				}
+			},
+			fontFamily: {
+				sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+				mono: ['JetBrains Mono', 'monospace'],
+			},
+			backgroundImage: {
+				'tech-gradient': 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+				'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
 			}
 		}
 	},

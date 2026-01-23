@@ -160,60 +160,83 @@ export function Dashboard() {
     };
 
     return (
-        <div className="space-y-4">
-            {/* Watchlist Stats (Phase 2) */}
-            <WatchlistStats />
-
-            {/* AI Chat Logger */}
-            <ChatBox />
-
-            {/* Tab Navigation */}
-            <div className="flex items-center justify-between">
-                <div className="flex gap-1 p-1 bg-muted rounded-lg">
-                    <button
-                        onClick={() => setActiveTab('my-tasks')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'my-tasks'
-                            ? 'bg-background shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        <ListTodo className="h-4 w-4" />
-                        我的任務
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('tracked')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'tracked'
-                            ? 'bg-background shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                    >
-                        <Bookmark className="h-4 w-4" />
-                        追蹤任務
-                    </button>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header / Stats Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3 space-y-6">
+                    <div className="flex flex-col space-y-2">
+                        <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+                            任務工作台
+                        </h1>
+                        <p className="text-muted-foreground font-medium">歡迎回來，今天也要保持高產出！</p>
+                    </div>
                 </div>
-
-                {/* Import Button (only show on tracked tab) */}
-                {activeTab === 'tracked' && (
-                    <button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-                    >
-                        <Plus className="h-4 w-4" />
-                        匯入任務
-                    </button>
-                )}
             </div>
 
-            {/* Content */}
-            {activeTab === 'my-tasks' ? (
-                <TaskListView startTimer={handleStartTimer} />
-            ) : (
-                <TaskGroupView
-                    key={refreshKey}
-                    startTimer={handleStartTimer}
-                    onRefresh={() => setRefreshKey(k => k + 1)}
-                />
-            )}
+            {/* Watchlist Stats */}
+            <div className="glass-card rounded-3xl p-1 overflow-hidden">
+                <WatchlistStats />
+            </div>
+
+            {/* AI Chat Logger */}
+            <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-tech-cyan/20 to-tech-violet/20 rounded-3xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative glass-card rounded-2xl overflow-hidden border-border/30">
+                    <ChatBox />
+                </div>
+            </div>
+
+            {/* Main Tabs Section */}
+            <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex p-1.5 glass-card rounded-2xl border-border/30 w-full sm:w-auto">
+                        <button
+                            onClick={() => setActiveTab('my-tasks')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'my-tasks'
+                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-primary/5 active:scale-95'
+                                }`}
+                        >
+                            <ListTodo className="h-4 w-4" />
+                            <span>我的任務</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('tracked')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'tracked'
+                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-primary/5 active:scale-95'
+                                }`}
+                        >
+                            <Bookmark className="h-4 w-4" />
+                            <span>追蹤任務</span>
+                        </button>
+                    </div>
+
+                    {/* Import Button (only show on tracked tab) */}
+                    {activeTab === 'tracked' && (
+                        <button
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 tech-button-primary rounded-xl font-bold"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>匯入任務</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Content Area with Glass Effect Container */}
+                <div className="glass-card rounded-3xl border-border/30 overflow-hidden min-h-[400px]">
+                    {activeTab === 'my-tasks' ? (
+                        <TaskListView startTimer={handleStartTimer} />
+                    ) : (
+                        <TaskGroupView
+                            key={refreshKey}
+                            startTimer={handleStartTimer}
+                            onRefresh={() => setRefreshKey(k => k + 1)}
+                        />
+                    )}
+                </div>
+            </div>
 
             {/* Import Modal */}
             <TaskImportModal

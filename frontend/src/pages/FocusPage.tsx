@@ -35,27 +35,49 @@ export function FocusPage() {
     }
 
     return (
-        <div className="h-[calc(100vh-8rem)]">
-            <div className="flex items-center gap-2 mb-4">
-                <button
-                    onClick={() => navigate('/')}
-                    className="p-2 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
-                    title="返回"
-                >
-                    <ArrowLeft className="h-5 w-5" />
-                </button>
-                <h1 className="text-lg font-medium">Focus Mode</h1>
+        <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-700">
+            {/* Immersive Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-primary/50 transition-all text-muted-foreground hover:text-primary active:scale-90 group"
+                        title="Back to Nexus"
+                    >
+                        <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+                    </button>
+                    <div className="space-y-0.5">
+                        <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
+                            Flow Execution
+                        </h1>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/60">Immersive Focus Protocol Active</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-tech-cyan/10 border border-tech-cyan/20 rounded-xl">
+                        <div className="w-2 h-2 rounded-full bg-tech-cyan animate-pulse shadow-glow-cyan" />
+                        <span className="text-[10px] font-black text-tech-cyan uppercase tracking-widest">Neural Sync: 100%</span>
+                    </div>
+                </div>
             </div>
 
-            <FocusMode
-                timer={timer}
-                elapsed={elapsed}
-                onPause={pauseTimer}
-                onResume={startTimer}
-                onStop={stopTimer}
-                onUpdateLog={updateLog}
-                onSubmit={submitEntry}
-            />
+            {/* Immersive Container */}
+            <div className="flex-1 glass-card rounded-[40px] border-border/20 relative overflow-hidden flex flex-col p-8 md:p-12 shadow-2xl">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tech-cyan via-tech-indigo to-tech-rose opacity-40" />
+
+                <div className="flex-1 flex flex-col items-center justify-center">
+                    <FocusMode
+                        timer={timer}
+                        elapsed={elapsed}
+                        onPause={pauseTimer}
+                        onResume={startTimer}
+                        onStop={stopTimer}
+                        onUpdateLog={updateLog}
+                        onSubmit={submitEntry}
+                    />
+                </div>
+            </div>
         </div>
     );
 }

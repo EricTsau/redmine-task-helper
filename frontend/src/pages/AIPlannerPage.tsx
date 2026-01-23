@@ -230,13 +230,13 @@ export const AIPlannerPage: React.FC = () => {
     // ============ Render ============
 
     return (
-        <div className="planner-page">
+        <div className="planner-page animate-in fade-in duration-700">
             {/* Sidebar */}
             <div className={`planner-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
                 <div className="sidebar-header">
-                    {!sidebarCollapsed && <h2>AI 專案規劃</h2>}
+                    {!sidebarCollapsed && <h2 className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">Redmine AI</h2>}
                     <button
-                        className="icon-btn"
+                        className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-muted-foreground hover:text-foreground"
                         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                         title={sidebarCollapsed ? "展開側邊欄" : "收起側邊欄"}
                     >
@@ -247,21 +247,21 @@ export const AIPlannerPage: React.FC = () => {
                 {!sidebarCollapsed && (
                     <div className="sidebar-actions">
                         <button className="new-prd-btn" onClick={() => setShowNewPRDDialog(true)}>
-                            <Plus size={16} />
-                            新 PRD
+                            <Plus size={18} />
+                            <span>CREATE NEW PRD</span>
                         </button>
                     </div>
                 )}
 
-                <div className="sidebar-list">
+                <div className="sidebar-list custom-scrollbar">
                     {prdList.map(prd => (
                         <div
                             key={prd.id}
-                            className={`sidebar-item ${currentPRD?.id === prd.id ? 'active' : ''}`}
+                            className={`sidebar-item group ${currentPRD?.id === prd.id ? 'active' : ''}`}
                             onClick={() => fetchPRD(prd.id)}
                             title={prd.title}
                         >
-                            <FileText size={16} />
+                            <FileText size={18} className={currentPRD?.id === prd.id ? 'text-tech-cyan' : ''} />
                             {!sidebarCollapsed && (
                                 <>
                                     <span className="item-title">{prd.title}</span>
@@ -281,41 +281,54 @@ export const AIPlannerPage: React.FC = () => {
             {/* Main Content */}
             <div className="planner-main">
                 {!currentPRD ? (
-                    <div className="empty-state">
-                        <FileText size={48} className="text-gray-300 mb-4" />
-                        <h3>請選擇或建立 PRD 文件</h3>
-                        <button className="primary-btn mt-4" onClick={() => setShowNewPRDDialog(true)}>
-                            建立新 PRD
+                    <div className="empty-state animate-in fade-in zoom-in-95 duration-500">
+                        <div className="relative mb-10">
+                            <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full" />
+                            <FileText size={80} className="relative text-muted-foreground/30" />
+                        </div>
+                        <h3 className="tracking-tight">Strategic Planning Studio</h3>
+                        <p className="text-muted-foreground max-w-sm font-medium mt-2">
+                            Select an existing Product Requirement Document or initialize a new one to begin AI-powered planning.
+                        </p>
+                        <button className="primary-btn mt-8 flex items-center gap-2" onClick={() => setShowNewPRDDialog(true)}>
+                            <Plus size={18} />
+                            <span>INITIALIZE WORKSPACE</span>
                         </button>
                     </div>
                 ) : loadingPRD ? (
-                    <div className="loading">載入中...</div>
+                    <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                        <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin shadow-glow" />
+                        <span className="text-xs font-black tracking-widest text-muted-foreground uppercase">Syncing Neural Data...</span>
+                    </div>
                 ) : (
                     <>
                         {/* Header */}
                         <div className="planner-header">
-                            <div className="header-info">
-                                <h1>{currentPRD.title}</h1>
-                                <span className={`status-badge ${currentPRD.status}`}>{currentPRD.status}</span>
+                            <div className="header-info min-w-0">
+                                <h1 className="truncate">{currentPRD.title}</h1>
+                                <span className={`status-badge`}>{currentPRD.status}</span>
+
                                 {planningProject && (
-                                    <div className="flex items-center gap-2 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded ml-4">
-                                        <span className="font-medium opacity-75">PLAN: {planningProject.name}</span>
-                                        <span className="text-gray-300">|</span>
+                                    <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 ml-4">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-tech-cyan animate-pulse shadow-glow-cyan" />
+                                            <span className="text-[10px] font-black tracking-wider text-tech-cyan uppercase">Project Link</span>
+                                        </div>
+                                        <div className="h-4 w-px bg-white/10" />
                                         {planningProject.redmine_project_id ? (
                                             <button
-                                                className="hover:underline font-medium flex items-center gap-1"
+                                                className="text-xs font-bold text-foreground hover:text-tech-cyan transition-colors"
                                                 onClick={() => setShowProjectModal(true)}
-                                                title={planningProject.redmine_project_name || `Redmine #${planningProject.redmine_project_id}`}
                                             >
-                                                {planningProject.redmine_project_name || '(未命名專案)'}
+                                                {planningProject.redmine_project_name || `#${planningProject.redmine_project_id}`}
                                             </button>
                                         ) : (
                                             <button
                                                 onClick={() => setShowProjectModal(true)}
-                                                className="flex items-center gap-1 hover:underline text-blue-600"
+                                                className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
                                             >
                                                 <Settings className="w-3 h-3" />
-                                                <span>設定 Redmine</span>
+                                                <span>Configure Target</span>
                                             </button>
                                         )}
                                     </div>
@@ -323,27 +336,20 @@ export const AIPlannerPage: React.FC = () => {
                             </div>
 
                             <div className="header-tabs">
-                                <button
-                                    className={`tab-btn ${activeTab === 'prd' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('prd')}
-                                >
-                                    <FileText size={16} />
-                                    PRD 工作區
-                                </button>
-                                <button
-                                    className={`tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('tasks')}
-                                >
-                                    <ListTodo size={16} />
-                                    任務清單
-                                </button>
-                                <button
-                                    className={`tab-btn ${activeTab === 'gantt' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('gantt')}
-                                >
-                                    <CalendarRange size={16} />
-                                    甘特圖
-                                </button>
+                                {[
+                                    { id: 'prd', icon: FileText, label: 'PRD Workspace' },
+                                    { id: 'tasks', icon: ListTodo, label: 'Task Matrix' },
+                                    { id: 'gantt', icon: CalendarRange, label: 'Timeline' },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                    >
+                                        <tab.icon size={16} />
+                                        <span className="hidden sm:inline">{tab.label}</span>
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -359,13 +365,15 @@ export const AIPlannerPage: React.FC = () => {
                                             onMessageSent={handleMessageSent}
                                         />
                                     </div>
-                                    <div className="prd-editor-section">
-                                        <PRDEditor
-                                            prdId={currentPRD.id}
-                                            content={currentPRD.content}
-                                            onContentChange={handlePRDContentChange}
-                                            onSave={handlePRDSave}
-                                        />
+                                    <div className="prd-editor-section custom-scrollbar">
+                                        <div className="max-w-4xl mx-auto glass-card rounded-3xl p-1 border-border/20">
+                                            <PRDEditor
+                                                prdId={currentPRD.id}
+                                                content={currentPRD.content}
+                                                onContentChange={handlePRDContentChange}
+                                                onSave={handlePRDSave}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -373,17 +381,29 @@ export const AIPlannerPage: React.FC = () => {
                             {/* Tasks Tab */}
                             <div className={`tab-pane ${activeTab === 'tasks' ? 'active' : ''}`}>
                                 {planningProject ? (
-                                    <TaskListView
-                                        projectId={planningProject.id}
-                                        refreshTrigger={refreshTrigger}
-                                        onDataChange={handleDataChange}
-                                    />
+                                    <div className="p-8 max-w-5xl mx-auto w-full">
+                                        <div className="glass-card rounded-3xl border-border/20 overflow-hidden min-h-[600px]">
+                                            <TaskListView
+                                                projectId={planningProject.id}
+                                                refreshTrigger={refreshTrigger}
+                                                onDataChange={handleDataChange}
+                                            />
+                                        </div>
+                                    </div>
                                 ) : (
-                                    <div className="project-not-found">
-                                        <h3>尚未建立規劃專案</h3>
-                                        <p>您需要先為此 PRD 建立規劃專案，才能開始生成和管理任務。</p>
-                                        <button className="primary-btn mt-4" onClick={createPlanningProject}>
-                                            初始化規劃專案
+                                    <div className="project-not-found space-y-6">
+                                        <div className="p-6 bg-white/5 rounded-full border border-white/10">
+                                            <ListTodo size={40} className="text-muted-foreground/40" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h3>PLANNING MODULE UNINITIALIZED</h3>
+                                            <p className="text-muted-foreground max-w-xs font-medium">
+                                                Convert your requirements into an actionable planning project to begin task generation.
+                                            </p>
+                                        </div>
+                                        <button className="primary-btn flex items-center gap-2" onClick={createPlanningProject}>
+                                            <Plus size={18} />
+                                            <span>GENERATE PROJECT</span>
                                         </button>
                                     </div>
                                 )}
@@ -392,18 +412,22 @@ export const AIPlannerPage: React.FC = () => {
                             {/* Gantt Tab */}
                             <div className={`tab-pane ${activeTab === 'gantt' ? 'active' : ''}`}>
                                 {planningProject ? (
-                                    <div className="h-full w-full">
-                                        <GanttEditor
-                                            planningProjectId={planningProject.id}
-                                            refreshTrigger={refreshTrigger}
-                                            onDataChange={handleDataChange}
-                                        />
+                                    <div className="h-full w-full p-4">
+                                        <div className="glass-card rounded-2xl border-border/20 h-full overflow-hidden">
+                                            <GanttEditor
+                                                planningProjectId={planningProject.id}
+                                                refreshTrigger={refreshTrigger}
+                                                onDataChange={handleDataChange}
+                                            />
+                                        </div>
                                     </div>
                                 ) : (
-                                    <div className="project-not-found">
-                                        <h3>尚未建立規劃專案</h3>
-                                        <button className="primary-btn mt-4" onClick={createPlanningProject}>
-                                            初始化規劃專案
+                                    <div className="project-not-found space-y-6">
+                                        <div className="p-6 bg-white/5 rounded-full border border-white/10">
+                                            <CalendarRange size={40} className="text-muted-foreground/40" />
+                                        </div>
+                                        <button className="primary-btn" onClick={createPlanningProject}>
+                                            INITIALIZE GANTT
                                         </button>
                                     </div>
                                 )}
@@ -416,19 +440,25 @@ export const AIPlannerPage: React.FC = () => {
             {/* New PRD Dialog */}
             {showNewPRDDialog && (
                 <div className="modal-overlay" onClick={() => setShowNewPRDDialog(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3>建立新 PRD</h3>
-                        <input
-                            type="text"
-                            placeholder="輸入 PRD 標題..."
-                            value={newPRDTitle}
-                            onChange={e => setNewPRDTitle(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && createPRD()}
-                            autoFocus
-                        />
-                        <div className="modal-actions">
-                            <button className="cancel-btn" onClick={() => setShowNewPRDDialog(false)}>取消</button>
-                            <button className="primary-btn" onClick={createPRD}>建立</button>
+                    <div className="modal-content animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <h3>INITIALIZE NEW PRD</h3>
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Document Title</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter strategic title..."
+                                    value={newPRDTitle}
+                                    onChange={e => setNewPRDTitle(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && createPRD()}
+                                    autoFocus
+                                    className="w-full"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button className="cancel-btn flex-1" onClick={() => setShowNewPRDDialog(false)}>ABORT</button>
+                                <button className="primary-btn flex-1" onClick={createPRD}>CREATE</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -445,6 +475,6 @@ export const AIPlannerPage: React.FC = () => {
             )}
         </div>
     );
-};
+}
 
 export default AIPlannerPage;

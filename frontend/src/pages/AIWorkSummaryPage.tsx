@@ -77,102 +77,138 @@ export default function AIWorkSummaryPage() {
     const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
 
     return (
-        <div className="p-6 h-screen flex flex-col overflow-hidden w-full">
-            <h1 className="text-3xl font-bold mb-6">AI 工作總結</h1>
+        <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-700">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                    <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
+                        AI Intelligence Reports
+                    </h1>
+                    <p className="text-muted-foreground font-medium">Strategic activity synthesis powered by large language models</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex bg-muted/20 p-1 rounded-xl border border-border/20">
+                        <button
+                            onClick={() => setActiveTab("generate")}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-primary text-primary-foreground shadow-glow' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            Generate
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("history")}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-primary text-primary-foreground shadow-glow' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            Archive
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-                <TabsList className="mb-4">
-                    <TabsTrigger value="generate">產生報告</TabsTrigger>
-                    <TabsTrigger value="history">歷史紀錄</TabsTrigger>
-                </TabsList>
+            <div className="flex-1 flex gap-8 overflow-hidden">
+                {/* Configuration / List Panel */}
+                <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 ${isSetupCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-1/3 min-w-[320px]"}`}>
+                    {activeTab === 'generate' ? (
+                        <div className="space-y-6">
+                            <div className="glass-card rounded-3xl border-border/20 p-1">
+                                <SummaryConfig onConfigSaved={() => { }} />
+                            </div>
 
-                <TabsContent value="generate" className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden relative">
-                    {/* Left: Config & Control */}
-                    <div className={`transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto pb-4 ${isSetupCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-full md:w-1/3"
-                        }`}>
-                        <SummaryConfig onConfigSaved={() => { }} />
-
-                        <div className="border p-4 rounded-lg bg-card text-card-foreground shadow-sm">
-                            <h3 className="font-semibold mb-4">生成選項</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <Label>開始日期</Label>
-                                    <Input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartDate(e.target.value)}
-                                    />
+                            <div className="glass-card p-8 rounded-3xl border-border/20 bg-gradient-to-br from-white/5 to-transparent space-y-6">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-1.5 h-6 bg-primary rounded-full" />
+                                    <h3 className="text-sm font-black uppercase tracking-widest">Report Parameters</h3>
                                 </div>
-                                <div>
-                                    <Label>結束日期 (選填，預設今天)</Label>
-                                    <Input
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndDate(e.target.value)}
-                                    />
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Range Commencement</Label>
+                                        <Input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartDate(e.target.value)}
+                                            className="bg-black/20 border-border/20 rounded-xl h-12 focus:ring-primary/20"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Range Termination</Label>
+                                        <Input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEndDate(e.target.value)}
+                                            className="bg-black/20 border-border/20 rounded-xl h-12 focus:ring-primary/20"
+                                        />
+                                    </div>
+                                    <Button
+                                        className="w-full tech-button-primary h-14 rounded-2xl font-black uppercase tracking-widest text-xs"
+                                        onClick={handleGenerate}
+                                        disabled={generating}
+                                    >
+                                        {generating ? (
+                                            <div className="flex items-center gap-3">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Synthesizing...</span>
+                                            </div>
+                                        ) : (
+                                            "Execute Synthesis"
+                                        )}
+                                    </Button>
                                 </div>
-                                <Button className="w-full" onClick={handleGenerate} disabled={generating}>
-                                    {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    {generating ? "生成中 (需時較長)..." : "開始生成總結"}
-                                </Button>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Toggle Button for collapsing/expanding setup */}
-                    <div className="absolute top-2 left-2 md:relative md:top-auto md:left-auto z-10">
-                        {/* We can place a small toggle button near the divider or floating */}
-                    </div>
-
-                    {/* Right: View */}
-                    <div className={`h-full overflow-hidden transition-all duration-300 ease-in-out ${isSetupCollapsed ? "w-full" : "w-full md:w-2/3"
-                        }`}>
-                        <div className="flex justify-start mb-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setIsSetupCollapsed(!isSetupCollapsed)}
-                            >
-                                {isSetupCollapsed ? "顯示設定" : "隱藏設定 >>"}
-                            </Button>
+                    ) : (
+                        <div className="glass-card rounded-3xl border-border/20 h-full overflow-hidden flex flex-col bg-white/5">
+                            <SummaryHistory reports={reports} onSelectReport={handleSelectReport} />
                         </div>
+                    )}
+                </div>
 
-                        {currentReport ? (
-                            <SummaryView report={currentReport} />
-                        ) : (
-                            <div className="flex h-full items-center justify-center border rounded-lg bg-muted/10 text-muted-foreground p-8 text-center">
-                                {generating ? "AI 正在分析 Redmine 紀錄並撰寫報告..." : "請設定條件並點擊生成，或從歷史紀錄選取報告"}
+                {/* Report View Panel */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <button
+                            onClick={() => setIsSetupCollapsed(!isSetupCollapsed)}
+                            className="p-2.5 rounded-xl bg-white/5 border border-border/10 hover:bg-white/10 transition-all text-muted-foreground hover:text-foreground active:scale-95"
+                            title={isSetupCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                        >
+                            <Loader2 className={`w-4 h-4 transform transition-transform ${isSetupCollapsed ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {currentReport && (
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-muted-foreground uppercase bg-white/5 px-3 py-1.5 rounded-lg border border-border/10">
+                                    Report ID: {currentReport.id}
+                                </span>
                             </div>
                         )}
                     </div>
-                </TabsContent>
 
-                <TabsContent value="history" className="flex-1 flex gap-6 overflow-hidden">
-                    <div className={`transition-all duration-300 ease-in-out overflow-y-auto ${isHistoryCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-full md:w-1/3"
-                        }`}>
-                        <SummaryHistory reports={reports} onSelectReport={handleSelectReport} />
-                    </div>
-                    <div className={`h-full overflow-hidden transition-all duration-300 ease-in-out ${isHistoryCollapsed ? "w-full" : "w-full md:w-2/3"
-                        }`}>
-                        <div className="flex justify-start mb-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setIsHistoryCollapsed(!isHistoryCollapsed)}
-                            >
-                                {isHistoryCollapsed ? "顯示紀錄" : "隱藏紀錄 >>"}
-                            </Button>
-                        </div>
+                    <div className="flex-1 glass-card rounded-[32px] border-border/20 relative overflow-hidden flex flex-col">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tech-cyan via-tech-indigo to-tech-rose opacity-50" />
+
                         {currentReport ? (
-                            <SummaryView report={currentReport} />
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                                <SummaryView report={currentReport} />
+                            </div>
                         ) : (
-                            <div className="flex h-full items-center justify-center border rounded-lg bg-muted/10 text-muted-foreground">
-                                請選擇一份報告檢視
+                            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-6">
+                                <div className="p-8 bg-white/5 rounded-full border border-white/5 relative">
+                                    <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
+                                    <Loader2 className={`w-16 h-16 text-muted-foreground/20 relative ${generating ? 'animate-spin' : ''}`} />
+                                </div>
+                                <div className="space-y-2 max-w-sm relative">
+                                    <h3 className="text-xl font-bold tracking-tight">Intelligence Feed Empty</h3>
+                                    <p className="text-muted-foreground font-medium text-sm">
+                                        {generating
+                                            ? "AI agents are currently traversing data points and synthesizing collective activities. This may take several moments."
+                                            : "Awaiting mission parameters. Define target date range to generate a comprehensive AI activity summary."
+                                        }
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
-                </TabsContent>
-            </Tabs>
+                </div>
+            </div>
         </div>
     );
 }

@@ -32,9 +32,6 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - UI 訊息顯示規範 (Toast Notification Spec)
     - 禁止使用 `alert()` 或 `confirm()` 等瀏覽器彈窗，可用modern window或toast取代
     - 使用 Toast 通知，都顯示在右下角，且四周有原角
-    - 顏色規範：
-        • Error (錯誤): 紅色底色 (`bg-red-500`)
-        • Warning (警告): 黃色底色 (`bg-yellow-500`)
-        • Success (成功/其他): 綠色底色 (`bg-green-500`)
     - 使用 `useToast()` hook: `showSuccess()`, `showWarning()`, `showError()`
 - 日期顯示格式順序為 年->月->日->時->分->秒
+- 網頁設計風格: 現代科技風

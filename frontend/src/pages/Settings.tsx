@@ -173,235 +173,275 @@ export function Settings() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-8">
-            <h1 className="text-2xl font-bold">Settings</h1>
-
-            {/* Security Section */}
-            <section className="space-y-4 p-6 border rounded-xl bg-card shadow-sm">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-primary" /> Security
-                </h2>
-
-                {user?.auth_source === 'ldap' ? (
-                    <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg text-sm text-balance">
-                        <AlertTriangle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                        <p className="text-muted-foreground">
-                            您的帳號是透過 LDAP 認證，請至公司的目錄服務修改密碼。
-                        </p>
-                    </div>
-                ) : (
-                    <form onSubmit={handlePasswordChange} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">舊密碼</label>
-                                <input
-                                    type="password"
-                                    value={passwords.old}
-                                    onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
-                                    className="flex h-10 w-full rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">新密碼</label>
-                                <input
-                                    type="password"
-                                    value={passwords.new}
-                                    onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                                    className="flex h-10 w-full rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">確認新密碼</label>
-                                <input
-                                    type="password"
-                                    value={passwords.confirm}
-                                    onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                                    className="flex h-10 w-full rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                                    required
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4 pt-2">
-                            <button
-                                type="submit"
-                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-bold transition-all shadow-md active:scale-95"
-                            >
-                                修改密碼
-                            </button>
-                            {pwdStatus && <span className={`text-sm ${pwdStatus.startsWith('Error') ? 'text-destructive' : 'text-primary font-medium'}`}>{pwdStatus}</span>}
-                        </div>
-                    </form>
-                )}
-            </section>
-
-            {/* Task Warnings Section */}
-            <section className="space-y-4 p-6 border rounded-xl bg-card shadow-sm">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-yellow-500" /> Task Warning Settings
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Warning Threshold (Days)</label>
-                        <input
-                            type="number"
-                            value={settings.task_warning_days}
-                            onChange={(e) => setSettings(p => ({ ...p, task_warning_days: parseInt(e.target.value) }))}
-                            onBlur={saveTaskWarnings}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            min="1"
-                        />
-                        <p className="text-xs text-muted-foreground">Tasks unupdated for this long will show a warning.</p>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Severe Threshold (Days)</label>
-                        <input
-                            type="number"
-                            value={settings.task_severe_warning_days}
-                            onChange={(e) => setSettings(p => ({ ...p, task_severe_warning_days: parseInt(e.target.value) }))}
-                            onBlur={saveTaskWarnings}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            min="1"
-                        />
-                        <p className="text-xs text-muted-foreground">Tasks unupdated for this long will show a severe warning.</p>
-                    </div>
-                </div>
-            </section>
-
-            {/* Redmine Section */}
-            <section className="space-y-4 p-6 border rounded-xl bg-card shadow-sm">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <LinkIcon className="h-5 w-5 text-primary" /> Redmine Settings
-                </h2>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Redmine URL</label>
-                    <input
-                        type="url"
-                        value={settings.redmine_url}
-                        onChange={(e) => updateField('redmine_url', e.target.value)}
-                        placeholder="https://redmine.example.com"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">API Token</label>
-                    <input
-                        type="password"
-                        value={settings.redmine_token}
-                        onChange={(e) => updateField('redmine_token', e.target.value)}
-                        placeholder="Your Redmine API Key"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Find this at /my/account (RSS access key)
-                    </p>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Default Activity ID (Optional)</label>
-                    <input
-                        type="number"
-                        value={settings.redmine_default_activity_id}
-                        onChange={(e) => updateField('redmine_default_activity_id', e.target.value)}
-                        placeholder="e.g. 9"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Fallback ID if API cannot fetch activities (e.g. Development = 9)
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={testConnection}
-                        className="px-3 py-1.5 text-sm border rounded hover:bg-muted"
-                    >
-                        Test Connection
-                    </button>
-                    {testStatus && <span className="text-sm">{testStatus}</span>}
-                    <div className="flex-1" />
-                    <button
-                        onClick={handleSaveRedmine}
-                        className="px-4 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm font-medium"
-                    >
-                        Save Redmine
-                    </button>
-                </div>
-            </section>
-
-            {/* OpenAI Section */}
-            <section className="space-y-4 p-6 border rounded-xl bg-card shadow-sm">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" /> OpenAI
-                </h2>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">API URL</label>
-                    <input
-                        type="url"
-                        value={settings.openai_url}
-                        onChange={(e) => updateField('openai_url', e.target.value)}
-                        placeholder="https://api.openai.com/v1"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Use custom endpoint for local models or proxies
-                    </p>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">API Key</label>
-                    <input
-                        type="password"
-                        value={settings.openai_key}
-                        onChange={(e) => updateField('openai_key', e.target.value)}
-                        placeholder="sk-..."
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Model Name</label>
-                    <input
-                        type="text"
-                        value={settings.openai_model}
-                        onChange={(e) => updateField('openai_model', e.target.value)}
-                        placeholder="gpt-4o-mini"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        e.g. gpt-4o-mini, gpt-4o, claude-3-sonnet
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={testOpenAI}
-                        className="px-3 py-1.5 text-sm border rounded hover:bg-muted"
-                    >
-                        Test OpenAI
-                    </button>
-                    {openaiTestStatus && <span className="text-sm">{openaiTestStatus}</span>}
-                    <div className="flex-1" />
-                    <button
-                        onClick={handleSaveOpenAI}
-                        className="px-4 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm font-medium"
-                    >
-                        Save OpenAI
-                    </button>
-                </div>
-            </section>
-
-            {/* Watchlist Section */}
-            <WatchlistSettings />
-
-            {/* Status Message Holder */}
-            <div className="h-4">
-                {status && <p className="text-sm text-center text-primary font-medium animate-pulse">{status}</p>}
+        <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="space-y-2">
+                <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
+                    System Parameters
+                </h1>
+                <p className="text-muted-foreground font-medium">Configure neural links, auth vectors and operational thresholds</p>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Security Section */}
+                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden bg-gradient-to-br from-white/5 to-transparent">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/30" />
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-tech-cyan/10 rounded-xl border border-tech-cyan/20">
+                            <Shield className="h-6 w-6 text-tech-cyan" />
+                        </div>
+                        <h2 className="text-xl font-black tracking-tight">Security Core</h2>
+                    </div>
+
+                    {user?.auth_source === 'ldap' ? (
+                        <div className="flex items-start gap-4 p-6 bg-tech-indigo/5 border border-tech-indigo/10 rounded-2xl group transition-all hover:bg-tech-indigo/10">
+                            <AlertTriangle className="h-6 w-6 text-tech-indigo flex-shrink-0 animate-pulse" />
+                            <div className="space-y-1">
+                                <p className="text-xs font-bold text-foreground">External Directory Link Active</p>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                    Your identity is managed via LDAP. Password modifications must be executed through the corporate nexus.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <form onSubmit={handlePasswordChange} className="space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Current Signature</label>
+                                    <input
+                                        type="password"
+                                        value={passwords.old}
+                                        onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
+                                        className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
+                                        placeholder="••••••••"
+                                        required
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">New Hash</label>
+                                        <input
+                                            type="password"
+                                            value={passwords.new}
+                                            onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
+                                            placeholder="••••••••"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Verify Hash</label>
+                                        <input
+                                            type="password"
+                                            value={passwords.confirm}
+                                            onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
+                                            placeholder="••••••••"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between pt-2">
+                                <button
+                                    type="submit"
+                                    className="px-8 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-glow"
+                                >
+                                    Update Protocol
+                                </button>
+                                {pwdStatus && <span className={`text-[10px] font-black uppercase tracking-widest ${pwdStatus.startsWith('Error') ? 'text-tech-rose' : 'text-tech-cyan animate-pulse'}`}>{pwdStatus}</span>}
+                            </div>
+                        </form>
+                    )}
+                </section>
+
+                {/* Task Warnings Section */}
+                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden bg-gradient-to-br from-white/5 to-transparent">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-rose/30" />
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-tech-rose/10 rounded-xl border border-tech-rose/20">
+                            <AlertTriangle className="h-6 w-6 text-tech-rose" />
+                        </div>
+                        <h2 className="text-xl font-black tracking-tight">Warning Thresholds</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 pt-2">
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Standard Delta (Days)</label>
+                                <span className="text-lg font-black text-tech-rose">{settings.task_warning_days}d</span>
+                            </div>
+                            <input
+                                type="range"
+                                value={settings.task_warning_days}
+                                step="1"
+                                min="1"
+                                max="14"
+                                onChange={(e) => setSettings(p => ({ ...p, task_warning_days: parseInt(e.target.value) }))}
+                                onMouseUp={saveTaskWarnings}
+                                className="w-full accent-tech-rose"
+                            />
+                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">TASKS UNUPDATED BEYOND THIS POINT TRIGGER CAUTION STATE</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Critical Delta (Days)</label>
+                                <span className="text-lg font-black text-tech-rose">{settings.task_severe_warning_days}d</span>
+                            </div>
+                            <input
+                                type="range"
+                                value={settings.task_severe_warning_days}
+                                step="1"
+                                min="1"
+                                max="30"
+                                onChange={(e) => setSettings(p => ({ ...p, task_severe_warning_days: parseInt(e.target.value) }))}
+                                onMouseUp={saveTaskWarnings}
+                                className="w-full accent-tech-rose"
+                            />
+                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">TASKS UNUPDATED BEYOND THIS POINT TRIGGER CRITICAL STATE</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Redmine Section */}
+                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-1 bg-gradient-to-br from-white/5 to-transparent">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-primary/30" />
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-primary/10 rounded-xl border border-primary/20">
+                            <LinkIcon className="h-6 w-6 text-primary" />
+                        </div>
+                        <h2 className="text-xl font-black tracking-tight">Redmine Nexus</h2>
+                    </div>
+
+                    <div className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Nexus Endpoint URL</label>
+                            <input
+                                type="url"
+                                value={settings.redmine_url}
+                                onChange={(e) => updateField('redmine_url', e.target.value)}
+                                placeholder="https://redmine.example.com"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Synchronization Key (API)</label>
+                            <input
+                                type="password"
+                                value={settings.redmine_token}
+                                onChange={(e) => updateField('redmine_token', e.target.value)}
+                                placeholder="••••••••••••••••••••••••"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Default Activity Vector ID</label>
+                            <input
+                                type="number"
+                                value={settings.redmine_default_activity_id}
+                                onChange={(e) => updateField('redmine_default_activity_id', e.target.value)}
+                                placeholder="e.g. 9"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-4">
+                        <button
+                            onClick={testConnection}
+                            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+                        >
+                            Test Signal
+                        </button>
+                        <button
+                            onClick={handleSaveRedmine}
+                            className="flex-1 px-4 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-widest shadow-glow"
+                        >
+                            Sync Core
+                        </button>
+                    </div>
+                    {testStatus && <p className="text-[10px] font-black uppercase text-center text-primary tracking-widest animate-pulse">{testStatus}</p>}
+                </section>
+
+                {/* OpenAI Section */}
+                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-1 bg-gradient-to-br from-white/5 to-transparent">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-indigo/30" />
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-tech-indigo/10 rounded-xl border border-tech-indigo/20">
+                            <Sparkles className="h-6 w-6 text-tech-indigo" />
+                        </div>
+                        <h2 className="text-xl font-black tracking-tight">AI Intelligence Engine</h2>
+                    </div>
+
+                    <div className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Intelligence Endpoint URL</label>
+                            <input
+                                type="url"
+                                value={settings.openai_url}
+                                onChange={(e) => updateField('openai_url', e.target.value)}
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Engine Authorization Key</label>
+                            <input
+                                type="password"
+                                value={settings.openai_key}
+                                onChange={(e) => updateField('openai_key', e.target.value)}
+                                placeholder="sk-••••••••••••••••••••"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Specified Intelligence Model</label>
+                            <input
+                                type="text"
+                                value={settings.openai_model}
+                                onChange={(e) => updateField('openai_model', e.target.value)}
+                                placeholder="gpt-4o-mini"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-4">
+                        <button
+                            onClick={testOpenAI}
+                            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+                        >
+                            Probe Model
+                        </button>
+                        <button
+                            onClick={handleSaveOpenAI}
+                            className="flex-1 px-4 py-3 bg-gradient-to-r from-tech-indigo to-primary text-white shadow-glow-indigo rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                        >
+                            Sync Engine
+                        </button>
+                    </div>
+                    {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-tech-indigo tracking-widest animate-pulse">{openaiTestStatus}</p>}
+                </section>
+            </div>
+
+            {/* Watchlist Section - Should probably be updated inside the component itself for consistency */}
+            <div className="glass-card rounded-[40px] border-border/20 p-2 overflow-hidden shadow-2xl relative">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tech-cyan via-tech-indigo to-tech-rose opacity-20" />
+                <WatchlistSettings />
+            </div>
+
+            {/* Central Status Messenger */}
+            {status && (
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 duration-300">
+                    <div className="bg-primary/90 backdrop-blur-md text-primary-foreground px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-[0_0_40px_rgba(var(--primary),0.4)] flex items-center gap-4">
+                        <Sparkles className="h-4 w-4 animate-spin" />
+                        {status}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
