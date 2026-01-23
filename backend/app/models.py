@@ -65,6 +65,8 @@ class AppSettings(SQLModel, table=True):
     """Global application settings (LDAP state etc)"""
     id: int = Field(default=1, primary_key=True)
     ldap_enabled: bool = Field(default=False)
+    enable_ai_debug_dump: bool = Field(default=False)
+    max_concurrent_chunks: int = Field(default=5)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TrackedTask(SQLModel, table=True):

@@ -195,7 +195,7 @@ async def change_password(
         raise HTTPException(status_code=400, detail="LDAP users cannot change password here")
     
     if current_user.hashed_password and not verify_password(request.old_password, current_user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid old password")
+        raise HTTPException(status_code=400, detail="Invalid old password")
     
     current_user.hashed_password = get_password_hash(request.new_password)
     session.add(current_user)
@@ -220,7 +220,7 @@ async def validate_redmine_credentials(
         service.get_current_user()
         return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid Redmine credentials")
+        raise HTTPException(status_code=400, detail="Invalid Redmine credentials")
 
 @router.get("/ldap-status")
 async def get_ldap_status(session: Session = Depends(get_session)):
@@ -263,10 +263,10 @@ async def connect_redmine(
         service = RedmineService(url, api_key)
         user = service.get_current_user()
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid Redmine credentials")
+            raise HTTPException(status_code=400, detail="Invalid Redmine credentials")
         
         # Return simple user info for connection success display
         firstname = getattr(user, 'firstname', 'User')
         return {"status": "success", "user": {"firstname": firstname}}
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Connection failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Connection failed: {str(e)}")

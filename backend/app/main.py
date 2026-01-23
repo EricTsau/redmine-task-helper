@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import create_db_and_tables
 from app.tasks.forget_safe import start_forget_safe_task
-from app.tasks.sync_tasks import start_sync_task
+# from app.tasks.sync_tasks import start_sync_task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
             session.commit()
 
     start_forget_safe_task()
-    start_sync_task()
+    # start_sync_task()
     yield
 
 app = FastAPI(title="Redmine Task Helper API", version="0.1.0", lifespan=lifespan)

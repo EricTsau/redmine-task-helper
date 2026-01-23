@@ -127,10 +127,38 @@ async def toggle_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Optional: Prevent admin from de-admining themselves if they are the last one
-    # For now, just toggle
     user.is_admin = not user.is_admin
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
+
+@router.get("/app-settings")
+async def get_app_settings(session: Session = Depends(get_session), admin: User = Depends(get_admin_user)):
+    settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+    if not settings:
+        settings = AppSettings(id=1)
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    return settings
+
+@router.put("/app-settings")
+async def update_app_settings(
+    settings_in: AppSettings, 
+    session: Session = Depends(get_session), 
+    admin: User = Depends(get_admin_user)
+):
+    settings = session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+    if not settings:
+        settings = AppSettings(id=1)
+    
+    # Update fields
+    settings.ldap_enabled = settings_in.ldap_enabled
+    settings.enable_ai_debug_dump = settings_in.enable_ai_debug_dump
+    settings.max_concurrent_chunks = settings_in.max_concurrent_chunks
+    
+    session.add(settings)
+    session.commit()
+    session.refresh(settings)
+    return settings

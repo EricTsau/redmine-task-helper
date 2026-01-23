@@ -1,11 +1,12 @@
 from typing import List, Dict, Any, Optional, TypedDict
 from datetime import datetime
 import json
+import traceback
 from sqlmodel import Session, select
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, END
 
-from app.models import User, AIWorkSummarySettings, AIWorkSummaryReport
+from app.models import User, AIWorkSummarySettings, AIWorkSummaryReport, AppSettings
 from app.services.redmine_client import RedmineService
 from app.services.openai_service import OpenAIService
 from app.models import UserSettings
@@ -15,9 +16,12 @@ class AgentState(TypedDict):
     user_ids: List[int]
     start_date: str
     end_date: str
+    language: str
     raw_logs: List[Dict[str, Any]]
     summary_markdown: str
     messages: List[Any]
+    issues: List[Dict[str, Any]]
+    time_entries: List[Dict[str, Any]]
 
 class WorkSummaryService:
     def __init__(self, session: Session, user: User, redmine: RedmineService, openai: OpenAIService):
@@ -62,10 +66,13 @@ class WorkSummaryService:
             .where(AIWorkSummaryReport.owner_id == self.user.id)
         ).first()
 
-    async def generate_summary(self, start_date: str, end_date: str) -> AIWorkSummaryReport:
+    async def generate_summary(self, start_date: str, end_date: str, language: str = "zh-TW") -> AIWorkSummaryReport:
+        print(f"[DEBUG] Generating summary for user {self.user.id} from {start_date} to {end_date} (Language: {language})")
         settings = self.get_settings()
         project_ids = json.loads(settings.target_project_ids)
         user_ids = json.loads(settings.target_user_ids)
+        
+        print(f"[DEBUG] Target Projects: {project_ids}, Users: {user_ids}")
 
         if not project_ids or not user_ids:
             return AIWorkSummaryReport(
@@ -90,10 +97,19 @@ class WorkSummaryService:
             "end_date": end_date,
             "raw_logs": [],
             "summary_markdown": "",
-            "messages": []
+            "summary_markdown": "",
+            "messages": [],
+            "language": language
         }
 
-        result = await app.ainvoke(inputs)
+        try:
+            print("[DEBUG] Invoking workflow...")
+            result = await app.ainvoke(inputs)
+            print("[DEBUG] Workflow finished.")
+        except Exception as e:
+            print(f"[DEBUG] Workflow failed: {e}")
+            traceback.print_exc()
+            raise e
 
         # Extract title from markdown (first H1/H2) if present
         md = result.get("summary_markdown", "") or ""
@@ -109,18 +125,24 @@ class WorkSummaryService:
             title = f"工作總結 {start_date} ~ {end_date}"
 
         # Save Report
-        report = AIWorkSummaryReport(
-            owner_id=self.user.id,
-            title=title,
-            date_range_start=start_date,
-            date_range_end=end_date,
-            summary_markdown=md,
-            conversation_history="[]"
-        )
-        self.session.add(report)
-        self.session.commit()
-        self.session.refresh(report)
-        return report
+        try:
+            report = AIWorkSummaryReport(
+                owner_id=self.user.id,
+                title=title,
+                date_range_start=start_date,
+                date_range_end=end_date,
+                summary_markdown=md,
+                conversation_history="[]"
+            )
+            self.session.add(report)
+            self.session.commit()
+            self.session.refresh(report)
+            print(f"[DEBUG] Report saved with ID: {report.id}")
+            return report
+        except Exception as e:
+            print(f"[DEBUG] Error saving report: {e}")
+            traceback.print_exc()
+            raise e
 
     async def _fetch_logs_node(self, state: AgentState) -> Dict:
         start_date = state.get('start_date')
@@ -133,6 +155,7 @@ class WorkSummaryService:
         try:
             issues = self.redmine.search_issues_advanced(
                 updated_after=start_date,
+                include=['attachments'],
                 limit=500
             )
         except Exception as e:
@@ -147,30 +170,68 @@ class WorkSummaryService:
             except Exception:
                 continue
             if pid in projects_set:
-                # client-side end_date filter if server didn't apply
+                # Handle updated_on which might be a datetime object or string
                 updated_on = getattr(issue, 'updated_on', None)
+                updated_on_str = ""
+                if updated_on:
+                    if isinstance(updated_on, str):
+                        updated_on_str = updated_on
+                    elif isinstance(updated_on, datetime):
+                        updated_on_str = updated_on.isoformat()
+                    else:
+                        updated_on_str = str(updated_on)
+
                 include_issue = True
-                if updated_on and isinstance(updated_on, str):
-                    if updated_on.split('T')[0] > end_date:
+                # client-side end_date filter if server didn't apply
+                if updated_on_str:
+                    if updated_on_str.split('T')[0] > end_date:
                         include_issue = False
+                
                 if include_issue:
-                    filtered_issues.append(issue)
-                    # fetch journals
-                    journals = []
                     try:
-                        journals = self.redmine.get_issue_journals(issue.id)
-                    except Exception:
+                        filtered_issues.append(issue)
+                        # fetch journals
                         journals = []
-                    structured_issues.append({
-                        'id': issue.id,
-                        'project_id': pid,
-                        'project_name': getattr(issue.project, 'name', ''),
-                        'subject': getattr(issue, 'subject', ''),
-                        'status': getattr(issue.status, 'name', ''),
-                        'updated_on': getattr(issue, 'updated_on', ''),
-                        'journals': journals,
-                        'description': getattr(issue, 'description', '') or ''
-                    })
+                        try:
+                            journals = self.redmine.get_issue_journals(issue.id)
+                        except Exception:
+                            journals = []
+                        
+                        # Process attachments for this issue
+                        # Use updated_on safe getter or default to empty if lazy load fails
+                        attachments = []
+                        try:
+                            attachments = getattr(issue, 'attachments', [])
+                        except Exception:
+                            attachments = []
+                        
+                        attachment_map = {}
+                        for a in attachments:
+                            # content_url is usually full URL to download
+                            if hasattr(a, 'filename') and hasattr(a, 'content_url'):
+                                attachment_map[a.filename] = a.content_url
+
+                        # Safely get description
+                        description = ''
+                        try:
+                            description = getattr(issue, 'description', '') or ''
+                        except Exception:
+                            description = ''
+
+                        structured_issues.append({
+                            'id': issue.id,
+                            'project_id': pid,
+                            'project_name': getattr(issue.project, 'name', ''),
+                            'subject': getattr(issue, 'subject', ''),
+                            'status': getattr(issue.status, 'name', ''),
+                            'updated_on': updated_on_str,
+                            'journals': journals,
+                            'description': description,
+                            'attachment_map': attachment_map
+                        })
+                    except Exception as e:
+                        print(f"Error processing issue {issue.id}: {e}")
+                        continue
 
         # 2. Fetch time entries for the projects / users in the date range
         time_entries = []
@@ -204,10 +265,76 @@ class WorkSummaryService:
         # Build raw_logs structured for analysis + summary
         raw_summary_lines = []
         raw_summary_lines.append(f"Found {len(structured_issues)} updated issues in targeted projects.")
+        
+        # Regex for finding images in Textile (!image!) or Markdown (![alt](url))
+        import re
+        img_re = re.compile(r'!([^!]+)!|!\[.*?\]\((.*?)\)')
+        
         for i in structured_issues:
-            raw_summary_lines.append(f"- [{i['id']}] {i['subject']} (Project: {i['project_name']}, Status: {i['status']}, Updated: {i['updated_on']})")
-            for j in i.get('journals', []):
-                raw_summary_lines.append(f"  - Journal by {j.get('user')}: {j.get('notes')}")
+            # Filter journals by date range AND user_id strict match
+            filtered_journals = []
+            issue_images = []
+            attachment_map = i.get('attachment_map', {})
+            
+            def resolve_url(url_or_filename):
+                # Try to map filename to content_url
+                if url_or_filename in attachment_map:
+                    return attachment_map[url_or_filename]
+                return url_or_filename
+
+            # Check issue description for images
+            description = i.get('description', '')
+            found_desc_imgs = img_re.findall(description)
+            for m in found_desc_imgs:
+                # m is tuple ('url_textile', 'url_markdown')
+                raw_ref = m[0] or m[1]
+                if raw_ref:
+                    resolved = resolve_url(raw_ref)
+                    issue_images.append(resolved)
+
+            # Filter journals
+            all_journals = i.get('journals', [])
+            for j in all_journals:
+                j_date_str = j.get('created_on', '')
+                j_user_id = j.get('user_id')
+                
+                # Filter by User ID (Strict) if available
+                # target_user_ids are INTs
+                is_target_user = False
+                if j_user_id and j_user_id in users_set:
+                    is_target_user = True
+                
+                # Check date range
+                j_date_day = j_date_str.split('T')[0] if 'T' in j_date_str else j_date_str
+                in_date_range = start_date <= j_date_day <= end_date
+
+                if is_target_user and in_date_range:
+                    filtered_journals.append(j)
+                    # Check for images in journal notes
+                    notes = j.get('notes', '')
+                    found_imgs = img_re.findall(notes)
+                    for m in found_imgs:
+                        raw_ref = m[0] or m[1]
+                        if raw_ref:
+                            resolved = resolve_url(raw_ref)
+                            issue_images.append(resolved)
+            
+            # Update the structured issue with filtered journals and images
+            i['journals'] = filtered_journals
+            i['images'] = list(set(issue_images)) # Deduplicate
+
+            # Add to raw summary lines for LLM context (Classic/Fallback)
+            updated_on_val = i['updated_on']
+            updated_on_day = updated_on_val.split('T')[0] if updated_on_val else ''
+            
+            if filtered_journals or (updated_on_day and updated_on_day >= start_date): 
+                raw_summary_lines.append(f"- [{i['id']}] {i['subject']} (Project: {i['project_name']}, Status: {i['status']}, Updated: {i['updated_on']})")
+                
+                for j in filtered_journals:
+                    raw_summary_lines.append(f"  - Journal by {j.get('user')} ({j.get('created_on')}): {j.get('notes')}")
+                
+                if issue_images:
+                     raw_summary_lines.append(f"  - Detected Images: {', '.join(issue_images)}")
 
         raw_summary_lines.append(f"\nFound {len(time_entries)} time entries in range.")
         for te in time_entries:
@@ -215,7 +342,7 @@ class WorkSummaryService:
 
         raw_text = "\n".join(raw_summary_lines)
 
-        # Return both structured data and aggregated text for backwards compatibility
+        # Return both structured data and aggregated text
         return {
             "raw_logs": [{"summary": raw_text}],
             'time_entries_count': len(time_entries),
@@ -223,13 +350,20 @@ class WorkSummaryService:
             'time_entries': time_entries
         }
 
+
     async def _analyze_logs_node(self, state: AgentState) -> Dict:
-        # Compose analysis prompt including structured issues/time entries and link template
-        logs_text = "\n".join([l["summary"] for l in state.get("raw_logs", [])])
+        print("[DEBUG] Entering _analyze_logs_node (Map-Reduce Strategy)")
+        
         issues = state.get('issues', []) or []
         time_entries = state.get('time_entries', []) or []
-
-        # Determine redmine base URL: prefer user's settings, fallback to RedmineService.base_url
+        start_date = state.get('start_date')
+        end_date = state.get('end_date')
+        
+        # 1. Group Data by (Project, User)
+        # Groups: Dict[project_id, Dict[user_name, List[str]]]
+        grouped_data: Dict[str, Dict[str, List[str]]] = {}
+        
+        # Determine redmine base URL
         user_settings = self.session.exec(
             select(UserSettings).where(UserSettings.user_id == self.user.id)
         ).first()
@@ -238,56 +372,183 @@ class WorkSummaryService:
             redmine_base = user_settings.redmine_url.rstrip('/')
         else:
             redmine_base = getattr(self.redmine, 'base_url', '') if hasattr(self.redmine, 'base_url') else ''
-        # Build multiple subject headings when an issue subject contains ' / ' or ';'
-        issue_lines = []
+
+        def add_to_group(project_name, user_name, line):
+            if project_name not in grouped_data:
+                grouped_data[project_name] = {}
+            if user_name not in grouped_data[project_name]:
+                grouped_data[project_name][user_name] = []
+            grouped_data[project_name][user_name].append(line)
+
+        # Process Issues
         for i in issues:
+            p_name = i.get('project_name', 'Unknown Project')
             link = f"{redmine_base}/issues/{i['id']}" if redmine_base else f"issues/{i['id']}"
-            subject = i.get('subject') or ''
-            # split into multiple subjects by common separators to create multi-subject entries
-            parts = [s.strip() for s in subject.replace(';', '/').split('/') if s.strip()]
-            if len(parts) <= 1:
-                issue_lines.append(f"- [{i['id']}] [{subject}]({link}) (Project: {i['project_name']})")
-            else:
-                # For multiple subjects, create a sub-list under the issue
-                issue_lines.append(f"- [{i['id']}] [{parts[0]}]({link}) (Project: {i['project_name']})")
-                for extra in parts[1:]:
-                    issue_lines.append(f"  - Subject: {extra}")
+            subject_clean = i['subject'].replace('|', '-') 
+            
+            # Images context
+            img_context = ""
+            if i.get('images'):
+                img_context = f"\n  - Images: {', '.join(i['images'])}"
 
-        te_lines = []
+            # 1. Journals (Filtered)
+            # Only add if we have journals (User Activity)
+            for j in i.get('journals', []):
+                u_name = j.get('user', 'Unknown User')
+                # Include issue subject in the log line for context
+                note_preview = j.get('notes', '').replace('\n', ' ')
+                
+                line = f"- {j.get('created_on', '')[:10]} | [#{i['id']} {subject_clean}]({link}) | {note_preview} {img_context}"
+                add_to_group(p_name, u_name, line)
+            
+            # If no journals but updated_on is recent, maybe add to "System/General" or skip?
+            # We skip for now to save tokens, assuming 'work' means comments/time logging.
+
+        # Process Time Entries
         for te in time_entries:
-            te_lines.append(f"- {te.get('date')} | Issue:{te.get('issue_id')} | User:{te.get('user')} | Hours:{te.get('hours')} | {te.get('comments')}")
+            u_name = te.get('user', 'Unknown User')
+            # Try to infer project or use "Time Entries"
+            # Since we don't have project name in TE struct easily without map, we group by User under "Time Entries"
+            line = f"- {te.get('date')} | Issue #{te.get('issue_id')} | {te.get('hours')}h | {te.get('comments')}"
+            add_to_group("Time Logs", u_name, line)
 
-        # Build prompt with explicit sections: Title, Internal Summary, Data, and Link template
-        prompt = f"""
-        請根據以下 Redmine 工作紀錄，整理出一份工作總結報告。
+        # 2. Map Phase: Summarize each (Project, User) chunk
+        import asyncio
+        
+        async def analyze_chunk(p_name, u_name, lines):
+            if not lines: return ""
+            lang = state.get('language', 'zh-TW')
 
-        時間範圍: {state['start_date']} 到 {state['end_date']}
+            text = "\n".join(lines)
+            prompt = f"""
+            Task: Summarize the work logs for this user in this project.
+            Language: {lang}
+            
+            Project: {p_name}
+            User: {u_name}
+            Logs:
+            {text}
+            
+            Instruction:
+            1. **Overall Summary**: Provide a high-level summary of the user's main contributions and focus areas in this project for the given period.
+            2. **Work Items List**: Create a markdown table with the following columns:
+               - Issue ID (with link if using markdown []())
+               - Subject (Brief title)
+               - Status
+               - Updated Time
+               - Spent Hours (Sum up time entries if any)
+               - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
+            
+            3. **Attachments Footer**:
+               - Identify any images mentioned in logs or context.
+               - List them using strict Markdown image syntax: `![Description - Issue #ID](URL)`
+               - **DO NOT** use text links [Image](URL). Use image tags ![]() so they render.
+               - Group images at the very bottom.
 
-        要求:
-        - 報告需包含一個**富有創意且專業的總結標題 (Title)**(請在文件開頭以 # H1 標示)，一個針對此範圍的內部描述 summary（以簡短段落呈現），以及一個清楚的 Markdown 表格或列表，列出主要工作項目。
-        - 表格欄位包含: 日期, 專案, 人員, 任務(含 Redmine 連結), 工作內容摘要, 耗時(若有)。
-        - 使用以下 Issue 連結格式: [Issue #ID]({redmine_base}/issues/ID)
+            Output Format (Markdown):
+            ### {p_name} - {u_name}
+            
+            #### Overall Summary
+            (Summary content here...)
 
-        原始彙整資料(供參考):
-        {logs_text}
+            #### Work Items
+            | Issue | Status | Updated | Hours | Summary & Actions |
+            |-------|--------|---------|-------|-------------------|
+            | ...   | ...    | ...     | ...   | ...               |
 
-        Issues:
-        {"\n".join(issue_lines)}
+            #### Attachments
+            (Images here...)
+            """
+            try:
+                # Use standard chat completion
+                res = await self.openai.chat_completion([
+                    {"role": "system", "content": "You are a Project Manager Assistant."},
+                    {"role": "user", "content": prompt}
+                ])
+                return res
+            except Exception as e:
+                print(f"Error analyzing chunk {p_name}-{u_name}: {e}")
+                
+                # Error Dump Feature
+                should_dump = False
+                try:
+                    # Check DB setting first
+                    app_settings = self.session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+                    if app_settings and app_settings.enable_ai_debug_dump:
+                        should_dump = True
+                except Exception:
+                    # Fallback or just ignore if DB fails, maybe check env var as backup?
+                    # For now, strict DB setting as requested. or keep env var as override?
+                    # User asked to "Change to Admin setting", implying env var is replaced or secondary.
+                    pass
 
-        Time Entries:
-        {"\n".join(te_lines)}
+                if should_dump:
+                     try:
+                         dump_dir = "logs/ai_error_dumps"
+                         import os
+                         os.makedirs(dump_dir, exist_ok=True)
+                         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                         filename = f"{dump_dir}/error_{ts}_{p_name}_{u_name}.txt"
+                         
+                         with open(filename, "w", encoding="utf-8") as f:
+                             f.write(f"Error: {str(e)}\n\n")
+                             f.write(f"Prompt:\n{prompt}\n")
+                         print(f"[DEBUG] Dumped error context to {filename}")
+                     except Exception as dump_err:
+                         print(f"[DEBUG] Failed to dump error context: {dump_err}")
+                
+                return f"**{p_name} - {u_name}**: (AI Analysis Failed: {str(e)})"
 
-        請輸出完整的 Markdown 文件，包含 Title 與 Internal Summary，且在文件開頭明顯標示時間範圍。
-        """
+        # Get Concurrency Limit from App Settings
+        try:
+            app_settings = self.session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+            concurrency_limit = app_settings.max_concurrent_chunks if app_settings else 5
+        except Exception:
+            concurrency_limit = 5
+        
+        print(f"[DEBUG] Using concurrency limit: {concurrency_limit}")
+        semaphore = asyncio.Semaphore(concurrency_limit)
 
-        # Call OpenAI
-        response = await self.openai.chat_completion([
-            {"role": "system", "content": "你是專業的專案經理助手，擅長整理工作報告。"},
-            {"role": "user", "content": prompt}
-        ])
+        async def restricted_analyze_chunk(p_name, u_name, lines):
+            async with semaphore:
+                return await analyze_chunk(p_name, u_name, lines)
 
-        # Ensure we save both markdown and structured context for future chat
-        return {"summary_markdown": response, 'issues': issues, 'time_entries': time_entries}
+        tasks = []
+        for p_name, users_map in grouped_data.items():
+            for u_name, lines in users_map.items():
+                if lines:
+                    tasks.append(restricted_analyze_chunk(p_name, u_name, lines))
+        
+        chunk_summaries = []
+        if tasks:
+            print(f"[DEBUG] Processing {len(tasks)} chunks in parallel...")
+            chunk_results = await asyncio.gather(*tasks)
+            chunk_summaries = list(filter(None, chunk_results))
+        
+        if not chunk_summaries:
+            chunk_summaries = ["(No specific work logs found for target users in this period.)"]
+
+        # 3. Reduce Phase: Manual Aggregate (Optimized for Tokens)
+        print("[DEBUG] Manual Reduce - Concatenating summaries...")
+        
+        # Add header
+        header = f"# 工作總結報告 ({start_date} ~ {end_date})\n\n"
+        
+        # Concatenate chunk summaries directly
+        combined_text = "\n\n".join(chunk_summaries)
+        
+        final_report = header + combined_text
+        
+        # Optional: Add error dump logic if env var IS set
+        import os
+        if os.environ.get('AI_DEBUG_DUMP_ON_ERROR'):
+             # We dump regardless of error if strictly requested, OR we could wrap this whole block in try/except 
+             # but user asked to dump "if token exploded" which implies error handling.
+             # Since we removed the final LLM call, token explosion logic is mainly in Map phase.
+             # We should wrap Map phase in try/except to catch token errors and dump there.
+             pass
+
+        return {"summary_markdown": final_report, 'issues': issues, 'time_entries': time_entries}
 
     async def chat_with_report(self, report_id: int, message: str, action: str) -> Dict[str, Any]:
         report = self.get_report(report_id)

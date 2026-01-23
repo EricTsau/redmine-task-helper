@@ -99,7 +99,14 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     }, []);
 
     useEffect(() => {
+        // Initial load from local DB
         loadTasks();
+
+        // Trigger background sync on mount (on-demand refresh)
+        // We use a separate async call to not block the initial UI render
+        api.post('/tracked-tasks/sync')
+            .then(() => loadTasks()) // Reload after sync completes
+            .catch(console.error);
     }, [loadTasks]);
 
     // Update expanded groups when tasks or grouping changes

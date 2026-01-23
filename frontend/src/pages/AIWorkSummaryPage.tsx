@@ -12,7 +12,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { Loader2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 export default function AIWorkSummaryPage() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { token } = useAuth();
     const { showError, showSuccess } = useToast();
 
@@ -52,7 +52,8 @@ export default function AIWorkSummaryPage() {
         try {
             const res = await api.post("/ai-summary/generate", {
                 start_date: startDate,
-                end_date: endDate || undefined // let backend handle default
+                end_date: endDate || undefined, // let backend handle default
+                language: i18n.language || 'zh-TW'
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -137,6 +138,50 @@ export default function AIWorkSummaryPage() {
                                 </div>
 
                                 <div className="space-y-4">
+                                    <div className="flex gap-2 mb-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                const end = new Date();
+                                                const start = new Date();
+                                                setEndDate(end.toISOString().split('T')[0]);
+                                                setStartDate(start.toISOString().split('T')[0]);
+                                            }}
+                                            className="flex-1 bg-white/5 border-border/20 text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 hover:text-primary"
+                                        >
+                                            {t('aiSummary.1Day')}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                const end = new Date();
+                                                const start = new Date();
+                                                start.setDate(end.getDate() - 6);
+                                                setEndDate(end.toISOString().split('T')[0]);
+                                                setStartDate(start.toISOString().split('T')[0]);
+                                            }}
+                                            className="flex-1 bg-white/5 border-border/20 text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 hover:text-primary"
+                                        >
+                                            {t('aiSummary.7Days')}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                const end = new Date();
+                                                const start = new Date();
+                                                start.setDate(end.getDate() - 29);
+                                                setEndDate(end.toISOString().split('T')[0]);
+                                                setStartDate(start.toISOString().split('T')[0]);
+                                            }}
+                                            className="flex-1 bg-white/5 border-border/20 text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 hover:text-primary"
+                                        >
+                                            {t('aiSummary.30Days')}
+                                        </Button>
+                                    </div>
+
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('aiSummary.rangeStart')}</Label>
                                         <Input
@@ -205,7 +250,7 @@ export default function AIWorkSummaryPage() {
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tech-cyan via-tech-indigo to-tech-rose opacity-50" />
 
                         {currentReport ? (
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                            <div className="flex-1 overflow-hidden p-1">
                                 <SummaryView report={currentReport} />
                             </div>
                         ) : (

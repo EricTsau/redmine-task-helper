@@ -54,7 +54,8 @@ class RedmineService:
                         'id': j.id,
                         'notes': notes,
                         'created_on': j.created_on.isoformat() if hasattr(j, 'created_on') and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
-                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
+                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown',
+                        'user_id': getattr(j.user, 'id', None) if hasattr(j, 'user') else None
                     })
             
             return {
@@ -324,7 +325,8 @@ class RedmineService:
                         'id': j.id,
                         'notes': notes,
                         'created_on': j.created_on.isoformat() if hasattr(j, 'created_on') and hasattr(j.created_on, 'isoformat') else str(getattr(j, 'created_on', '')),
-                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown'
+                        'user': getattr(j.user, 'name', 'Unknown') if hasattr(j, 'user') else 'Unknown',
+                        'user_id': getattr(j.user, 'id', None) if hasattr(j, 'user') else None
                     })
             return journals
         except Exception as e:

@@ -24,6 +24,7 @@ class SettingsResponse(BaseModel):
 class SummaryRequest(BaseModel):
     start_date: str
     end_date: str
+    language: Optional[str] = "zh-TW"
 
 class ReportResponse(BaseModel):
     id: int
@@ -71,7 +72,7 @@ async def generate_summary(
         if not request.end_date:
             request.end_date = datetime.now().strftime("%Y-%m-%d")
 
-        report = await service.generate_summary(request.start_date, request.end_date)
+        report = await service.generate_summary(request.start_date, request.end_date, request.language)
         return {
             "id": report.id,
             "title": report.title,

@@ -9,7 +9,8 @@ import {
     UserPlus,
     CheckCircle2,
     XCircle,
-    Calendar
+    Calendar,
+    Bug
 } from 'lucide-react';
 import { HolidayManagement } from '@/components/admin/HolidayManagement';
 
@@ -32,7 +33,7 @@ interface LDAPSettings {
 }
 
 export const Administration: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'users' | 'ldap' | 'holidays'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'ldap' | 'holidays' | 'ai'>('users');
     const [users, setUsers] = useState<User[]>([]);
     const [ldapSettings, setLdapSettings] = useState<LDAPSettings>({
         server_url: '',
@@ -40,6 +41,8 @@ export const Administration: React.FC = () => {
         user_dn_template: '',
         is_active: false
     });
+    const [appSettings, setAppSettings] = useState({ ldap_enabled: false, enable_ai_debug_dump: false, max_concurrent_chunks: 5 });
+
     const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -73,8 +76,11 @@ export const Administration: React.FC = () => {
             } else if (activeTab === 'ldap') {
                 const res = await api.get<LDAPSettings>('/admin/ldap-settings');
                 setLdapSettings(res);
+            } else if (activeTab === 'ai') {
+                const res = await api.get<any>('/admin/app-settings');
+                setAppSettings(res);
             }
-            // holidays tab 由 HolidayManagement 元件自行管理
+            // holidays tab managed internally
         } catch (e) {
             console.error("Failed to fetch admin data", e);
         } finally {
@@ -141,6 +147,18 @@ export const Administration: React.FC = () => {
         }
     };
 
+    const updateAppSettings = async (updates: Partial<typeof appSettings>) => {
+        try {
+            const newSettings = { ...appSettings, ...updates };
+            await api.put('/admin/app-settings', newSettings);
+            setAppSettings(newSettings);
+            setStatus({ type: 'success', message: 'System config updated' });
+        } catch (error) {
+            console.error('Failed to update app settings:', error);
+            setStatus({ type: 'error', message: 'Update failed' });
+        }
+    };
+
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-10">
             {/* Header */}
@@ -162,6 +180,7 @@ export const Administration: React.FC = () => {
                         { id: 'users', icon: Users, label: 'Operators' },
                         { id: 'ldap', icon: Server, label: 'LDAP Node' },
                         { id: 'holidays', icon: Calendar, label: 'Timeline Adjust' },
+                        { id: 'ai', icon: Bug, label: 'System Config' },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -366,115 +385,171 @@ export const Administration: React.FC = () => {
                     <div className="p-8 flex-1 bg-white/5">
                         <HolidayManagement onStatus={setStatus} />
                     </div>
+                ) : activeTab === 'ai' ? (
+                    <div className="p-12 space-y-12">
+                        <div className="space-y-2 border-b border-white/5 pb-8">
+                            <h3 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
+                                <div className="p-2 bg-tech-cyan/10 rounded-xl border border-tech-cyan/20">
+                                    <Bug className="w-6 h-6 text-tech-cyan" />
+                                </div>
+                                System Configuration
+                            </h3>
+                            <p className="text-muted-foreground font-medium">Global system parameters and AI debugging controls</p>
+                        </div>
+
+                        <div className="flex items-center justify-between p-6 glass-card border-border/20 rounded-[24px]">
+                            <div className="space-y-1">
+                                <div className="font-black text-sm uppercase tracking-widest text-foreground">AI Error Dump</div>
+                                <p className="text-xs text-muted-foreground font-medium">Save full prompt content to server logs when AI analysis fails</p>
+                            </div>
+                            <button
+                                onClick={() => updateAppSettings({ enable_ai_debug_dump: !appSettings.enable_ai_debug_dump })}
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 ${appSettings.enable_ai_debug_dump ? 'bg-tech-cyan shadow-glow-cyan' : 'bg-white/10'
+                                    }`}
+                            >
+                                <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 shadow-sm ${appSettings.enable_ai_debug_dump ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-6 glass-card border-border/20 rounded-[24px]">
+                            <div className="space-y-1">
+                                <div className="font-black text-sm uppercase tracking-widest text-foreground">Max Parallel Jobs</div>
+                                <p className="text-xs text-muted-foreground font-medium">Maximum number of concurrent AI analysis chunks (1-20). Higher values use more tokens per second.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="20"
+                                    className="h-10 w-20 rounded-xl border border-white/10 bg-black/20 px-3 font-bold text-center focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
+                                    value={appSettings.max_concurrent_chunks}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        if (!isNaN(val) && val >= 1 && val <= 20) {
+                                            updateAppSettings({ max_concurrent_chunks: val });
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                 ) : null}
             </div>
 
             {/* Modals - Redesigned with Tech Style */}
-            {showAddUser && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-                    <div className="glass-card border-white/10 rounded-[32px] shadow-2xl max-w-lg w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-primary/40" />
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-black tracking-tight">Operator Initialization</h2>
-                            <p className="text-muted-foreground text-sm font-medium">Register a human entity for tactical operations</p>
+            {
+                showAddUser && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+                        <div className="glass-card border-white/10 rounded-[32px] shadow-2xl max-w-lg w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-primary/40" />
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black tracking-tight">Operator Initialization</h2>
+                                <p className="text-muted-foreground text-sm font-medium">Register a human entity for tactical operations</p>
+                            </div>
+                            <form onSubmit={handleAddUser} className="space-y-5">
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Signature (Username)</label>
+                                        <input
+                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                            placeholder="X-RAY-01"
+                                            value={newUser.username}
+                                            onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Encryption Core (Password)</label>
+                                        <input
+                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                            type="password"
+                                            placeholder="••••••••"
+                                            value={newUser.password}
+                                            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                            required={newUser.auth_source === 'standard'}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 pt-2">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Full Designation</label>
+                                            <input
+                                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                                placeholder="Agent Name"
+                                                value={newUser.full_name}
+                                                onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Comm Channel</label>
+                                            <input
+                                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                                placeholder="email@local"
+                                                value={newUser.email}
+                                                onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 pt-6">
+                                    <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Abort</button>
+                                    <button type="submit" className="flex-1 px-4 py-4 tech-button-primary rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Initialize</button>
+                                </div>
+                            </form>
                         </div>
-                        <form onSubmit={handleAddUser} className="space-y-5">
-                            <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Signature (Username)</label>
-                                    <input
-                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                                        placeholder="X-RAY-01"
-                                        value={newUser.username}
-                                        onChange={e => setNewUser({ ...newUser, username: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Encryption Core (Password)</label>
-                                    <input
-                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                                        type="password"
-                                        placeholder="••••••••"
-                                        value={newUser.password}
-                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                                        required={newUser.auth_source === 'standard'}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4 pt-2">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Full Designation</label>
-                                        <input
-                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
-                                            placeholder="Agent Name"
-                                            value={newUser.full_name}
-                                            onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Comm Channel</label>
-                                        <input
-                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
-                                            placeholder="email@local"
-                                            value={newUser.email}
-                                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex gap-4 pt-6">
-                                <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Abort</button>
-                                <button type="submit" className="flex-1 px-4 py-4 tech-button-primary rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Initialize</button>
-                            </div>
-                        </form>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {showBulkAdd && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-                    <div className="glass-card border-white/10 rounded-[40px] shadow-2xl max-w-2xl w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/40" />
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-black tracking-tight">Bulk Node Sync</h2>
-                            <p className="text-muted-foreground text-sm font-medium">Mass population of identity clusters into core directory</p>
-                        </div>
-                        <div className="space-y-6">
-                            <div className="p-4 bg-tech-cyan/5 border border-tech-cyan/10 rounded-2xl">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-tech-cyan mb-2">Protocol Format:</p>
-                                <code className="text-xs font-mono text-foreground/80 font-bold">username, Full Name, email</code>
+            {
+                showBulkAdd && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
+                        <div className="glass-card border-white/10 rounded-[40px] shadow-2xl max-w-2xl w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/40" />
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black tracking-tight">Bulk Node Sync</h2>
+                                <p className="text-muted-foreground text-sm font-medium">Mass population of identity clusters into core directory</p>
                             </div>
-                            <textarea
-                                className="w-full h-64 rounded-3xl border border-white/10 px-6 py-6 focus:ring-2 focus:ring-tech-cyan/30 outline-none bg-black/30 font-mono text-sm leading-relaxed custom-scrollbar placeholder:opacity-20 font-bold"
-                                placeholder="X-01, Alpha Primary, a@node.net&#10;X-02, Beta Secondary, b@node.net"
-                                value={bulkData}
-                                onChange={e => setBulkData(e.target.value)}
-                            />
-                            <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
-                                <div className="relative flex-1 w-full">
-                                    <label className="absolute -top-2.5 left-4 px-2 bg-slate-900 text-[9px] font-black text-tech-cyan uppercase tracking-widest">Global Encryption Key</label>
-                                    <input
-                                        className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all disabled:opacity-20"
-                                        type="password"
-                                        placeholder="••••••••"
-                                        value={bulkPassword}
-                                        onChange={e => setBulkPassword(e.target.value)}
-                                        disabled={randomPassword}
-                                    />
+                            <div className="space-y-6">
+                                <div className="p-4 bg-tech-cyan/5 border border-tech-cyan/10 rounded-2xl">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-tech-cyan mb-2">Protocol Format:</p>
+                                    <code className="text-xs font-mono text-foreground/80 font-bold">username, Full Name, email</code>
                                 </div>
-                                <label className="flex items-center gap-3 cursor-pointer group select-none py-2 px-4 glass-card rounded-2xl border-white/5 hover:border-tech-cyan/20 transition-all">
-                                    <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-white/10 bg-white/5 text-tech-cyan focus:ring-tech-cyan" />
-                                    <span className="font-black text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-tech-cyan transition-colors">Generate entropy</span>
-                                </label>
-                            </div>
-                            <div className="flex gap-4 pt-6 border-t border-white/5">
-                                <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
-                                <button onClick={handleBulkAdd} className="flex-1 px-4 py-4 bg-gradient-to-r from-tech-cyan to-tech-indigo text-white shadow-glow-cyan rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Commit Sync</button>
+                                <textarea
+                                    className="w-full h-64 rounded-3xl border border-white/10 px-6 py-6 focus:ring-2 focus:ring-tech-cyan/30 outline-none bg-black/30 font-mono text-sm leading-relaxed custom-scrollbar placeholder:opacity-20 font-bold"
+                                    placeholder="X-01, Alpha Primary, a@node.net&#10;X-02, Beta Secondary, b@node.net"
+                                    value={bulkData}
+                                    onChange={e => setBulkData(e.target.value)}
+                                />
+                                <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
+                                    <div className="relative flex-1 w-full">
+                                        <label className="absolute -top-2.5 left-4 px-2 bg-slate-900 text-[9px] font-black text-tech-cyan uppercase tracking-widest">Global Encryption Key</label>
+                                        <input
+                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all disabled:opacity-20"
+                                            type="password"
+                                            placeholder="••••••••"
+                                            value={bulkPassword}
+                                            onChange={e => setBulkPassword(e.target.value)}
+                                            disabled={randomPassword}
+                                        />
+                                    </div>
+                                    <label className="flex items-center gap-3 cursor-pointer group select-none py-2 px-4 glass-card rounded-2xl border-white/5 hover:border-tech-cyan/20 transition-all">
+                                        <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-white/10 bg-white/5 text-tech-cyan focus:ring-tech-cyan" />
+                                        <span className="font-black text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-tech-cyan transition-colors">Generate entropy</span>
+                                    </label>
+                                </div>
+                                <div className="flex gap-4 pt-6 border-t border-white/5">
+                                    <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
+                                    <button onClick={handleBulkAdd} className="flex-1 px-4 py-4 bg-gradient-to-r from-tech-cyan to-tech-indigo text-white shadow-glow-cyan rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Commit Sync</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
