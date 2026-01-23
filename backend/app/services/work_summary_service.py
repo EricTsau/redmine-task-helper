@@ -224,6 +224,8 @@ class WorkSummaryService:
                             'project_name': getattr(issue.project, 'name', ''),
                             'subject': getattr(issue, 'subject', ''),
                             'status': getattr(issue.status, 'name', ''),
+                            'created_on': getattr(issue, 'created_on', ''),
+                            'closed_on': getattr(issue, 'closed_on', ''),
                             'updated_on': updated_on_str,
                             'journals': journals,
                             'description': description,
@@ -350,6 +352,34 @@ class WorkSummaryService:
             'time_entries': time_entries
         }
 
+    async def error_dump_to_txt(self, prompt, p_name, u_name):
+        # Error Dump Feature
+        should_dump = False
+        try:
+            # Check DB setting first
+            app_settings = self.session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
+            if app_settings and app_settings.enable_ai_debug_dump:
+                should_dump = True
+        except Exception:
+            # Fallback or just ignore if DB fails, maybe check env var as backup?
+            # For now, strict DB setting as requested. or keep env var as override?
+            # User asked to "Change to Admin setting", implying env var is replaced or secondary.
+            pass
+
+        if should_dump:
+            try:
+                dump_dir = "logs/ai_error_dumps"
+                import os
+                os.makedirs(dump_dir, exist_ok=True)
+                ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                filename = f"{dump_dir}/error_{ts}_{p_name}_{u_name}.txt"
+                
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(f"Error: {str(e)}\n\n")
+                    f.write(f"Prompt:\n{prompt}\n")
+                print(f"[DEBUG] Dumped error context to {filename}")
+            except Exception as dump_err:
+                print(f"[DEBUG] Failed to dump error context: {dump_err}")
 
     async def _analyze_logs_node(self, state: AgentState) -> Dict:
         print("[DEBUG] Entering _analyze_logs_node (Map-Reduce Strategy)")
@@ -380,16 +410,37 @@ class WorkSummaryService:
                 grouped_data[project_name][user_name] = []
             grouped_data[project_name][user_name].append(line)
 
+        # Image Placeholder Logic
+        img_placeholder_map = {}
+        img_counter = 0
+        
+        def get_img_placeholder(url):
+            nonlocal img_counter
+            # Check if url already mapped? (O(N) search or reverse map? keeping it simple for now)
+            for k, v in img_placeholder_map.items():
+                if v == url:
+                    return k
+            
+            key = f"IMG_PLACEHOLDER_{img_counter}"
+            img_placeholder_map[key] = url
+            img_counter += 1
+            return key
+
+
         # Process Issues
         for i in issues:
             p_name = i.get('project_name', 'Unknown Project')
             link = f"{redmine_base}/issues/{i['id']}" if redmine_base else f"issues/{i['id']}"
             subject_clean = i['subject'].replace('|', '-') 
             
-            # Images context
+            # Images context with Placeholder
             img_context = ""
             if i.get('images'):
-                img_context = f"\n  - Images: {', '.join(i['images'])}"
+                placeholders = []
+                for img_url in i['images']:
+                    ph = get_img_placeholder(img_url)
+                    placeholders.append(ph)
+                img_context = f"\n  - Images: {', '.join(placeholders)}"
 
             # 1. Journals (Filtered)
             # Only add if we have journals (User Activity)
@@ -398,7 +449,24 @@ class WorkSummaryService:
                 # Include issue subject in the log line for context
                 note_preview = j.get('notes', '').replace('\n', ' ')
                 
-                line = f"- {j.get('created_on', '')[:10]} | [#{i['id']} {subject_clean}]({link}) | {note_preview} {img_context}"
+                # Replace any image URLs in the note text with placeholders too (optimization)
+                if i.get('images'):
+                    for img_url in i['images']:
+                         # Simple text replacement if exact match found
+                         if img_url in note_preview:
+                             ph = get_img_placeholder(img_url)
+                             note_preview = note_preview.replace(img_url, ph)
+                
+                # Format dates
+                created_date = i.get('created_on', '')
+                if created_date and 'T' in str(created_date):
+                     created_date = str(created_date).split('T')[0]
+                
+                closed_date = i.get('closed_on', '')
+                if closed_date and 'T' in str(closed_date):
+                     closed_date = str(closed_date).split('T')[0]
+
+                line = f"- {j.get('created_on', '')[:10]} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | {note_preview} {img_context}"
                 add_to_group(p_name, u_name, line)
             
             # If no journals but updated_on is recent, maybe add to "System/General" or skip?
@@ -423,6 +491,7 @@ class WorkSummaryService:
             prompt = f"""
             Task: Summarize the work logs for this user in this project.
             Language: {lang}
+            Report End Date: {end_date} (or Today)
             
             Project: {p_name}
             User: {u_name}
@@ -433,17 +502,21 @@ class WorkSummaryService:
             1. **Overall Summary**: Provide a high-level summary of the user's main contributions and focus areas in this project for the given period.
             2. **Work Items List**: Create a markdown table with the following columns:
                - Issue ID (with link if using markdown []())
-               - Subject (Brief title)
+               - **Subject** (Exact title from logs)
                - Status
-               - Updated Time
+               - **Duration / Timeline**:
+                 - If Open: "Created <date> (Open for X days)" - Calculate days from Created Date to Report End Date.
+                 - If Closed: "Created <date>, Closed <date>"
+               - Updated Time (Last update in logs)
                - Spent Hours (Sum up time entries if any)
                - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
             
             3. **Attachments Footer**:
-               - Identify any images mentioned in logs or context.
-               - List them using strict Markdown image syntax: `![Description - Issue #ID](URL)`
-               - **DO NOT** use text links [Image](URL). Use image tags ![]() so they render.
-               - Group images at the very bottom.
+               - Identify any images mentioned in logs (they will have placeholders like IMG_PLACEHOLDER_0, IMG_PLACEHOLDER_1, etc.).
+               - For each image placeholder, output using this EXACT format: `![Issue #ID - Description](IMG_PLACEHOLDER_N)`
+               - Example: If you see IMG_PLACEHOLDER_0, write `![Issue #123 - Screenshot](IMG_PLACEHOLDER_0)`
+               - **CRITICAL**: Keep the placeholder exactly as provided. Do NOT try to replace it with a URL.
+               - Group all images at the very bottom under "#### Attachments".
 
             Output Format (Markdown):
             ### {p_name} - {u_name}
@@ -452,9 +525,9 @@ class WorkSummaryService:
             (Summary content here...)
 
             #### Work Items
-            | Issue | Status | Updated | Hours | Summary & Actions |
-            |-------|--------|---------|-------|-------------------|
-            | ...   | ...    | ...     | ...   | ...               |
+            | Issue | Subject | Status | Duration/Timeline | Updated | Hours | Summary & Actions |
+            |-------|---------|--------|-------------------|---------|-------|-------------------|
+            | ...   | ...     | ...    | ...               | ...     | ...   | ...               |
 
             #### Attachments
             (Images here...)
@@ -465,7 +538,13 @@ class WorkSummaryService:
                     {"role": "system", "content": "You are a Project Manager Assistant."},
                     {"role": "user", "content": prompt}
                 ])
-                return res
+                final_res = res
+                # Restore happens after try block or logic flow needs adjustment? 
+                # Better to return here and restore in caller? No, analyze_chunk returns the string summary.
+                # So we must restore HERE before returning.
+                
+                # We do restoration at end of function.
+                pass 
             except Exception as e:
                 print(f"Error analyzing chunk {p_name}-{u_name}: {e}")
                 
@@ -498,6 +577,14 @@ class WorkSummaryService:
                          print(f"[DEBUG] Failed to dump error context: {dump_err}")
                 
                 return f"**{p_name} - {u_name}**: (AI Analysis Failed: {str(e)})"
+            
+            # Restore Image Placeholders
+            if isinstance(final_res, str): # Verify it's string (it should be)
+                for ph, original_url in img_placeholder_map.items():
+                    if ph in final_res:
+                        final_res = final_res.replace(ph, original_url)
+            
+            return final_res
 
         # Get Concurrency Limit from App Settings
         try:
@@ -530,14 +617,39 @@ class WorkSummaryService:
 
         # 3. Reduce Phase: Manual Aggregate (Optimized for Tokens)
         print("[DEBUG] Manual Reduce - Concatenating summaries...")
-        
+
         # Add header
         header = f"# 工作總結報告 ({start_date} ~ {end_date})\n\n"
         
-        # Concatenate chunk summaries directly
-        combined_text = "\n\n".join(chunk_summaries)
+        combined_chunk_text = "\n\n".join(chunk_summaries)
         
-        final_report = header + combined_text
+        # Grand Summary Generation
+        grand_summary = ""
+        try:
+            reduce_prompt = f"""
+            Task: Create an Executive Summary for the following project work reports.
+            Language: {state.get('language', 'zh-TW')}
+            
+            Reports:
+            {combined_chunk_text}
+            
+            Instruction:
+            - Synthesize a high-level "Grand Summary" that covers the key achievements across ALL projects and users.
+            - Do NOT list every detail again. Focus on big picture progress, major milestones completed, and overall status.
+            - Keep it concise (1-2 paragraphs).
+            """
+            
+            grand_summary_res = await self.openai.chat_completion([
+                {"role": "system", "content": "You are a Project Manager Director."},
+                {"role": "user", "content": reduce_prompt}
+            ])
+            grand_summary = f"## 總體摘要\n{grand_summary_res}\n\n---\n\n"
+        except Exception as e:
+            print(f"[DEBUG] Grand summary generation failed: {e}")
+            self.error_dump_to_txt(reduce_prompt, "ALL", "ALL")
+            grand_summary = "## 總體摘要\n(自動生成失敗)\n\n---\n\n"
+
+        final_report = header + grand_summary + combined_chunk_text
         
         # Optional: Add error dump logic if env var IS set
         import os

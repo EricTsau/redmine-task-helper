@@ -171,8 +171,6 @@
         "chatHint2": "or provide instructions for AI to refine the report.",
         "askContent": "Ask",
         "refine": "Refine",
-        "thinking": "Thinking...",
-        "refining": "Refining report...",
         "requestFailed": "Request failed",
         "selectStartDate": "Please select a start date",
         "generateFailed": "Generation failed, please check settings or try again later",
@@ -186,7 +184,14 @@
         "deleteSuccess": "Report deleted",
         "deleteFailed": "Delete failed",
         "refining": "Refining...",
-        "thinking": "Thinking..."
+        "thinking": "Thinking...",
+        "exportMd": "Export MD",
+        "copilot": "AI Copilot",
+        "copy": "Copy",
+        "askAboutReport": "Ask anything about this report...",
+        "1Day": "Today",
+        "7Days": "7 Days",
+        "30Days": "30 Days"
     },
     "taskList": {
         "title": "Watchlist",

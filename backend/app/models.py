@@ -77,6 +77,7 @@ class TrackedTask(SQLModel, table=True):
     project_id: int
     project_name: str
     subject: str
+    status_id: Optional[int] = None
     status: str
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None

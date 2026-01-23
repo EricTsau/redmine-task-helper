@@ -10,6 +10,8 @@ import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } f
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
 import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
+import { StatusSelect } from '../tasks/StatusSelect';
+
 
 interface TrackedTask {
     id: number;
@@ -17,6 +19,7 @@ interface TrackedTask {
     project_id: number;
     project_name: string;
     subject: string;
+    status_id: number;
     status: string;
     estimated_hours: number | null;
     spent_hours: number;
@@ -178,12 +181,18 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     // Helper to build tree for Tracked Tasks
     const buildTaskTree = (flatTasks: TrackedTask[]) => {
         const taskMap = new Map<number, TrackedTask & { children: any[] }>();
-        flatTasks.forEach(t => taskMap.set(t.redmine_issue_id, { ...t, children: [] }));
+        // Initialize map with all tasks
+        flatTasks.forEach(t => {
+            // Use redmine_issue_id as key for mapping
+            taskMap.set(t.redmine_issue_id, { ...t, children: [] });
+        });
 
         const roots: (TrackedTask & { children: any[] })[] = [];
 
         flatTasks.forEach(t => {
-            const node = taskMap.get(t.redmine_issue_id)!;
+            const node = taskMap.get(t.redmine_issue_id);
+            if (!node) return;
+
             // Check if parent exists in our tracked list
             if (t.parent && taskMap.has(t.parent.id)) {
                 taskMap.get(t.parent.id)!.children.push(node);
@@ -195,43 +204,92 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
         return roots;
     };
 
+    // Tree Node State (Expand/Collapse)
+    const [treeExpanded, setTreeExpanded] = useState<Set<number>>(new Set());
+    const toggleTreeNode = (id: number) => {
+        setTreeExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    // Auto-expand all on first load
+    useEffect(() => {
+        if (tasks.length > 0 && treeExpanded.size === 0) {
+            const allIds = tasks.map(t => t.redmine_issue_id);
+            setTreeExpanded(new Set(allIds));
+        }
+    }, [tasks.length]);
+
+
     const renderTreeNodes = (nodes: (TrackedTask & { children: any[] })[]) => {
         return nodes.map(node => {
             const status = getTaskStatus(node);
             const bgClass = getTaskHealthColorClass(status);
+            const hasChildren = node.children && node.children.length > 0;
+            const isExpanded = treeExpanded.has(node.redmine_issue_id);
 
             return (
                 <div key={node.id} className="tree-node-container space-y-2">
                     <div
                         className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
                     >
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <div className="font-medium truncate">{node.subject}</div>
-                                {node.children.length > 0 && (
-                                    <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
-                                        {node.children.length} 子任務
-                                    </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                            {/* Tree Toggle */}
+                            <div className="flex-shrink-0 w-6 flex justify-center">
+                                {hasChildren ? (
+                                    <button
+                                        onClick={() => toggleTreeNode(node.redmine_issue_id)}
+                                        className="p-0.5 hover:bg-black/10 rounded transition-colors"
+                                    >
+                                        {isExpanded ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
+                                    </button>
+                                ) : (
+                                    <span className="w-4" />
                                 )}
                             </div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                <span>#{node.redmine_issue_id}</span>
-                                <span>•</span>
-                                <span>{node.project_name}</span>
-                                <span>•</span>
-                                <span>{node.status}</span>
-                                {node.parent && <span className="text-xs bg-blue-50 text-blue-600 px-1 rounded ml-1">Parent: #{node.parent.id}</span>}
-                                <TaskMetaInfo
-                                    estimated_hours={node.estimated_hours}
-                                    spent_hours={node.spent_hours}
-                                    updated_on={node.updated_on}
-                                    status={status}
-                                />
-                                {node.custom_group && (
-                                    <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
-                                        {node.custom_group}
-                                    </span>
-                                )}
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="font-medium truncate">{node.subject}</div>
+                                    {hasChildren && !isExpanded && (
+                                        <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
+                                            {node.children.length} 子任務
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <span>#{node.redmine_issue_id}</span>
+                                    <span>•</span>
+                                    <span>{node.project_name}</span>
+                                    <span>•</span>
+                                    <StatusSelect
+                                        currentStatusId={node.status_id}
+                                        currentStatusName={node.status}
+                                        onStatusChange={async (statusId) => {
+                                            try {
+                                                const updated = await api.patch<TrackedTask>(`/tracked-tasks/${node.id}/status`, { status_id: statusId });
+                                                setTasks(prev => prev.map(t => t.id === node.id ? updated : t));
+                                            } catch (e) {
+                                                console.error("Status update failed", e);
+                                            }
+                                        }}
+                                    />
+                                    {node.parent && <span className="text-xs bg-muted/50 text-muted-foreground px-1 rounded ml-1">Parent: #{node.parent.id}</span>}
+                                    <TaskMetaInfo
+                                        estimated_hours={node.estimated_hours}
+                                        spent_hours={node.spent_hours}
+                                        updated_on={node.updated_on}
+                                        status={status}
+                                    />
+                                    {node.custom_group && (
+                                        <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
+                                            {node.custom_group}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -262,7 +320,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                         </div>
                     </div>
                     {/* Children */}
-                    {node.children.length > 0 && (
+                    {hasChildren && isExpanded && (
                         <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
                             {renderTreeNodes(node.children)}
                         </div>

@@ -9,7 +9,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
     const location = useLocation();
     const isFullWidthObj = ["/ai-planner", "/gantt", "/ai-summary"];
-    const isFullWidth = isFullWidthObj.some(path => location.pathname.startsWith(path));
+    const isFullWidth = isFullWidthObj.some(path => location.pathname.startsWith(path)) || location.pathname === '/';
 
     return (
         <div className="flex h-screen w-full bg-modern-app overflow-hidden">

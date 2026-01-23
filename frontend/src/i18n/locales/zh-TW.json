@@ -171,8 +171,6 @@
         "chatHint2": "或輸入指示請 AI 重新整理報告。",
         "askContent": "詢問內容",
         "refine": "重新整理",
-        "thinking": "正在思考...",
-        "refining": "正在重新撰寫報告...",
         "requestFailed": "請求失敗",
         "selectStartDate": "請選擇開始日期",
         "generateFailed": "生成失敗，請檢查設定或稍後再試",
@@ -186,7 +184,14 @@
         "deleteSuccess": "報告已刪除",
         "deleteFailed": "刪除失敗",
         "refining": "優化中...",
-        "thinking": "思考中..."
+        "thinking": "思考中...",
+        "exportMd": "匯出 MD",
+        "copilot": "AI 副駕駛",
+        "copy": "複製",
+        "askAboutReport": "詢問關於此報告的任何問題...",
+        "1Day": "今日",
+        "7Days": "7天",
+        "30Days": "30天"
     },
     "taskList": {
         "title": "Watchlist",

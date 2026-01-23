@@ -7,6 +7,7 @@ export interface Task {
     subject: string;
     project_id: number;
     project_name: string;
+    status_id: number;
     status_name: string;
     estimated_hours: number | null;
     spent_hours: number;

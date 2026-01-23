@@ -16,6 +16,7 @@ class TaskResponse(BaseModel):
     subject: str
     project_id: int
     project_name: str
+    status_id: int
     status_name: str
     estimated_hours: Optional[float] = None
     spent_hours: float = 0.0
@@ -35,6 +36,15 @@ def format_iso_datetime(dt) -> str:
         return dt.isoformat()
     return str(dt)
 
+@router.get("/statuses")
+async def get_statuses(service: RedmineService = Depends(get_redmine_service)):
+    """Get all available issue statuses."""
+    try:
+        statuses = service.get_issue_statuses()
+        return [{"id": s.id, "name": s.name, "is_closed": getattr(s, 'is_closed', False)} for s in statuses]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("", response_model=List[TaskResponse])
 async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
     """List issues assigned to the current user."""
@@ -45,6 +55,7 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
             subject=issue.subject,
             project_id=issue.project.id,
             project_name=issue.project.name,
+            status_id=issue.status.id,
             status_name=issue.status.name,
             estimated_hours=getattr(issue, 'estimated_hours', None),
             spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
@@ -121,6 +132,29 @@ async def search_tasks(
     
     return results
 
+@router.get("/{task_id}")
+async def get_task_details(
+    task_id: int,
+    include: Optional[str] = None,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Get task details including journals."""
+    try:
+        # Check if we need to include journals
+        if include and 'journals' in include:
+            issue = service.get_issue_with_journals(task_id)
+        else:
+            # Fallback to simple get if just basic info needed (though frontend asks for journals)
+            # For consistency, get_issue_with_journals is robust enough
+             issue = service.get_issue_with_journals(task_id)
+        
+        if not issue:
+             raise HTTPException(status_code=404, detail="Task not found")
+             
+        return issue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class CreateTaskRequest(BaseModel):
     project_id: int
     subject: str
@@ -154,8 +188,51 @@ async def create_task(
             subject=issue.subject,
             project_id=issue.project.id,
             project_name=issue.project.name,
+            status_id=issue.status.id,
             status_name=issue.status.name,
             updated_on=format_iso_datetime(issue.updated_on)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class UpdateTaskRequest(BaseModel):
+    subject: Optional[str] = None
+    description: Optional[str] = None
+    status_id: Optional[int] = None
+    done_ratio: Optional[int] = None
+    assigned_to_id: Optional[int] = None
+    
+@router.put("/{task_id}")
+async def update_task(
+    task_id: int,
+    request: UpdateTaskRequest,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Update a task in Redmine."""
+    try:
+        service.redmine.issue.update(
+            task_id,
+            **request.model_dump(exclude_unset=True)
+        )
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AddNoteRequest(BaseModel):
+    notes: str
+
+
+@router.post("/{task_id}/notes")
+async def add_task_note(
+    task_id: int,
+    request: AddNoteRequest,
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Add a note to a task in Redmine."""
+    try:
+        service.add_issue_note(task_id, request.notes)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

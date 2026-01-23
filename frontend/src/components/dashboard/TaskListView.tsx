@@ -7,6 +7,7 @@ import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
 import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
+import { StatusSelect } from '../tasks/StatusSelect';
 
 interface TaskListViewProps {
     startTimer: (id: number, comment?: string) => void;
@@ -187,40 +188,90 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
         return roots;
     };
 
+    // Tree Node State (Expand/Collapse)
+    const [treeExpanded, setTreeExpanded] = useState<Set<number>>(new Set());
+
+    // Auto-expand all on load/change
+    useEffect(() => {
+        if (tasks.length > 0 && treeExpanded.size === 0) {
+            const allIds = tasks.map(t => t.id);
+            setTreeExpanded(new Set(allIds));
+        }
+    }, [tasks.length]);
+
+    const toggleTreeNode = (id: number) => {
+        setTreeExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     const renderTreeNodes = (nodes: (Task & { children: any[] })[]) => {
         return nodes.map(node => {
             const status = getTaskStatus(node);
             const bgClass = getTaskHealthColorClass(status);
+            const hasChildren = node.children && node.children.length > 0;
+            const isExpanded = treeExpanded.has(node.id);
 
             return (
                 <div key={node.id} className="tree-node-container space-y-2">
                     <div
                         className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
                     >
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <div className="font-medium truncate">{node.subject}</div>
-                                {node.children.length > 0 && (
-                                    <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
-                                        {node.children.length} 子任務
-                                    </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                            {/* Tree Toggle */}
+                            <div className="flex-shrink-0 w-6 flex justify-center">
+                                {hasChildren ? (
+                                    <button
+                                        onClick={() => toggleTreeNode(node.id)}
+                                        className="p-0.5 hover:bg-black/10 rounded transition-colors"
+                                    >
+                                        {isExpanded ? <ChevronDown className="h-4 w-4 opacity-70" /> : <ChevronRight className="h-4 w-4 opacity-70" />}
+                                    </button>
+                                ) : (
+                                    <span className="w-4" />
                                 )}
                             </div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                <span>#{node.id}</span>
-                                <span>•</span>
-                                <span>{node.project_name}</span>
-                                <span>•</span>
-                                <span>{node.status_name}</span>
-                                {node.parent && <span className="text-xs bg-blue-50 text-blue-600 px-1 rounded ml-1">Parent: #{node.parent.id}</span>}
-                                <TaskMetaInfo
-                                    estimated_hours={node.estimated_hours}
-                                    spent_hours={node.spent_hours}
-                                    updated_on={node.updated_on}
-                                    status={status}
-                                />
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="font-medium truncate">{node.subject}</div>
+                                    {hasChildren && !isExpanded && (
+                                        <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
+                                            {node.children.length} 子任務
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <span>#{node.id}</span>
+                                    <span>•</span>
+                                    <span>{node.project_name}</span>
+                                    <span>•</span>
+                                    <StatusSelect
+                                        currentStatusId={node.status_id}
+                                        currentStatusName={node.status_name}
+                                        onStatusChange={async (statusId) => {
+                                            try {
+                                                await api.put(`/tasks/${node.id}`, { status_id: statusId });
+                                                await refresh();
+                                            } catch (e) {
+                                                console.error("Status update failed", e);
+                                            }
+                                        }}
+                                    />
+                                    {node.parent && <span className="text-xs bg-blue-50 text-blue-600 px-1 rounded ml-1">Parent: #{node.parent.id}</span>}
+                                    <TaskMetaInfo
+                                        estimated_hours={node.estimated_hours}
+                                        spent_hours={node.spent_hours}
+                                        updated_on={node.updated_on}
+                                        status={status}
+                                    />
+                                </div>
                             </div>
                         </div>
+
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                                 onClick={() => setEditingTask(node)}
@@ -239,7 +290,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         </div>
                     </div>
                     {/* Children */}
-                    {node.children.length > 0 && (
+                    {hasChildren && isExpanded && (
                         <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
                             {renderTreeNodes(node.children)}
                         </div>

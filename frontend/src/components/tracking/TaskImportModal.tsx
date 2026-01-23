@@ -2,6 +2,7 @@
  * TaskImportModal - 從 Redmine 搜尋並匯入任務到追蹤清單
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Loader2, Check, Square, CheckSquare, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
 
 import { api } from '@/lib/api';
@@ -189,9 +190,12 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess, onConfirm }:
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-card border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="relative bg-card border rounded-lg shadow-xl w-full max-w-4xl h-[85vh] flex flex-col">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b">
                     <h2 className="text-lg font-semibold">匯入 Redmine 任務</h2>
@@ -366,7 +370,8 @@ export function TaskImportModal({ isOpen, onClose, onImportSuccess, onConfirm }:
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

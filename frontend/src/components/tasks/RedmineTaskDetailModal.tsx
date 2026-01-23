@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
-import { X, Calendar, User, Info, MessageSquare } from 'lucide-react';
+import { X, Calendar, User, Info, MessageSquare, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { WorkLogEditor } from '../timer/WorkLogEditor';
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '@/contexts/ToastContext';
@@ -45,6 +46,17 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
     const [details, setDetails] = useState<IssueDetails | null>(null);
     const [description, setDescription] = useState('');
     const [newNote, setNewNote] = useState('');
+    const [expandedJournals, setExpandedJournals] = useState<Set<number>>(new Set());
+    const [editorHeight, setEditorHeight] = useState(200); // Default height in px
+
+    const toggleJournalExpand = (id: number) => {
+        setExpandedJournals(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     useEffect(() => {
         fetchDetails();
@@ -121,9 +133,12 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
         );
     }
 
-    return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-background w-full max-w-4xl h-[85vh] rounded-lg shadow-xl flex flex-col overflow-hidden">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="bg-background w-full max-w-4xl h-[85vh] rounded-lg shadow-xl flex flex-col overflow-hidden z-10 relative">
                 {/* Header */}
                 <div className="p-4 border-b flex items-start justify-between bg-muted/10">
                     <div className="flex-1 min-w-0 pr-4">
@@ -219,23 +234,45 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                     ) : (
                         <div className="h-full flex flex-col max-w-4xl mx-auto w-full">
                             {/* History List */}
-                            <div className="flex-1 overflow-auto p-4 space-y-4">
-                                {details?.journals?.map((journal) => (
-                                    <div key={journal.id} className="bg-card p-4 rounded-lg border shadow-sm">
-                                        <div className="flex justify-between items-center text-xs text-muted-foreground mb-3 pb-2 border-b">
-                                            <span className="font-bold text-foreground flex items-center gap-2">
-                                                <User size={12} />
-                                                {journal.user.name}
-                                            </span>
-                                            <span>{new Date(journal.created_on).toLocaleString()}</span>
+                            <div className="flex-1 overflow-auto p-4 space-y-3">
+                                {details?.journals?.map((journal) => {
+                                    const isExpanded = expandedJournals.has(journal.id);
+                                    const notes = journal.notes || '';
+                                    const shouldTruncate = notes.length > 150;
+                                    const displayNotes = shouldTruncate && !isExpanded
+                                        ? notes.substring(0, 150) + '...'
+                                        : notes;
+
+                                    return (
+                                        <div
+                                            key={journal.id}
+                                            className="bg-card rounded-lg border shadow-sm cursor-pointer hover:border-primary/30 transition-colors"
+                                            onClick={() => shouldTruncate && toggleJournalExpand(journal.id)}
+                                        >
+                                            <div className="flex justify-between items-center text-xs text-muted-foreground p-3 border-b">
+                                                <span className="font-bold text-foreground flex items-center gap-2">
+                                                    <User size={12} />
+                                                    {journal.user.name}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span>{new Date(journal.created_on).toLocaleString()}</span>
+                                                    {shouldTruncate && (
+                                                        <button className="p-1 hover:bg-muted rounded">
+                                                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className={`p-3 ${isExpanded ? 'max-h-[400px] overflow-auto' : ''}`}>
+                                                <div className="prose prose-sm max-w-none dark:prose-invert">
+                                                    <ReactMarkdown>
+                                                        {displayNotes || '(無內容)'}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="prose prose-sm max-w-none dark:prose-invert">
-                                            <ReactMarkdown>
-                                                {journal.notes || '(無內容)'}
-                                            </ReactMarkdown>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 {!details?.journals?.length && (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
                                         <MessageSquare size={32} className="opacity-20" />
@@ -244,28 +281,58 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                                 )}
                             </div>
 
-                            {/* Add Note Area */}
-                            <div className="p-4 border-t bg-background shadow-lg z-10">
-                                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                                    <MessageSquare size={14} className="text-primary" />
-                                    新增筆記 (同步至 Redmine)
-                                </h4>
-                                <WorkLogEditor
-                                    initialContent={newNote}
-                                    onUpdate={setNewNote}
-                                    submitLabel="發送"
-                                    onSubmit={async (content) => {
-                                        setNewNote(content);
-                                        await handleSendNote();
+                            {/* Add Note Area - Resizable */}
+                            <div className="border-t bg-background shadow-lg z-10 flex flex-col">
+                                {/* Resize Handle */}
+                                <div
+                                    className="h-2 cursor-ns-resize bg-muted/30 hover:bg-primary/20 transition-colors flex items-center justify-center"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const startY = e.clientY;
+                                        const startHeight = editorHeight;
+
+                                        const onMouseMove = (moveEvent: MouseEvent) => {
+                                            const delta = startY - moveEvent.clientY;
+                                            setEditorHeight(Math.max(100, Math.min(500, startHeight + delta)));
+                                        };
+
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove);
+                                            document.removeEventListener('mouseup', onMouseUp);
+                                        };
+
+                                        document.addEventListener('mousemove', onMouseMove);
+                                        document.addEventListener('mouseup', onMouseUp);
                                     }}
-                                    placeholder="輸入筆記..."
-                                    className="!h-48"
-                                />
+                                >
+                                    <GripVertical size={14} className="text-muted-foreground rotate-90" />
+                                </div>
+
+                                <div className="p-4">
+                                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                                        <MessageSquare size={14} className="text-primary" />
+                                        新增筆記 (同步至 Redmine)
+                                    </h4>
+                                    <div style={{ height: `${editorHeight}px` }}>
+                                        <WorkLogEditor
+                                            initialContent={newNote}
+                                            onUpdate={setNewNote}
+                                            submitLabel="發送"
+                                            onSubmit={async (content) => {
+                                                setNewNote(content);
+                                                await handleSendNote();
+                                            }}
+                                            placeholder="輸入筆記..."
+                                            className="h-full"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

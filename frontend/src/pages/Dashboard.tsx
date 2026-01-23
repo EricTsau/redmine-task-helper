@@ -227,7 +227,7 @@ export function Dashboard() {
                 </div>
 
                 {/* Content Area with Glass Effect Container */}
-                <div className="glass-card rounded-3xl border-border/30 overflow-hidden min-h-[400px]">
+                <div className="glass-card rounded-3xl border-border/30 overflow-hidden min-h-[50vh] w-full">
                     {activeTab === 'my-tasks' ? (
                         <TaskListView startTimer={handleStartTimer} />
                     ) : (

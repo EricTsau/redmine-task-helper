@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { X, Loader2 } from 'lucide-react';
 import { WorkLogEditor } from '../timer/WorkLogEditor';
@@ -131,9 +132,12 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-background w-full max-w-4xl max-h-[90vh] rounded-lg shadow-xl flex flex-col border animate-in fade-in zoom-in duration-200">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="relative bg-background w-full max-w-6xl max-h-[90vh] rounded-lg shadow-xl flex flex-col border animate-in fade-in zoom-in duration-200">
 
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b">
@@ -309,6 +313,7 @@ export function TaskCreateModal({ isOpen, onClose, projectId, projectName, onTas
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

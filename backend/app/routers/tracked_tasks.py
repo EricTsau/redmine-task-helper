@@ -27,6 +27,7 @@ class TrackedTaskResponse(BaseModel):
     project_id: int
     project_name: str
     subject: str
+    status_id: Optional[int] = None
     status: str
     
     # New fields
@@ -92,6 +93,7 @@ async def import_tasks(
                 existing.project_id = issue.project.id
                 existing.project_name = issue.project.name
                 existing.subject = issue.subject
+                existing.status_id = issue.status.id
                 existing.status = issue.status.name
                 
                 # Update new fields
@@ -113,7 +115,7 @@ async def import_tasks(
                     project_id=issue.project.id,
                     project_name=issue.project.name,
                     subject=issue.subject,
-
+                    status_id=issue.status.id,
                     status=issue.status.name,
                     estimated_hours=getattr(issue, 'estimated_hours', None),
                     spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
@@ -223,6 +225,50 @@ async def update_task_group(
     return task
 
 
+class UpdateStatusRequest(BaseModel):
+    status_id: int
+
+
+@router.patch("/{task_id}/status", response_model=TrackedTaskResponse)
+async def update_task_status(
+    task_id: int,
+    request: UpdateStatusRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    service: RedmineService = Depends(get_redmine_service)
+):
+    """Update task status in Redmine and local DB"""
+    task = session.exec(
+        select(TrackedTask).where(
+            TrackedTask.id == task_id,
+            TrackedTask.owner_id == current_user.id
+        )
+    ).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Tracked task not found")
+    
+    try:
+        # 1. Update Redmine
+        service.update_issue(task.redmine_issue_id, status_id=request.status_id)
+        
+        # 2. Update Local DB
+        issue = service.redmine.issue.get(task.redmine_issue_id)
+        
+        task.status_id = issue.status.id
+        task.status = issue.status.name
+        task.updated_on = issue.updated_on
+        task.last_synced_at = datetime.utcnow()
+        
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+        return task
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @router.post("/sync", response_model=SyncResult)
 async def sync_tracked_tasks(
     session: Session = Depends(get_session),
@@ -256,6 +302,7 @@ async def sync_tracked_tasks(
             task.project_name = issue.project.name
             task.subject = issue.subject
 
+            task.status_id = issue.status.id
             task.status = issue.status.name
             
             task.estimated_hours = getattr(issue, 'estimated_hours', None)
