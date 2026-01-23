@@ -268,6 +268,16 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                                         updated_on={node.updated_on}
                                         status={status}
                                     />
+                                    {node.assigned_to && (
+                                        <span className="text-xs text-muted-foreground/70 ml-2" title="被指派者">
+                                            👤 {node.assigned_to.name}
+                                        </span>
+                                    )}
+                                    {node.author && (
+                                        <span className="text-xs text-muted-foreground/70 ml-1" title="建立者">
+                                            📝 {node.author.name}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -470,6 +480,18 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                                                             updated_on={task.updated_on}
                                                             status={status}
                                                         />
+                                                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground/70">
+                                                            {task.assigned_to && (
+                                                                <span title="被指派者">
+                                                                    👤 {task.assigned_to.name}
+                                                                </span>
+                                                            )}
+                                                            {task.author && (
+                                                                <span title="建立者">
+                                                                    📝 {task.author.name}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

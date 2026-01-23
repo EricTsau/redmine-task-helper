@@ -20,10 +20,12 @@ interface SummaryViewProps {
         date_range_end: string;
         summary_markdown: string;
     };
+    onReportUpdated?: (report: any) => void;
 }
 
 
-export function SummaryView({ report }: SummaryViewProps) {
+export function SummaryView(props: SummaryViewProps) {
+    const { report } = props;
     const { t } = useTranslation();
     const { token } = useAuth();
     const { showError, showSuccess } = useToast();
@@ -33,6 +35,7 @@ export function SummaryView({ report }: SummaryViewProps) {
 
     // Edit Mode State
     const [isEditing, setIsEditing] = useState(false);
+    const [editTab, setEditTab] = useState<'write' | 'preview'>('write');
     const [editContent, setEditContent] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
@@ -60,6 +63,7 @@ export function SummaryView({ report }: SummaryViewProps) {
 
     const handleStartEdit = () => {
         setEditContent(currentMarkdown);
+        setEditTab('write');
         setIsEditing(true);
     };
 
@@ -79,6 +83,12 @@ export function SummaryView({ report }: SummaryViewProps) {
 
             setCurrentMarkdown(editContent);
             setIsEditing(false);
+
+            // Notify parent
+            if (report && (props as any).onReportUpdated) {
+                (props as any).onReportUpdated({ ...report, summary_markdown: editContent });
+            }
+
             showSuccess(t('aiSummary.reportUpdated'));
         } catch (error) {
             console.error(error);
@@ -101,6 +111,12 @@ export function SummaryView({ report }: SummaryViewProps) {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTitle(editTitle);
+
+            // Notify parent
+            if (report && (props as any).onReportUpdated) {
+                (props as any).onReportUpdated({ ...report, title: editTitle });
+            }
+
             showSuccess(t('aiSummary.reportUpdated'));
         } catch (error) {
             console.error(error);
@@ -185,11 +201,39 @@ export function SummaryView({ report }: SummaryViewProps) {
                 {/* Report Content */}
                 <div className="flex-1 overflow-auto p-8 relative flex flex-col custom-scrollbar bg-white/95 text-slate-900">
                     {isEditing ? (
-                        <Textarea
-                            className="flex-1 font-mono text-sm resize-none p-4 bg-transparent border-none focus-visible:ring-0 text-slate-900 placeholder:text-slate-400"
-                            value={editContent}
-                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
-                        />
+                        <div className="flex-1 flex flex-col h-full overflow-hidden">
+                            <div className="flex items-center gap-2 mb-2 border-b border-border/10 pb-2">
+                                <button
+                                    onClick={() => setEditTab('write')}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${editTab === 'write' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/5'}`}
+                                >
+                                    {t('common.edit') || 'Edit'}
+                                </button>
+                                <button
+                                    onClick={() => setEditTab('preview')}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${editTab === 'preview' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/5'}`}
+                                >
+                                    {t('common.preview') || 'Preview'}
+                                </button>
+                            </div>
+
+                            {editTab === 'write' ? (
+                                <Textarea
+                                    className="flex-1 font-mono text-sm resize-none p-4 bg-transparent border-none focus-visible:ring-0 text-slate-900 placeholder:text-slate-400 focus:bg-white/50 rounded-lg transition-colors"
+                                    value={editContent}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
+                                    placeholder="Markdown supported..."
+                                />
+                            ) : (
+                                <div className="flex-1 overflow-auto bg-slate-50/50 rounded-lg p-4 border border-slate-200">
+                                    <article className="prose prose-sm max-w-none prose-headings:text-slate-900 prose-p:text-slate-800">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {editContent}
+                                        </ReactMarkdown>
+                                    </article>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <>
                             {/* If report indicates no updates, show clearer guidance */}

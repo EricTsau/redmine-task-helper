@@ -94,6 +94,14 @@ export default function AIWorkSummaryPage() {
         }
     };
 
+    // Callback when a report is updated (e.g. title or content changed)
+    const handleReportUpdate = (updatedReport: any) => {
+        setReports(prev => prev.map(r => r.id === updatedReport.id ? { ...r, ...updatedReport } : r));
+        if (currentReport?.id === updatedReport.id) {
+            setCurrentReport((prev: any) => ({ ...prev, ...updatedReport }));
+        }
+    };
+
     return (
         <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-700">
             {/* Header */}
@@ -124,7 +132,7 @@ export default function AIWorkSummaryPage() {
 
             <div className="flex-1 flex flex-col lg:flex-row gap-8 overflow-hidden">
                 {/* Configuration / List Panel */}
-                <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 ${isSetupCollapsed ? "lg:w-0 h-0 lg:h-auto opacity-0 overflow-hidden" : "w-full lg:w-1/3 min-w-[320px] h-1/2 lg:h-auto shrink-0"}`}>
+                <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 ${isSetupCollapsed ? "lg:w-0 h-0 lg:h-auto opacity-0 overflow-hidden" : "w-full lg:w-1/3 min-w-[320px] h-1/2 lg:h-auto shrink-0 overflow-y-auto custom-scrollbar pr-2"}`}>
                     {activeTab === 'generate' ? (
                         <div className="space-y-6">
                             <div className="glass-card rounded-3xl border-border/20 p-1">
@@ -251,7 +259,7 @@ export default function AIWorkSummaryPage() {
 
                         {currentReport ? (
                             <div className="flex-1 overflow-hidden p-1">
-                                <SummaryView report={currentReport} />
+                                <SummaryView report={currentReport} onReportUpdated={handleReportUpdate} />
                             </div>
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-6">

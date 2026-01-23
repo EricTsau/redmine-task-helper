@@ -38,6 +38,13 @@ class TrackedTaskResponse(BaseModel):
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None
     custom_group: Optional[str] = None
+    
+    # Hierarchy & Author
+    parent_id: Optional[int] = None
+    parent_subject: Optional[str] = None
+    author_id: Optional[int] = None
+    author_name: Optional[str] = None
+    
     last_synced_at: Optional[datetime] = None
     created_at: datetime
 
@@ -87,6 +94,20 @@ async def import_tasks(
             if hasattr(issue, 'assigned_to') and issue.assigned_to:
                 assigned_to_id = issue.assigned_to.id
                 assigned_to_name = issue.assigned_to.name
+                
+            author_id = None
+            author_name = None
+            if hasattr(issue, 'author') and issue.author:
+                author_id = issue.author.id
+                author_name = issue.author.name
+                
+            parent_id = None
+            parent_subject = None # Not always available
+            if hasattr(issue, 'parent') and issue.parent:
+                parent_id = issue.parent.id
+                # Attempt to get subject if present, else just ID
+                if hasattr(issue.parent, 'subject'):
+                    parent_subject = issue.parent.subject
             
             if existing:
                 # 更新現有記錄
@@ -104,6 +125,12 @@ async def import_tasks(
                 
                 existing.assigned_to_id = assigned_to_id
                 existing.assigned_to_name = assigned_to_name
+                
+                existing.author_id = author_id
+                existing.author_name = author_name
+                existing.parent_id = parent_id
+                existing.parent_subject = parent_subject
+                
                 existing.last_synced_at = datetime.utcnow()
                 session.add(existing)
                 imported.append(existing)
@@ -122,12 +149,17 @@ async def import_tasks(
                     updated_on=getattr(issue, 'updated_on', None),
                     assigned_to_id=assigned_to_id,
                     assigned_to_name=assigned_to_name,
+                    author_id=author_id,
+                    author_name=author_name,
+                    parent_id=parent_id,
+                    parent_subject=parent_subject,
                     last_synced_at=datetime.utcnow()
                 )
                 session.add(tracked)
                 session.commit()
                 session.refresh(tracked)
                 imported.append(tracked)
+
         except Exception as e:
             print(f"Error importing issue {issue_id}: {e}")
             continue

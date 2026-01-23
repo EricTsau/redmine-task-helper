@@ -83,6 +83,12 @@ class TrackedTask(SQLModel, table=True):
     assigned_to_name: Optional[str] = None
     custom_group: Optional[str] = None
     
+    # Hierarchy & Meta
+    parent_id: Optional[int] = None
+    parent_subject: Optional[str] = None
+    author_id: Optional[int] = None
+    author_name: Optional[str] = None
+    
     # New fields for stats and warnings
     estimated_hours: Optional[float] = None
     spent_hours: float = Field(default=0.0)

@@ -16,6 +16,14 @@ export interface Task {
         id: number;
         subject: string;
     };
+    assigned_to?: {
+        id: number;
+        name: string;
+    };
+    author?: {
+        id: number;
+        name: string;
+    };
 }
 
 export function useTasks() {

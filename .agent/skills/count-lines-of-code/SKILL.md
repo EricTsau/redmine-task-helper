@@ -112,6 +112,7 @@ Get-ChildItem -Path . -Recurse -Include *.py,*.js,*.ts,*.tsx,*.jsx,*.css,*.json,
 find . -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.css" -o -name "README.md" \) \
   -not -path "*/node_modules/*" \
   -not -path "*/.git/*" \
+  -not -path "*/venv/*" \
   -not -path "*/__pycache__/*" \
   -not -path "*/dist/*" \
   -not -path "*/build/*" \

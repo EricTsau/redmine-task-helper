@@ -76,17 +76,49 @@ class RedmineService:
             return None
 
     def get_my_tasks(self, limit: int = 50) -> List[Any]:
-        """Fetches issues assigned to the current user."""
+        """Fetches issues assigned to the current user, including their subtasks."""
         try:
+            # 1. Fetch assigned issues with children info
             # Status 2 = In Progress (Standard Redmine, might vary)
-            # We can also filter by 'assigned_to_id=me'
-            issues = self.redmine.issue.filter(
+            issues = list(self.redmine.issue.filter(
                 assigned_to_id='me',
                 # status_id='open', # or generic open
                 sort='updated_on:desc',
-                limit=limit
-            )
-            return list(issues)
+                limit=limit,
+                include=['children']
+            ))
+            
+            # 2. Collect child IDs
+            child_ids = []
+            seen_ids = {issue.id for issue in issues}
+            
+            for issue in issues:
+                # Redmine python lib returns children as a ResourceSet or list of dict-like objects
+                # checking hasattr just in case
+                if hasattr(issue, 'children'):
+                    for child in issue.children:
+                        # child is usually a simplistic object with id and subject
+                        if child.id not in seen_ids:
+                            child_ids.append(str(child.id))
+                            seen_ids.add(child.id)
+            
+            # 3. Fetch full details for children if any found
+            if child_ids:
+                try:
+                    # Redmine API supports filtering by comma-separated IDs
+                    child_issues = self.redmine.issue.filter(
+                        issue_id=','.join(child_ids),
+                        status_id='open' # Only fetch open subtasks? Usually desirable
+                    )
+                    issues.extend(list(child_issues))
+                except Exception as e:
+                    print(f"Error fetching child tasks: {e}")
+            
+            # 4. Sort combined list
+            # We sort again because appending children breaks order
+            issues.sort(key=lambda x: getattr(x, 'updated_on', ''), reverse=True)
+            
+            return issues
         except Exception as e:
             print(f"Error fetching tasks: {e}")
             return []

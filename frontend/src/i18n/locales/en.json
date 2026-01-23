@@ -16,7 +16,8 @@
         "search": "Search",
         "back": "Back",
         "next": "Next",
-        "previous": "Previous"
+        "previous": "Previous",
+        "preview": "Preview"
     },
     "nav": {
         "workbench": "My Workbench",

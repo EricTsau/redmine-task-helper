@@ -29,6 +29,11 @@ interface TrackedTask {
     custom_group: string | null;
     last_synced_at: string | null;
     created_at: string;
+    parent_id?: number | null;
+    parent_subject?: string | null;
+    author_id?: number | null;
+    author_name?: string | null;
+    // Legacy support for older mapping if needed, but we used parent_id now
     parent?: {
         id: number;
         subject: string;
@@ -193,8 +198,12 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
             const node = taskMap.get(t.redmine_issue_id);
             if (!node) return;
 
-            // Check if parent exists in our tracked list
-            if (t.parent && taskMap.has(t.parent.id)) {
+            // Check if parent exists in our tracked list by parent_id
+            // Note: DB field is parent_id (pointing to Redmine ID of parent)
+            if (t.parent_id && taskMap.has(t.parent_id)) {
+                taskMap.get(t.parent_id)!.children.push(node);
+            } else if (t.parent && taskMap.has(t.parent.id)) {
+                // Fallback for legacy structure if API returns it
                 taskMap.get(t.parent.id)!.children.push(node);
             } else {
                 roots.push(node);
@@ -281,9 +290,18 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                                     <TaskMetaInfo
                                         estimated_hours={node.estimated_hours}
                                         spent_hours={node.spent_hours}
-                                        updated_on={node.updated_on}
                                         status={status}
                                     />
+                                    {(node.assigned_to_name) && (
+                                        <span className="text-xs text-muted-foreground/70 ml-2" title="被指派者">
+                                            👤 {node.assigned_to_name}
+                                        </span>
+                                    )}
+                                    {(node.author_name) && (
+                                        <span className="text-xs text-muted-foreground/70 ml-1" title="建立者">
+                                            📝 {node.author_name}
+                                        </span>
+                                    )}
                                     {node.custom_group && (
                                         <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
                                             {node.custom_group}
@@ -505,6 +523,18 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                                                                     {task.custom_group}
                                                                 </span>
                                                             )}
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                {task.assigned_to_name && (
+                                                                    <span className="text-xs text-muted-foreground/70" title="被指派者">
+                                                                        👤 {task.assigned_to_name}
+                                                                    </span>
+                                                                )}
+                                                                {task.author_name && (
+                                                                    <span className="text-xs text-muted-foreground/70" title="建立者">
+                                                                        📝 {task.author_name}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
 

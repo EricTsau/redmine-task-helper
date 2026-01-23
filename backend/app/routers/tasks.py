@@ -21,6 +21,9 @@ class TaskResponse(BaseModel):
     estimated_hours: Optional[float] = None
     spent_hours: float = 0.0
     updated_on: str
+    assigned_to: Optional[dict] = None
+    author: Optional[dict] = None
+    parent: Optional[dict] = None
 
 def format_iso_datetime(dt) -> str:
     """Format datetime to ISO string with UTC timezone if naive."""
@@ -49,8 +52,31 @@ async def get_statuses(service: RedmineService = Depends(get_redmine_service)):
 async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
     """List issues assigned to the current user."""
     issues = service.get_my_tasks()
-    return [
-        TaskResponse(
+    
+    results = []
+    for issue in issues:
+        assigned_to = None
+        if hasattr(issue, 'assigned_to') and issue.assigned_to:
+            assigned_to = {'id': issue.assigned_to.id, 'name': issue.assigned_to.name}
+            
+        author = None
+        if hasattr(issue, 'author') and issue.author:
+            author = {'id': issue.author.id, 'name': issue.author.name}
+            
+        parent = None
+        if hasattr(issue, 'parent') and issue.parent:
+            parent = {'id': issue.parent.id, 'subject': getattr(issue.parent, 'subject', '')} # Subject might not be loaded if minimal
+            # Redmine API 'parent' attribute usually has id. Subject might require extra fetch but sometimes included?
+            # Actually standard issue response `parent` is {id: 1, name: "..."} ? No, it's usually just ID in minimal view.
+            # But let's check. python-redmine `parent` attribute is a Resource.
+            # We want subject. If python-redmine lazy loads, this might trigger calls.
+            # But earlier we did a bulk fetch for children. For parent of TOP level tasks, we haven't fetched them.
+            # But "My Tasks" are assigned to me. Their parent might be anything.
+            # For tree view within the list, we only care about parents THAT ARE IN THE LIST.
+            # But having the ID is enough to build the tree if the parent is present.
+            pass
+
+        results.append(TaskResponse(
             id=issue.id,
             subject=issue.subject,
             project_id=issue.project.id,
@@ -59,9 +85,12 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
             status_name=issue.status.name,
             estimated_hours=getattr(issue, 'estimated_hours', None),
             spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
-            updated_on=format_iso_datetime(issue.updated_on)
-        ) for issue in issues
-    ]
+            updated_on=format_iso_datetime(issue.updated_on),
+            assigned_to=assigned_to,
+            author=author,
+            parent={'id': issue.parent.id, 'subject': ''} if hasattr(issue, 'parent') and issue.parent else None
+        ))
+    return results
 
 
 class SearchTaskResponse(BaseModel):
