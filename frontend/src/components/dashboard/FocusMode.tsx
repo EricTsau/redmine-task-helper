@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WorkLogEditor } from '@/components/timer/WorkLogEditor';
 import ReactMarkdown from 'react-markdown';
 import { type TimeEntry } from '@/contexts/TimerContext';
-import { Play, Pause, Square, Clock, FileText, Edit3, X } from 'lucide-react';
+import { Play, Pause, Square, Clock, FileText, Edit3, X, Ban } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { api } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useNavigate } from 'react-router-dom';
 import type { PendingFile } from '@/hooks/useFileAttachments';
 
 const AuthenticatedImage = ({ src, alt, attachments }: { src?: string; alt?: string; attachments?: any[] }) => {
@@ -114,9 +115,11 @@ export function FocusMode({
     onSubmit
 }: FocusModeProps) {
     const { showSuccess, showError } = useToast();
+    const navigate = useNavigate();
     const [showConfirm, setShowConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [issueDetails, setIssueDetails] = useState<IssueDetails | null>(null);
+    const hasFetchedRef = useRef(false);
 
     // Local notes state - syncs with parent but allows local editing
     const [localNotes, setLocalNotes] = useState(timer.content || '');
@@ -130,7 +133,7 @@ export function FocusMode({
     } | null>(null);
     const [editedNotes, setEditedNotes] = useState('');
 
-    // Fetch issue details
+    // Fetch issue details - only once on mount or when manually triggered
     const fetchIssueDetails = useCallback(async () => {
         try {
             const data = await api.get<IssueDetails>(`/issues/${timer.issue_id}`);
@@ -140,9 +143,13 @@ export function FocusMode({
         }
     }, [timer.issue_id]);
 
+    // Initial fetch - only once
     useEffect(() => {
-        fetchIssueDetails();
-    }, [fetchIssueDetails]);
+        if (!hasFetchedRef.current) {
+            hasFetchedRef.current = true;
+            fetchIssueDetails();
+        }
+    }, []);
 
     // Sync local notes when timer.content changes
     useEffect(() => {
@@ -321,6 +328,20 @@ export function FocusMode({
                             ? <Pause className="h-6 w-6 fill-current" />
                             : <Play className="h-6 w-6 fill-current" />
                         }
+                    </button>
+
+                    {/* Cancel & Discard Button */}
+                    <button
+                        onClick={() => {
+                            onStop();
+                            navigate('/');
+                        }}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 px-6 py-3 bg-slate-600 text-white rounded-full hover:bg-slate-700 transition-all shadow-lg disabled:opacity-50"
+                        title="Stop Timer without submitting to Redmine"
+                    >
+                        <Ban className="h-5 w-5" />
+                        強制不紀錄工時
                     </button>
 
                     {/* Stop & Submit Button */}

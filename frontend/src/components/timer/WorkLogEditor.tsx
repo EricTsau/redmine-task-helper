@@ -5,6 +5,12 @@ import remarkGfm from 'remark-gfm';
 import { Image as ImageIcon, Eye, Edit2, Send, Sparkles, Wand2, X, Paperclip, Trash2, FileIcon, Bold, Italic, Strikethrough, Heading, Link, Quote, Code, List, ListOrdered } from 'lucide-react';
 import { useFileAttachments, formatFileSize, markdownToTextile, type PendingFile } from '@/hooks/useFileAttachments';
 
+interface UploadToken {
+    filename: string;
+    token: string;
+    content_type: string;
+}
+
 interface WorkLogEditorProps {
     initialContent?: string;
     issueId?: number;
@@ -14,12 +20,8 @@ interface WorkLogEditorProps {
 
     hideSaveButton?: boolean;
     submitLabel?: string;
-}
-
-interface UploadToken {
-    filename: string;
-    token: string;
-    content_type: string;
+    placeholder?: string;
+    className?: string;
 }
 
 export function WorkLogEditor({
@@ -31,7 +33,9 @@ export function WorkLogEditor({
     onSubmit,
     onSubmitWithFiles,
     hideSaveButton = false,
-    submitLabel = '送出'
+    submitLabel = '送出',
+    placeholder = "Type work log here... (Ctrl+V to paste images)",
+    className = ''
 }: WorkLogEditorProps) {
     const [content, setContent] = useState(initialContent);
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
@@ -451,7 +455,7 @@ export function WorkLogEditor({
     };
 
     return (
-        <div className="flex flex-col h-full border rounded-md overflow-hidden bg-card relative">
+        <div className={`flex flex-col h-full border rounded-md overflow-hidden bg-card relative ${className}`}>
             {/* Toolbar */}
             <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b">
                 <div className="flex gap-1">
@@ -556,10 +560,8 @@ export function WorkLogEditor({
                             onPaste={handlePaste}
                             onSelect={handleSelect}
                             className="w-full h-full p-3 resize-none focus:outline-none bg-background text-foreground font-mono text-sm"
-                            placeholder="Type work log here... (Ctrl+V to paste images)"
-                        />
-
-                        {/* Floating AI Widget */}
+                            placeholder={placeholder}
+                        />{/* Floating AI Widget */}
                         {showFloatingWidget && (
                             <div className="absolute top-4 right-4 z-10 w-80 bg-background border rounded-lg shadow-xl p-3 animate-in fade-in slide-in-from-top-2">
                                 <div className="flex justify-between items-center mb-2">

@@ -11,6 +11,10 @@ export interface Task {
     estimated_hours: number | null;
     spent_hours: number;
     updated_on: string;
+    parent?: {
+        id: number;
+        subject: string;
+    };
 }
 
 export function useTasks() {

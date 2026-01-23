@@ -17,6 +17,8 @@ interface AuthContextType {
     login: (token: string, username: string, is_admin: boolean, refreshToken?: string) => void;
     logout: () => void;
     isLoading: boolean;
+    isRedmineAccessible: boolean;
+    checkRedmineAccess: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
     const [isLoading, setIsLoading] = useState(true);
+    const [isRedmineAccessible, setIsRedmineAccessible] = useState(false);
 
     useEffect(() => {
         if (token) {
@@ -39,10 +42,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [token]);
 
+    const checkRedmineAccess = async () => {
+        try {
+            await api.get('/auth/validate');
+            setIsRedmineAccessible(true);
+            return true;
+        } catch (error) {
+            setIsRedmineAccessible(false);
+            return false;
+        }
+    };
+
     const fetchMe = async () => {
         try {
             const response = await api.get<User>('/auth/me');
             setUser(response);
+            await checkRedmineAccess();
         } catch (error) {
             console.error('Failed to fetch user', error);
             logout();
@@ -66,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, isLoading, isRedmineAccessible, checkRedmineAccess }}>
             {children}
         </AuthContext.Provider>
     );

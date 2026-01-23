@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useTasks, type Task } from '@/hooks/useTasks';
 import { api } from '@/lib/api';
-import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2, List } from 'lucide-react';
 import { TaskCreateModal } from '../tasks/TaskCreateModal';
+import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
 import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
@@ -19,6 +20,8 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
     const [refreshing, setRefreshing] = useState(false);
     const [warningDays, setWarningDays] = useState(2);
     const [severeDays, setSevereDays] = useState(3);
+    const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -163,6 +166,89 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
         return getTaskHealthStatus(task, { warningDays, severeDays });
     };
 
+    // Helper to build tree
+    const buildTaskTree = (flatTasks: Task[]) => {
+        const taskMap = new Map<number, Task & { children: any[] }>();
+        // Initialize map
+        flatTasks.forEach(t => taskMap.set(t.id, { ...t, children: [] }));
+
+        const roots: (Task & { children: any[] })[] = [];
+
+        // Build hierarchy
+        flatTasks.forEach(t => {
+            const node = taskMap.get(t.id)!;
+            if (t.parent && taskMap.has(t.parent.id)) {
+                taskMap.get(t.parent.id)!.children.push(node);
+            } else {
+                roots.push(node); // Parent not in list or no parent -> Root in this view
+            }
+        });
+
+        return roots;
+    };
+
+    const renderTreeNodes = (nodes: (Task & { children: any[] })[]) => {
+        return nodes.map(node => {
+            const status = getTaskStatus(node);
+            const bgClass = getTaskHealthColorClass(status);
+
+            return (
+                <div key={node.id} className="tree-node-container space-y-2">
+                    <div
+                        className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
+                    >
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <div className="font-medium truncate">{node.subject}</div>
+                                {node.children.length > 0 && (
+                                    <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
+                                        {node.children.length} 子任務
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span>#{node.id}</span>
+                                <span>•</span>
+                                <span>{node.project_name}</span>
+                                <span>•</span>
+                                <span>{node.status_name}</span>
+                                {node.parent && <span className="text-xs bg-blue-50 text-blue-600 px-1 rounded ml-1">Parent: #{node.parent.id}</span>}
+                                <TaskMetaInfo
+                                    estimated_hours={node.estimated_hours}
+                                    spent_hours={node.spent_hours}
+                                    updated_on={node.updated_on}
+                                    status={status}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                                onClick={() => setEditingTask(node)}
+                                className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary"
+                                title="查看詳情與筆記"
+                            >
+                                <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => startTimer(node.id)}
+                                className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                                title="開始計時"
+                            >
+                                <Play className="h-4 w-4 fill-current" />
+                            </button>
+                        </div>
+                    </div>
+                    {/* Children */}
+                    {node.children.length > 0 && (
+                        <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
+                            {renderTreeNodes(node.children)}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
+
     interface GroupData {
         tasks: Task[];
         stats: { total: number; warning: number; severe: number };
@@ -213,23 +299,41 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>
 
-                    {/* Expand/Collapse All */}
                     <div className="flex items-center border rounded overflow-hidden">
                         <button
-                            onClick={expandAll}
-                            className="p-2 hover:bg-muted border-r"
-                            title="全部展開"
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 ${viewMode === 'list' ? 'bg-muted' : 'hover:bg-muted'} border-r`}
+                            title="列表檢視"
                         >
-                            <ChevronsDown className="h-4 w-4" />
+                            <List className="h-4 w-4" />
                         </button>
                         <button
-                            onClick={collapseAll}
-                            className="p-2 hover:bg-muted"
-                            title="全部收合"
+                            onClick={() => setViewMode('tree')}
+                            className={`p-2 ${viewMode === 'tree' ? 'bg-muted' : 'hover:bg-muted'}`}
+                            title="樹狀檢視"
                         >
-                            <ChevronsUp className="h-4 w-4" />
+                            <Network className="h-4 w-4" />
                         </button>
                     </div>
+
+                    {viewMode === 'list' && (
+                        <div className="flex items-center border rounded overflow-hidden ml-2">
+                            <button
+                                onClick={expandAll}
+                                className="p-2 hover:bg-muted border-r"
+                                title="全部展開"
+                            >
+                                <ChevronsDown className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={collapseAll}
+                                className="p-2 hover:bg-muted"
+                                title="全部收合"
+                            >
+                                <ChevronsUp className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -291,37 +395,52 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         {/* Tasks */}
                         {expandedGroups.has(groupName) && (
                             <div className="grid gap-2">
-                                {groupTasks.map(task => {
-                                    const status = getTaskStatus(task);
-                                    const bgClass = getTaskHealthColorClass(status);
+                                {viewMode === 'tree' && groupBy === 'project' ? (
+                                    <div className="mt-2">
+                                        {renderTreeNodes(buildTaskTree(groupTasks))}
+                                    </div>
+                                ) : (
+                                    groupTasks.map(task => {
+                                        const status = getTaskStatus(task);
+                                        const bgClass = getTaskHealthColorClass(status);
 
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
-                                        >
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-medium truncate">{task.subject}</div>
-                                                <div className="text-sm text-muted-foreground">
-                                                    #{task.id} • {task.project_name} • {task.status_name}
-                                                    <TaskMetaInfo
-                                                        estimated_hours={task.estimated_hours}
-                                                        spent_hours={task.spent_hours}
-                                                        updated_on={task.updated_on}
-                                                        status={status}
-                                                    />
+                                        return (
+                                            <div
+                                                key={task.id}
+                                                className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium truncate">{task.subject}</div>
+                                                    <div className="text-sm text-muted-foreground">
+                                                        #{task.id} • {task.project_name} • {task.status_name}
+                                                        <TaskMetaInfo
+                                                            estimated_hours={task.estimated_hours}
+                                                            spent_hours={task.spent_hours}
+                                                            updated_on={task.updated_on}
+                                                            status={status}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => setEditingTask(task)}
+                                                        className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary"
+                                                        title="查看詳情與筆記"
+                                                    >
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => startTimer(task.id)}
+                                                        className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                                                        title="開始計時"
+                                                    >
+                                                        <Play className="h-4 w-4 fill-current" />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => startTimer(task.id)}
-                                                className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                title="開始計時"
-                                            >
-                                                <Play className="h-4 w-4 fill-current" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })
+                                )}
                             </div>
                         )}
                     </div>
@@ -335,15 +454,28 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
             </div>
 
             {/* Create Task Modal */}
-            {createProjectCtx && (
-                <TaskCreateModal
-                    isOpen={createModalOpen}
-                    onClose={() => setCreateModalOpen(false)}
-                    projectId={createProjectCtx.id}
-                    projectName={createProjectCtx.name}
-                    onTaskCreated={refresh}
-                />
-            )}
-        </div>
+            {
+                createProjectCtx && (
+                    <TaskCreateModal
+                        isOpen={createModalOpen}
+                        onClose={() => setCreateModalOpen(false)}
+                        projectId={createProjectCtx.id}
+                        projectName={createProjectCtx.name}
+                        onTaskCreated={refresh}
+                    />
+                )
+            }
+
+            {
+                editingTask && (
+                    <RedmineTaskDetailModal
+                        taskId={editingTask.id}
+                        subject={editingTask.subject}
+                        onClose={() => setEditingTask(null)}
+                        onUpdate={refresh}
+                    />
+                )
+            }
+        </div >
     );
 }

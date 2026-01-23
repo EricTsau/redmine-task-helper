@@ -1,11 +1,13 @@
 import { useTimer } from '@/contexts/TimerContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Clock, Play, Pause } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 import { useDraggable } from '@/hooks/useDraggable';
 
 export function FloatingTimer() {
     const { timer, elapsed, pauseTimer, startTimer } = useTimer();
+    const { isRedmineAccessible } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -17,7 +19,7 @@ export function FloatingTimer() {
         storageKey: 'floating-timer-position'
     });
 
-    if (!timer || timer.status === 'stopped' || location.pathname === '/focus') {
+    if (!timer || timer.status === 'stopped' || location.pathname === '/focus' || !isRedmineAccessible) {
         return null;
     }
 

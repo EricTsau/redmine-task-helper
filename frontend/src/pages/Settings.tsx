@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { WatchlistSettings } from '@/components/dashboard/WatchlistSettings';
 import { useAuth } from '@/contexts/AuthContext';
-import { Shield, AlertTriangle, Link as LinkIcon, Sparkles } from 'lucide-react';
+import { Shield, AlertTriangle, Link as LinkIcon, Sparkles, Globe } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { api } from '@/lib/api';
 
@@ -18,6 +19,7 @@ interface SettingsData {
 
 export function Settings() {
     const { user } = useAuth();
+    const { t, i18n } = useTranslation();
     const [settings, setSettings] = useState<SettingsData>({
         redmine_url: '',
         redmine_token: '',
@@ -176,9 +178,9 @@ export function Settings() {
         <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="space-y-2">
                 <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
-                    System Parameters
+                    {t('settings.title')}
                 </h1>
-                <p className="text-muted-foreground font-medium">Configure neural links, auth vectors and operational thresholds</p>
+                <p className="text-muted-foreground font-medium">{t('settings.subtitle')}</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -353,13 +355,13 @@ export function Settings() {
                             onClick={testConnection}
                             className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
                         >
-                            Test Signal
+                            {t('settings.redmine.testConnection')}
                         </button>
                         <button
                             onClick={handleSaveRedmine}
                             className="flex-1 px-4 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-widest shadow-glow"
                         >
-                            Sync Core
+                            {t('settings.redmine.save')}
                         </button>
                     </div>
                     {testStatus && <p className="text-[10px] font-black uppercase text-center text-primary tracking-widest animate-pulse">{testStatus}</p>}
@@ -414,16 +416,39 @@ export function Settings() {
                             onClick={testOpenAI}
                             className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
                         >
-                            Probe Model
+                            {t('settings.openai.testModel')}
                         </button>
                         <button
                             onClick={handleSaveOpenAI}
                             className="flex-1 px-4 py-3 bg-gradient-to-r from-tech-indigo to-primary text-white shadow-glow-indigo rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
                         >
-                            Sync Engine
+                            {t('settings.openai.save')}
                         </button>
                     </div>
                     {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-tech-indigo tracking-widest animate-pulse">{openaiTestStatus}</p>}
+                </section>
+
+                {/* Language Section */}
+                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-2 bg-gradient-to-br from-white/5 to-transparent">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-green-500/30" />
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20">
+                            <Globe className="h-6 w-6 text-green-500" />
+                        </div>
+                        <h2 className="text-xl font-black tracking-tight">{t('settings.language.title')}</h2>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <label className="text-sm font-bold text-muted-foreground">{t('settings.language.select')}</label>
+                        <select
+                            value={i18n.language}
+                            onChange={(e) => i18n.changeLanguage(e.target.value)}
+                            className="h-12 px-4 rounded-xl border border-white/10 bg-black/20 font-bold focus:ring-2 focus:ring-green-500/30 outline-none transition-all"
+                        >
+                            <option value="zh-TW">繁體中文</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
                 </section>
             </div>
 

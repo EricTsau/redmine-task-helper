@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { SummaryConfig } from "@/components/ai-summary/SummaryConfig";
 import { SummaryView } from "@/components/ai-summary/SummaryView";
 import { SummaryHistory } from "@/components/ai-summary/SummaryHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 export default function AIWorkSummaryPage() {
+    const { t } = useTranslation();
     const { token } = useAuth();
-    const { showError } = useToast();
+    const { showError, showSuccess } = useToast();
 
     // State
     const [activeTab, setActiveTab] = useState("generate");
@@ -44,7 +45,7 @@ export default function AIWorkSummaryPage() {
 
     const handleGenerate = async () => {
         if (!startDate) {
-            showError("請選擇開始日期");
+            showError(t('aiSummary.selectStartDate'));
             return;
         }
         setGenerating(true);
@@ -58,11 +59,12 @@ export default function AIWorkSummaryPage() {
             setCurrentReport(res as any);
             fetchHistory(); // Refresh list
         } catch (error) {
-            showError("生成失敗，請檢查設定或稍後再試");
+            showError(t('aiSummary.generateFailed'));
         } finally {
             setGenerating(false);
         }
     };
+
 
     const handleSelectReport = (id: number) => {
         // Find existing or fetch details
@@ -74,7 +76,22 @@ export default function AIWorkSummaryPage() {
     };
 
     const [isSetupCollapsed, setIsSetupCollapsed] = useState(false);
-    const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
+
+    const handleDeleteReport = async (id: number) => {
+        if (!confirm(t('aiSummary.confirmDelete'))) return;
+
+        try {
+            await api.delete(`/ai-summary/${id}`);
+            setReports(prev => prev.filter(r => r.id !== id));
+            if (currentReport?.id === id) {
+                setCurrentReport(null);
+            }
+            showSuccess(t('aiSummary.deleteSuccess'));
+        } catch (error) {
+            console.error(error);
+            showError(t('aiSummary.deleteFailed'));
+        }
+    };
 
     return (
         <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-700">
@@ -82,9 +99,9 @@ export default function AIWorkSummaryPage() {
             <div className="flex items-center justify-between">
                 <div className="space-y-1">
                     <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
-                        AI Intelligence Reports
+                        {t('aiSummary.title')}
                     </h1>
-                    <p className="text-muted-foreground font-medium">Strategic activity synthesis powered by large language models</p>
+                    <p className="text-muted-foreground font-medium">{t('aiSummary.subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="flex bg-muted/20 p-1 rounded-xl border border-border/20">
@@ -92,21 +109,21 @@ export default function AIWorkSummaryPage() {
                             onClick={() => setActiveTab("generate")}
                             className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'generate' ? 'bg-primary text-primary-foreground shadow-glow' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                            Generate
+                            {t('aiSummary.generate')}
                         </button>
                         <button
                             onClick={() => setActiveTab("history")}
                             className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-primary text-primary-foreground shadow-glow' : 'text-muted-foreground hover:text-foreground'}`}
                         >
-                            Archive
+                            {t('aiSummary.archive')}
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="flex-1 flex gap-8 overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row gap-8 overflow-hidden">
                 {/* Configuration / List Panel */}
-                <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 ${isSetupCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-1/3 min-w-[320px]"}`}>
+                <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 ${isSetupCollapsed ? "lg:w-0 h-0 lg:h-auto opacity-0 overflow-hidden" : "w-full lg:w-1/3 min-w-[320px] h-1/2 lg:h-auto shrink-0"}`}>
                     {activeTab === 'generate' ? (
                         <div className="space-y-6">
                             <div className="glass-card rounded-3xl border-border/20 p-1">
@@ -116,12 +133,12 @@ export default function AIWorkSummaryPage() {
                             <div className="glass-card p-8 rounded-3xl border-border/20 bg-gradient-to-br from-white/5 to-transparent space-y-6">
                                 <div className="flex items-center gap-2 mb-2">
                                     <div className="w-1.5 h-6 bg-primary rounded-full" />
-                                    <h3 className="text-sm font-black uppercase tracking-widest">Report Parameters</h3>
+                                    <h3 className="text-sm font-black uppercase tracking-widest">{t('aiSummary.reportParameters')}</h3>
                                 </div>
 
                                 <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Range Commencement</Label>
+                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('aiSummary.rangeStart')}</Label>
                                         <Input
                                             type="date"
                                             value={startDate}
@@ -130,7 +147,7 @@ export default function AIWorkSummaryPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Range Termination</Label>
+                                        <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('aiSummary.rangeEnd')}</Label>
                                         <Input
                                             type="date"
                                             value={endDate}
@@ -146,10 +163,10 @@ export default function AIWorkSummaryPage() {
                                         {generating ? (
                                             <div className="flex items-center gap-3">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                                <span>Synthesizing...</span>
+                                                <span>{t('aiSummary.synthesizing')}</span>
                                             </div>
                                         ) : (
-                                            "Execute Synthesis"
+                                            t('aiSummary.executeSynthesis')
                                         )}
                                     </Button>
                                 </div>
@@ -157,7 +174,7 @@ export default function AIWorkSummaryPage() {
                         </div>
                     ) : (
                         <div className="glass-card rounded-3xl border-border/20 h-full overflow-hidden flex flex-col bg-white/5">
-                            <SummaryHistory reports={reports} onSelectReport={handleSelectReport} />
+                            <SummaryHistory reports={reports} onSelectReport={handleSelectReport} onDelete={handleDeleteReport} />
                         </div>
                     )}
                 </div>
@@ -170,13 +187,15 @@ export default function AIWorkSummaryPage() {
                             className="p-2.5 rounded-xl bg-white/5 border border-border/10 hover:bg-white/10 transition-all text-muted-foreground hover:text-foreground active:scale-95"
                             title={isSetupCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                         >
-                            <Loader2 className={`w-4 h-4 transform transition-transform ${isSetupCollapsed ? 'rotate-180' : ''}`} />
+                            {isSetupCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
                         </button>
+                        {/* ... */}
+
 
                         {currentReport && (
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-black text-muted-foreground uppercase bg-white/5 px-3 py-1.5 rounded-lg border border-border/10">
-                                    Report ID: {currentReport.id}
+                                    {t('aiSummary.reportId')}: {currentReport.id}
                                 </span>
                             </div>
                         )}
@@ -196,11 +215,11 @@ export default function AIWorkSummaryPage() {
                                     <Loader2 className={`w-16 h-16 text-muted-foreground/20 relative ${generating ? 'animate-spin' : ''}`} />
                                 </div>
                                 <div className="space-y-2 max-w-sm relative">
-                                    <h3 className="text-xl font-bold tracking-tight">Intelligence Feed Empty</h3>
+                                    <h3 className="text-xl font-bold tracking-tight">{t('aiSummary.intelligenceFeedEmpty')}</h3>
                                     <p className="text-muted-foreground font-medium text-sm">
                                         {generating
-                                            ? "AI agents are currently traversing data points and synthesizing collective activities. This may take several moments."
-                                            : "Awaiting mission parameters. Define target date range to generate a comprehensive AI activity summary."
+                                            ? t('aiSummary.processingMessage')
+                                            : t('aiSummary.awaitingParameters')
                                         }
                                     </p>
                                 </div>

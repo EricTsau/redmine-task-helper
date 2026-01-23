@@ -34,4 +34,5 @@ Keep this managed block so 'openspec update' can refresh the instructions.
     - 使用 Toast 通知，都顯示在右下角，且四周有原角
     - 使用 `useToast()` hook: `showSuccess()`, `showWarning()`, `showError()`
 - 日期顯示格式順序為 年->月->日->時->分->秒
-- 網頁設計風格: 現代科技風
+- 網頁設計風格: 淺色現代科技風, RWD 響應式網頁設計
+- 使用i18n做多國語系功能

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/contexts/ToastContext';
 import { api } from '@/lib/api';
+import { useTranslation } from 'react-i18next';
 
 interface LoginResponse {
     access_token: string;
@@ -14,6 +15,7 @@ interface LoginResponse {
 export function Login() {
     const { login } = useAuth();
     const { showSuccess, showError } = useToast();
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -35,10 +37,10 @@ export function Login() {
                 response.refresh_token
             );
 
-            showSuccess("登入成功");
+            showSuccess(t('login.success'));
             navigate("/");
         } catch (error) {
-            showError("登入失敗，請檢查帳號密碼");
+            showError(t('login.error'));
             console.error(error);
         } finally {
             setIsLoading(false);
@@ -46,23 +48,23 @@ export function Login() {
     };
 
     return (
-        <div className="relative min-h-screen flex items-center justify-center p-4 bg-tech-gradient overflow-hidden">
+        <div className="relative min-h-screen flex items-center justify-center p-4 bg-modern-app overflow-hidden">
             {/* Background Decorative Elements */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-tech-cyan/20 blur-[120px] rounded-full animate-pulse" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-tech-violet/20 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-tech-cyan/10 blur-[120px] rounded-full animate-pulse" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-tech-violet/10 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
 
-            <div className="w-full max-w-md z-10">
+            <div className="w-full max-w-md z-10 transition-all duration-1000 animate-in fade-in zoom-in-95">
                 <div className="glass-card p-8 space-y-8 rounded-2xl">
                     <div className="text-center space-y-2">
                         <h1 className="text-4xl font-bold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-tech-cyan to-tech-indigo font-sans">
-                            Redmine Helper
+                            {t('login.title')}
                         </h1>
-                        <p className="text-muted-foreground font-medium">現代化任務管理解決方案</p>
+                        <p className="text-muted-foreground font-medium">{t('login.subtitle')}</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-foreground ml-1">帳號</label>
+                            <label className="text-sm font-bold text-foreground ml-1">{t('login.username')}</label>
                             <input
                                 type="text"
                                 placeholder="Username"
@@ -73,7 +75,7 @@ export function Login() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-foreground ml-1">密碼</label>
+                            <label className="text-sm font-bold text-foreground ml-1">{t('login.password')}</label>
                             <input
                                 type="password"
                                 placeholder="Password"
@@ -92,14 +94,14 @@ export function Login() {
                             {isLoading ? (
                                 <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                             ) : (
-                                <span>登入系統</span>
+                                <span>{t('login.submit')}</span>
                             )}
                         </button>
                     </form>
 
                     <div className="pt-6 text-center border-t border-border/30">
                         <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase">
-                            &copy; 2026 Redmine Task Helper
+                            {t('login.copyright')}
                         </p>
                     </div>
                 </div>

@@ -1,14 +1,15 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Send, RotateCw, Sparkles, Pencil, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
+import { Loader2, Save, RotateCw, Pencil, Download, Send, Sparkles, Check, Wand2 } from "lucide-react";
+import { formatDate } from "@/lib/dateUtils";
 
 interface SummaryViewProps {
     report: {
@@ -26,8 +27,21 @@ interface ChatMessage {
 }
 
 export function SummaryView({ report }: SummaryViewProps) {
+    const { t } = useTranslation();
     const { token } = useAuth();
     const { showError, showSuccess } = useToast();
+
+    const [currentMarkdown, setCurrentMarkdown] = useState(report.summary_markdown);
+    const [title, setTitle] = useState(report.title);
+
+    // Edit Mode State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editContent, setEditContent] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Title Edit State
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editTitle, setEditTitle] = useState("");
 
     // Chat state
     const [chatInput, setChatInput] = useState("");
@@ -35,25 +49,19 @@ export function SummaryView({ report }: SummaryViewProps) {
     const [loading, setLoading] = useState(false);
     const [actionType, setActionType] = useState<"chat" | "refine">("chat");
 
-    const [currentMarkdown, setCurrentMarkdown] = useState(report.summary_markdown);
-
-    // Manual Edit State
-    const [isEditing, setIsEditing] = useState(false);
-    const [editContent, setEditContent] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
-
-    // Sync if report prop changes
-    useState(() => {
+    // Sync state when report changes
+    useEffect(() => {
         setCurrentMarkdown(report.summary_markdown);
+        setTitle(report.title);
         setChatHistory([]); // Clear history when switching report for now
-    });
+    }, [report]);
 
     const handleDownload = () => {
         const blob = new Blob([currentMarkdown], { type: "text/markdown" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${report.title}.md`;
+        a.download = `${title}.md`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -81,12 +89,34 @@ export function SummaryView({ report }: SummaryViewProps) {
 
             setCurrentMarkdown(editContent);
             setIsEditing(false);
-            showSuccess("報告已更新");
+            showSuccess(t('aiSummary.reportUpdated'));
         } catch (error) {
             console.error(error);
-            showError("儲存失敗");
+            showError(t('aiSummary.saveFailed'));
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleUpdateTitle = async () => {
+        if (!editTitle.trim() || editTitle === title) {
+            setIsEditingTitle(false);
+            return;
+        }
+
+        try {
+            await api.put(`/ai-summary/${report.id}`, {
+                title: editTitle
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setTitle(editTitle);
+            showSuccess(t('aiSummary.reportUpdated'));
+        } catch (error) {
+            console.error(error);
+            showError(t('aiSummary.saveFailed'));
+        } finally {
+            setIsEditingTitle(false);
         }
     };
 
@@ -118,53 +148,89 @@ export function SummaryView({ report }: SummaryViewProps) {
             setChatInput("");
         } catch (error) {
             console.error(error);
-            showError("請求失敗");
+            showError(t('aiSummary.requestFailed'));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Card className="h-full flex flex-col overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between py-4 border-b shrink-0">
-                <div className="flex flex-col gap-1">
-                    <CardTitle className="text-lg">{report.title}</CardTitle>
-                    <CardDescription>
-                        區間: {report.date_range_start} ~ {report.date_range_end || "至今"}
-                    </CardDescription>
+        <div className="h-full flex flex-col space-y-4 pr-1">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between shrink-0 pl-1">
+                <div className="flex items-center gap-4 flex-1">
+                    {isEditingTitle ? (
+                        <div className="flex items-center gap-2 flex-1 max-w-md animate-in fade-in zoom-in-95 duration-200">
+                            <Input
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                className="h-9 font-black text-xl bg-white/10 border-white/20"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleUpdateTitle();
+                                    if (e.key === 'Escape') setIsEditingTitle(false);
+                                }}
+                            />
+                            <Button size="icon" variant="ghost" className="h-9 w-9 hover:bg-green-500/20 hover:text-green-500" onClick={handleUpdateTitle}>
+                                <Check className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="group flex items-center gap-2">
+                            <h2
+                                className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50 cursor-pointer hover:underline decoration-dashed underline-offset-4 truncate max-w-2xl"
+                                onClick={() => {
+                                    setEditTitle(title);
+                                    setIsEditingTitle(true);
+                                }}
+                                title="Click to edit title"
+                            >
+                                {title}
+                            </h2>
+                            <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                                setEditTitle(title);
+                                setIsEditingTitle(true);
+                            }}>
+                                <Pencil className="w-3 h-3 text-muted-foreground" />
+                            </Button>
+                            <span className="text-xs text-muted-foreground ml-2">
+                                {formatDate(report.date_range_start)} ~ {report.date_range_end ? formatDate(report.date_range_end) : t('aiSummary.toNow')}
+                            </span>
+                        </div>
+                    )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                     {isEditing ? (
                         <>
                             <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
-                                取消
+                                {t('aiSummary.cancel')}
                             </Button>
                             <Button size="sm" onClick={handleSaveEdit} disabled={isSaving}>
                                 {isSaving ? <RotateCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                                儲存
+                                {t('aiSummary.save')}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button variant="outline" size="sm" onClick={handleStartEdit} title="手動編輯">
-                                <Pencil className="h-4 w-4 mr-2" />
-                                編輯
+                            <Button variant="outline" size="sm" onClick={handleStartEdit} title={t('aiSummary.edit')} className="bg-white/5 border-border/20 hover:bg-white/10">
+                                <Pencil className="h-3.5 w-3.5 mr-2" />
+                                {t('aiSummary.edit')}
                             </Button>
-                            <Button variant="outline" size="sm" onClick={handleDownload} title="下載 Markdown">
-                                <Download className="h-4 w-4 mr-2" />
-                                下載
+                            <Button variant="outline" size="sm" onClick={handleDownload} className="bg-white/5 border-border/20 hover:bg-white/10">
+                                <Download className="h-3.5 w-3.5 mr-2" />
+                                {t('aiSummary.exportMd')}
                             </Button>
                         </>
                     )}
                 </div>
-            </CardHeader>
+            </div>
 
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden border border-border/20 rounded-2xl bg-black/20 backdrop-blur-sm">
                 {/* Left: Report Content */}
-                <div className="flex-1 overflow-auto p-6 border-r relative flex flex-col">
+                <div className="flex-1 overflow-auto p-6 border-r border-border/10 relative flex flex-col custom-scrollbar">
                     {isEditing ? (
                         <Textarea
-                            className="flex-1 font-mono text-sm resize-none p-4"
+                            className="flex-1 font-mono text-sm resize-none p-4 bg-transparent border-none focus-visible:ring-0"
                             value={editContent}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
                         />
@@ -173,144 +239,114 @@ export function SummaryView({ report }: SummaryViewProps) {
                             {/* If report indicates no updates, show clearer guidance */}
                             {(currentMarkdown.includes('Found 0 updated issues') || currentMarkdown.includes('無更新')) && (
                                 <div className="mb-4 p-4 rounded border bg-yellow-50 text-sm">
-                                    <strong>注意：</strong> 系統在指定期間未偵測到 Redmine 的更新或工時紀錄。
+                                    <strong>{t('aiSummary.noUpdatesNotice')}</strong> {t('aiSummary.noUpdatesMessage')}
                                     <div className="mt-2 text-xs">
-                                        建議檢查：
+                                        {t('aiSummary.noUpdatesSuggestions')}
                                         <ul className="list-disc ml-4">
-                                            <li>確認報告的時間範圍是否正確。</li>
-                                            <li>確認您的 Redmine 帳號有存取該專案的權限。</li>
-                                            <li>確認是否有 team member 尚未在 Redmine 登錄工時或更新 Issue。</li>
+                                            <li>{t('aiSummary.noUpdatesSuggestion1')}</li>
+                                            <li>{t('aiSummary.noUpdatesSuggestion2')}</li>
+                                            <li>{t('aiSummary.noUpdatesSuggestion3')}</li>
                                         </ul>
                                     </div>
                                 </div>
                             )}
 
                             <article className="prose prose-sm dark:prose-invert max-w-none pb-10">
-                                <div className="w-full flex justify-center">
-                                    <div className="w-full max-w-[900px] px-2">
-                                        <div className="overflow-auto">
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        a: ({node, ...props}) => {
-                                            // open external links in new tab safely
-                                            const href = (props as any).href || '';
-                                            const isHash = href.startsWith('#');
-                                            return (
-                                                <a
-                                                    {...props}
-                                                    target={isHash ? undefined : '_blank'}
-                                                    rel={isHash ? undefined : 'noopener noreferrer'}
-                                                />
-                                            );
-                                        }
+                                        // Custom link renderer to open in new tab
+                                        a: ({ node, ...props }) => <a target="_blank" rel="noopener noreferrer" {...props} className="text-primary hover:underline" />,
+                                        table: ({ node, ...props }) => <table className="w-full border-collapse" {...props} />,
+                                        th: ({ node, ...props }) => <th className="border border-border p-2 bg-muted/50 text-left" {...props} />,
+                                        td: ({ node, ...props }) => <td className="border border-border p-2" {...props} />,
                                     }}
                                 >
                                     {currentMarkdown}
                                 </ReactMarkdown>
-                                        </div>
-                                    </div>
-                                </div>
                             </article>
                         </>
                     )}
                 </div>
 
-                {/* Right: Chat / Interaction Panel */}
-                <div className="w-full md:w-1/3 flex flex-col bg-muted/5 border-t md:border-t-0 md:border-l shrink-0 md:shrink">
-                    <div className="p-3 border-b bg-muted/20 font-medium text-sm flex items-center shrink-0">
-                        <Sparkles className="h-4 w-4 mr-2 text-yellow-500" />
-                        AI 報告助手
+                {/* Right: AI Chat */}
+                <div className="w-full md:w-[350px] flex flex-col bg-white/5">
+                    <div className="p-3 border-b border-border/10">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <Sparkles className="w-4 h-4" />
+                            <span className="text-xs font-bold uppercase tracking-widest">{t('aiSummary.copilot')}</span>
+                        </div>
                     </div>
 
-                    {/* Chat History */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                         {chatHistory.length === 0 && (
-                            <div className="text-center text-muted-foreground text-xs mt-10">
-                                <p>您可以針對報告內容提問，</p>
-                                <p>或輸入指示請 AI 重新整理報告。</p>
+                            <div className="text-center py-8 text-muted-foreground/50 text-sm">
+                                <p>{t('aiSummary.askAboutReport')}</p>
+                                <p className="text-xs mt-2 opacity-70">{t('aiSummary.refineExample')}</p>
                             </div>
                         )}
-                        {chatHistory.map((msg, idx) => (
-                            <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                                <div className={`max-w-[85%] rounded-lg p-3 text-sm break-words break-all whitespace-pre-wrap ${msg.role === "user"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-secondary text-secondary-foreground"
+                        {chatHistory.map((msg, i) => (
+                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user'
+                                        ? 'bg-primary text-primary-foreground rounded-br-none'
+                                        : 'bg-muted text-muted-foreground rounded-bl-none'
                                     }`}>
-                                    <div className="prose-sm dark:prose-invert">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={{
-                                                a: ({node, ...props}) => {
-                                                    const href = (props as any).href || '';
-                                                    const isHash = href.startsWith('#');
-                                                    return (
-                                                        <a
-                                                            {...props}
-                                                            target={isHash ? undefined : '_blank'}
-                                                            rel={isHash ? undefined : 'noopener noreferrer'}
-                                                        />
-                                                    );
-                                                }
-                                            }}
-                                        >
-                                            {msg.content}
-                                        </ReactMarkdown>
-                                    </div>
+                                    {msg.content}
                                 </div>
                             </div>
                         ))}
                         {loading && (
                             <div className="flex justify-start">
-                                <div className="bg-secondary text-secondary-foreground rounded-lg p-3 text-sm flex items-center">
-                                    <RotateCw className="h-3 w-3 animate-spin mr-2" />
-                                    {actionType === "refine" ? "正在重新撰寫報告..." : "正在思考..."}
+                                <div className="bg-muted/50 rounded-2xl p-3 rounded-bl-none flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    <span className="text-xs">
+                                        {actionType === 'refine' ? t('aiSummary.refining') : t('aiSummary.thinking')}
+                                    </span>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Input Area */}
-                    <div className="p-4 border-t bg-background shrink-0">
-                        <div className="flex gap-2 mb-2">
-                            <Input
-                                placeholder="輸入問題或修改指示..."
+                    <div className="p-4 border-t border-border/10 bg-white/5">
+                        <div className="flex gap-2">
+                            <Textarea
                                 value={chatInput}
-                                onChange={e => setChatInput(e.target.value)}
-                                onKeyDown={e => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
+                                onChange={(e) => setChatInput(e.target.value)}
+                                placeholder={t('aiSummary.chatPlaceholder')}
+                                className="min-h-[40px] max-h-[120px] bg-black/20 border-border/20 resize-none text-sm"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        handleSend("chat");
+                                        handleSend('chat');
                                     }
                                 }}
                             />
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="default"
-                                className="flex-1"
-                                size="sm"
-                                onClick={() => handleSend("chat")}
-                                disabled={loading || !chatInput.trim()}
-                            >
-                                <Send className="h-3 w-3 mr-2" />
-                                詢問內容
-                            </Button>
-                            <Button
-                                variant="secondary"
-                                className="flex-1"
-                                size="sm"
-                                onClick={() => handleSend("refine")}
-                                disabled={loading || !chatInput.trim()}
-                                title="根據指示重新生成報告內容"
-                            >
-                                <RotateCw className="h-3 w-3 mr-2" />
-                                重新整理
-                            </Button>
+                            <div className="flex flex-col gap-1">
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 hover:bg-primary/20 hover:text-primary"
+                                    onClick={() => handleSend('chat')}
+                                    disabled={loading || !chatInput.trim()}
+                                    title={t('aiSummary.sendChat')}
+                                >
+                                    <Send className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 hover:bg-purple-500/20 hover:text-purple-400"
+                                    onClick={() => handleSend('refine')}
+                                    disabled={loading || !chatInput.trim()}
+                                    title={t('aiSummary.refineReport')}
+                                >
+                                    <Wand2 className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </Card>
+        </div>
     );
 }

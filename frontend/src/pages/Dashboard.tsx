@@ -7,6 +7,7 @@ import { TaskGroupView, TaskImportModal } from '@/components/tracking';
 import { Link } from 'react-router-dom';
 import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
 import { ChatBox } from '@/components/Chat/ChatBox';
+import { useTranslation } from 'react-i18next';
 
 import { api } from '@/lib/api';
 import { isTokenExpired } from '@/lib/jwt';
@@ -17,6 +18,7 @@ type ViewTab = 'my-tasks' | 'tracked';
 export function Dashboard() {
     const { timer, startTimer, submitEntry } = useTimer();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [setupStatus, setSetupStatus] = useState<SetupStatus>('loading');
 
     const [errorMessage, setErrorMessage] = useState<string>('');
@@ -166,9 +168,9 @@ export function Dashboard() {
                 <div className="lg:col-span-3 space-y-6">
                     <div className="flex flex-col space-y-2">
                         <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
-                            任務工作台
+                            {t('dashboard.title')}
                         </h1>
-                        <p className="text-muted-foreground font-medium">歡迎回來，今天也要保持高產出！</p>
+                        <p className="text-muted-foreground font-medium">{t('dashboard.welcome')}</p>
                     </div>
                 </div>
             </div>
@@ -198,7 +200,7 @@ export function Dashboard() {
                                 }`}
                         >
                             <ListTodo className="h-4 w-4" />
-                            <span>我的任務</span>
+                            <span>{t('dashboard.myTasks')}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('tracked')}
@@ -208,7 +210,7 @@ export function Dashboard() {
                                 }`}
                         >
                             <Bookmark className="h-4 w-4" />
-                            <span>追蹤任務</span>
+                            <span>{t('dashboard.trackedTasks')}</span>
                         </button>
                     </div>
 
@@ -219,7 +221,7 @@ export function Dashboard() {
                             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 tech-button-primary rounded-xl font-bold"
                         >
                             <Plus className="h-4 w-4" />
-                            <span>匯入任務</span>
+                            <span>{t('dashboard.importTasks')}</span>
                         </button>
                     )}
                 </div>
