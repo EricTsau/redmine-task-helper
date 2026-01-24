@@ -60,27 +60,24 @@
   }
 
   body {
-    @apply bg-background text-foreground selection:bg-primary/30 min-h-screen antialiased;
+    @apply bg-[#f8fafc] text-slate-900 selection:bg-primary/30 min-h-screen antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background-image: fixed;
-    background-size: cover;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(210, 100%, 98%, 1) 0, transparent 50%),
+      radial-gradient(at 50% 0%, hsla(220, 100%, 97%, 1) 0, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(190, 100%, 98%, 1) 0, transparent 50%);
+    background-attachment: fixed;
   }
 }
 
 @layer components {
-  .bg-tech-gradient {
-    background: radial-gradient(ellipse at top left, #0f172a, #020617, #000000);
-  }
-
-  .bg-modern-app {
-    background-image: url('/bg-tech.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
+  .bg-tech-white {
+    background: #f8fafc url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.62 0H60v5.38L54.62 0zM5.38 0H0v5.38L5.38 0zM30 30l-5.38-5.38L30 30zM0 60h5.38L0 54.62V60zm60 0h-5.38L60 54.62V60z' fill='%23000000' fill-opacity='0.02' fill-rule='evenodd'/%3E%3C/svg%3E");
   }
 
   .glass-card {
-    @apply bg-white/10 dark:bg-slate-900/40 backdrop-blur-xl border border-white/20 dark:border-slate-800/50 shadow-2xl;
+    @apply bg-white/80 backdrop-blur-xl border border-white/40;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
   }
 
   .glass-sidebar {

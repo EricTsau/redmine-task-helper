@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from pydantic import BaseModel
 from datetime import datetime
+import json
 
 from app.database import get_session
 from app.dependencies import get_current_user, get_redmine_service, get_openai_service
@@ -16,10 +17,12 @@ router = APIRouter(tags=["ai-summary"])
 class SettingsUpdate(BaseModel):
     project_ids: List[int]
     user_ids: List[int]
+    gitlab_project_ids: List[int] = []
 
 class SettingsResponse(BaseModel):
     target_project_ids: List[int]
     target_user_ids: List[int]
+    target_gitlab_project_ids: List[int]
 
 class SummaryRequest(BaseModel):
     start_date: str
@@ -32,6 +35,7 @@ class ReportResponse(BaseModel):
     date_range_start: str
     date_range_end: str
     summary_markdown: str
+    gitlab_metrics: str = "{}"
     created_at: str
 
 def get_work_summary_service(
@@ -44,11 +48,11 @@ def get_work_summary_service(
 
 @router.get("/settings", response_model=SettingsResponse)
 def get_settings(service: WorkSummaryService = Depends(get_work_summary_service)):
-    import json
     settings = service.get_settings()
     return {
         "target_project_ids": json.loads(settings.target_project_ids),
-        "target_user_ids": json.loads(settings.target_user_ids)
+        "target_user_ids": json.loads(settings.target_user_ids),
+        "target_gitlab_project_ids": json.loads(settings.target_gitlab_project_ids)
     }
 
 @router.put("/settings", response_model=SettingsResponse)
@@ -56,11 +60,11 @@ def update_settings(
     update: SettingsUpdate,
     service: WorkSummaryService = Depends(get_work_summary_service)
 ):
-    import json
-    settings = service.update_settings(update.project_ids, update.user_ids)
+    settings = service.update_settings(update.project_ids, update.user_ids, update.gitlab_project_ids)
     return {
         "target_project_ids": json.loads(settings.target_project_ids),
-        "target_user_ids": json.loads(settings.target_user_ids)
+        "target_user_ids": json.loads(settings.target_user_ids),
+        "target_gitlab_project_ids": json.loads(settings.target_gitlab_project_ids)
     }
 
 @router.post("/generate", response_model=ReportResponse)
@@ -79,6 +83,7 @@ async def generate_summary(
             "date_range_start": report.date_range_start,
             "date_range_end": report.date_range_end,
             "summary_markdown": report.summary_markdown,
+            "gitlab_metrics": report.gitlab_metrics,
             "created_at": report.created_at.isoformat()
         }
     except Exception as e:
@@ -94,6 +99,7 @@ def get_history(service: WorkSummaryService = Depends(get_work_summary_service))
             "date_range_start": r.date_range_start or "",
             "date_range_end": r.date_range_end or "",
             "summary_markdown": r.summary_markdown,
+            "gitlab_metrics": r.gitlab_metrics,
             "created_at": r.created_at.isoformat()
         }
         for r in reports
@@ -142,6 +148,7 @@ def update_report(
             "date_range_start": updated_report.date_range_start or "",
             "date_range_end": updated_report.date_range_end or "",
             "summary_markdown": updated_report.summary_markdown,
+            "gitlab_metrics": updated_report.gitlab_metrics,
             "created_at": updated_report.created_at.isoformat()
         }
     except HTTPException:

@@ -1,14 +1,15 @@
 from typing import List, Dict, Any, Optional, TypedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import traceback
 from sqlmodel import Session, select
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.graph import StateGraph, END
 
-from app.models import User, AIWorkSummarySettings, AIWorkSummaryReport, AppSettings
+from app.models import User, AIWorkSummarySettings, AIWorkSummaryReport, AppSettings, GitLabInstance, GitLabWatchlist
 from app.services.redmine_client import RedmineService
 from app.services.openai_service import OpenAIService
+from app.services.gitlab_service import GitLabService
 from app.models import UserSettings
 
 class AgentState(TypedDict):
@@ -22,6 +23,9 @@ class AgentState(TypedDict):
     messages: List[Any]
     issues: List[Dict[str, Any]]
     time_entries: List[Dict[str, Any]]
+    gitlab_commits: List[Dict[str, Any]]
+    gitlab_mrs: List[Dict[str, Any]]
+    gitlab_metrics: Dict[str, Any]
 
 class WorkSummaryService:
     def __init__(self, session: Session, user: User, redmine: RedmineService, openai: OpenAIService):
@@ -42,10 +46,11 @@ class WorkSummaryService:
             self.session.refresh(settings)
         return settings
 
-    def update_settings(self, project_ids: List[int], user_ids: List[int]) -> AIWorkSummarySettings:
+    def update_settings(self, project_ids: List[int], user_ids: List[int], gitlab_project_ids: List[int] = []) -> AIWorkSummarySettings:
         settings = self.get_settings()
         settings.target_project_ids = json.dumps(project_ids)
         settings.target_user_ids = json.dumps(user_ids)
+        settings.target_gitlab_project_ids = json.dumps(gitlab_project_ids)
         settings.updated_at = datetime.utcnow()
         self.session.add(settings)
         self.session.commit()
@@ -99,7 +104,10 @@ class WorkSummaryService:
             "summary_markdown": "",
             "summary_markdown": "",
             "messages": [],
-            "language": language
+            "language": language,
+            "gitlab_commits": [],
+            "gitlab_mrs": [],
+            "gitlab_metrics": {}
         }
 
         try:
@@ -132,6 +140,7 @@ class WorkSummaryService:
                 date_range_start=start_date,
                 date_range_end=end_date,
                 summary_markdown=md,
+                gitlab_metrics=json.dumps(result.get("gitlab_metrics", {})),
                 conversation_history="[]"
             )
             self.session.add(report)
@@ -344,12 +353,93 @@ class WorkSummaryService:
 
         raw_text = "\n".join(raw_summary_lines)
 
-        # Return both structured data and aggregated text
+        # 3. Fetch GitLab Data
+        gitlab_commits = []
+        gitlab_mrs = []
+        gitlab_metrics = {
+            "instances": []
+        }
+
+        # Fetch all gitlab instances for this user
+        instances = self.session.exec(
+            select(GitLabInstance).where(GitLabInstance.owner_id == self.user.id)
+        ).all()
+
+        since = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+        until = datetime.fromisoformat(end_date.replace("Z", "+00:00")) + timedelta(days=1)
+
+        for instance in instances:
+            gs = GitLabService(instance)
+            # Find watchlists for this instance
+            watchlists = self.session.exec(
+                select(GitLabWatchlist)
+                .where(GitLabWatchlist.owner_id == self.user.id)
+                .where(GitLabWatchlist.instance_id == instance.id)
+            ).all()
+
+            instance_commits = []
+            instance_mrs = []
+
+            for wl in watchlists:
+                try:
+                    commits = await gs.get_commits(wl.gitlab_project_id, since, until)
+                    instance_commits.extend(commits)
+                    
+                    mrs = await gs.get_merge_requests(wl.gitlab_project_id, since)
+                    instance_mrs.extend(mrs)
+                except Exception as e:
+                    print(f"Error fetching GitLab data for {wl.project_name}: {e}")
+
+            # Parallel fetch for Commit Extensions and MR Notes
+            # Caution: If there are hundreds of commits, this might be slow or hit rate limits.
+            # We limit to first 50 commits/MRs for performance if needed, but for weekly summary it should be fine.
+            commit_extensions = []
+            if instance_commits:
+                # Limit to 50 most recent for tech stack analysis to avoid massive overhead
+                sample_commits = instance_commits[:50]
+                tasks = [gs.get_commit_diff_extensions(c["project_id"], c["id"]) for c in sample_commits]
+                commit_extensions = await asyncio.gather(*tasks)
+
+            mr_notes_counts = []
+            mr_notes_snippets = []
+            if instance_mrs:
+                # Limit to recent 10 MRs to avoid too many note requests
+                sample_mrs = instance_mrs[:10]
+                tasks_count = [gs.get_mr_notes_count(mr["project_id"], mr["iid"]) for mr in instance_mrs]
+                tasks_snippet = [gs.get_mr_notes_snippet(mr["project_id"], mr["iid"]) for mr in sample_mrs]
+                
+                results = await asyncio.gather(*(tasks_count + tasks_snippet))
+                mr_notes_counts = results[:len(tasks_count)]
+                mr_notes_snippets = results[len(tasks_count):]
+                
+                # Attach snippets to sample MRs
+                for i, snippet in enumerate(mr_notes_snippets):
+                    sample_mrs[i]["notes_summary"] = snippet
+
+            gitlab_commits.extend(instance_commits)
+            gitlab_mrs.extend(instance_mrs)
+            
+            # Calculate metrics for this instance
+            impact = gs.analyze_impact(instance_commits, commit_extensions)
+            cycle = gs.calculate_cycle_time(instance_mrs, mr_notes_counts)
+            heatmap = gs.process_commits_for_heatmap(instance_commits)
+            
+            gitlab_metrics["instances"].append({
+                "name": instance.instance_name,
+                "impact": impact,
+                "cycle": cycle,
+                "heatmap": heatmap
+            })
+
+        # Return structured data including GitLab
         return {
             "raw_logs": [{"summary": raw_text}],
             'time_entries_count': len(time_entries),
             'issues': structured_issues,
-            'time_entries': time_entries
+            'time_entries': time_entries,
+            'gitlab_commits': gitlab_commits,
+            'gitlab_mrs': gitlab_mrs,
+            'gitlab_metrics': gitlab_metrics
         }
 
     async def error_dump_to_txt(self, prompt, p_name, u_name):
@@ -469,8 +559,19 @@ class WorkSummaryService:
                 line = f"- {j.get('created_on', '')[:10]} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | {note_preview} {img_context}"
                 add_to_group(p_name, u_name, line)
             
-            # If no journals but updated_on is recent, maybe add to "System/General" or skip?
-            # We skip for now to save tokens, assuming 'work' means comments/time logging.
+            # If no journals but updated_on is recent, and we have images or key info, add a general line
+            updated_on_day = i['updated_on'].split('T')[0] if i['updated_on'] else ''
+            if not i.get('journals') and updated_on_day and start_date <= updated_on_day <= end_date:
+                u_name = "General" # Default if no specific user journal
+                created_date = i.get('created_on', '')
+                if created_date and 'T' in str(created_date):
+                     created_date = str(created_date).split('T')[0]
+                closed_date = i.get('closed_on', '')
+                if closed_date and 'T' in str(closed_date):
+                     closed_date = str(closed_date).split('T')[0]
+                
+                line = f"- {updated_on_day} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | (Issue Updated) {img_context}"
+                add_to_group(p_name, u_name, line)
 
         # Process Time Entries
         for te in time_entries:
@@ -479,6 +580,28 @@ class WorkSummaryService:
             # Since we don't have project name in TE struct easily without map, we group by User under "Time Entries"
             line = f"- {te.get('date')} | Issue #{te.get('issue_id')} | {te.get('hours')}h | {te.get('comments')}"
             add_to_group("Time Logs", u_name, line)
+
+        # Process GitLab Commits
+        gitlab_commits = state.get("gitlab_commits", [])
+        for c in gitlab_commits:
+            u_name = c.get("author_name", "Unknown Dev")
+            project_name = "Code Updates" # Or map from project_id if available
+            date = c.get("created_at", "")[:10]
+            message = c.get("message", "").replace("\n", " ")
+            stats = c.get("stats", {})
+            line = f"- {date} | COMMIT | {message} (+{stats.get('additions', 0)} -{stats.get('deletions', 0)}) | [View]({c.get('web_url')})"
+            add_to_group(project_name, u_name, line)
+
+        # Process GitLab MRs
+        gitlab_mrs = state.get("gitlab_mrs", [])
+        for mr in gitlab_mrs:
+            u_name = mr.get("author", {}).get("name", "Unknown Dev")
+            project_name = "Code Updates"
+            date = mr.get("updated_at", "")[:10]
+            status = mr.get("state", "")
+            notes = f" | Notes: {mr['notes_summary']}" if mr.get("notes_summary") else ""
+            line = f"- {date} | MR | {mr.get('title')} ({status}){notes} | [View]({mr.get('web_url')})"
+            add_to_group(project_name, u_name, line)
 
         # 2. Map Phase: Summarize each (Project, User) chunk
         import asyncio
@@ -511,7 +634,12 @@ class WorkSummaryService:
                - Spent Hours (Sum up time entries if any)
                - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
             
-            3. **Attachments Footer**:
+            3. **Git Log Translation (Critical)**:
+               - For COMMIT items, do NOT just copy the git log.
+               - Translate technical commit messages into human-readable descriptions of "Feature Development" or "Bug Fix".
+               - Try to correlate them with Redmine Issue IDs if mentioned in the message or related issues.
+
+            4. **Attachments Footer**:
                - Identify any images mentioned in logs (they will have placeholders like IMG_PLACEHOLDER_0, IMG_PLACEHOLDER_1, etc.).
                - For each image placeholder, output using this EXACT format: `![Issue #ID - Description](IMG_PLACEHOLDER_N)`
                - Example: If you see IMG_PLACEHOLDER_0, write `![Issue #123 - Screenshot](IMG_PLACEHOLDER_0)`
@@ -651,15 +779,28 @@ class WorkSummaryService:
 
         final_report = header + grand_summary + combined_chunk_text
         
-        # Optional: Add error dump logic if env var IS set
-        import os
-        if os.environ.get('AI_DEBUG_DUMP_ON_ERROR'):
-             # We dump regardless of error if strictly requested, OR we could wrap this whole block in try/except 
-             # but user asked to dump "if token exploded" which implies error handling.
-             # Since we removed the final LLM call, token explosion logic is mainly in Map phase.
-             # We should wrap Map phase in try/except to catch token errors and dump there.
-             pass
-
+        # Add GitLab Metrics Dashboard at the end
+        metrics = state.get("gitlab_metrics", {})
+        if metrics.get("instances"):
+            final_report += "\n\n---\n\n## GitLab 代碼脈動 (GitLab Pulse)\n"
+            for inst in metrics["instances"]:
+                final_report += f"### {inst['name']}\n"
+                impact = inst["impact"]
+                cycle = inst["cycle"]
+                
+                # Impact Highlights
+                final_report += f"- **代碼產出**: {impact['total_commits']} Commits, +{impact['additions']} / -{impact['deletions']} Lines\n"
+                
+                # Tech Stack
+                if impact.get("tech_stack"):
+                    tech_line = ", ".join([f"{t['language']} ({t['percentage']}%)" for t in impact["tech_stack"]])
+                    final_report += f"- **技術重心**: {tech_line}\n"
+                
+                # Collaboration Metrics
+                avg_time = cycle['average_cycle_time_seconds']/3600
+                final_report += f"- **審查效率**: 平均 MR 合併時間 {avg_time:.1f} 小時\n"
+                final_report += f"- **協作活躍**: {cycle['opened_count']} 個新 MR, {cycle['merged_count']} 個已合併, 共 {cycle['total_review_notes']} 則評論\n"
+        
         return {"summary_markdown": final_report, 'issues': issues, 'time_entries': time_entries}
 
     async def chat_with_report(self, report_id: int, message: str, action: str) -> Dict[str, Any]:

@@ -78,8 +78,9 @@ app.include_router(holidays.router, prefix="/api/v1/holidays", tags=["holidays"]
 app.include_router(prd.router, prefix="/api/v1", tags=["prd"])
 from app.routers import planning
 app.include_router(planning.router, prefix="/api/v1", tags=["planning"])
-from app.routers import dashboard
+from app.routers import dashboard, gitlab
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(gitlab.router, prefix="/api/v1/gitlab", tags=["gitlab"])
 
 @app.get("/")
 async def root():

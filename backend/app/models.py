@@ -27,6 +27,8 @@ class User(SQLModel, table=True):
     settings: Optional["UserSettings"] = Relationship(back_populates="user")
     work_summary_settings: Optional["AIWorkSummarySettings"] = Relationship(back_populates="owner")
     work_summary_reports: List["AIWorkSummaryReport"] = Relationship(back_populates="owner")
+    gitlab_instances: List["GitLabInstance"] = Relationship(back_populates="owner")
+    gitlab_watchlists: List["GitLabWatchlist"] = Relationship(back_populates="owner")
 
 class LDAPSettings(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)
@@ -292,6 +294,7 @@ class AIWorkSummarySettings(SQLModel, table=True):
     # 關注清單 (JSON list of IDs)
     target_project_ids: str = Field(default="[]") 
     target_user_ids: str = Field(default="[]")
+    target_gitlab_project_ids: str = Field(default="[]")
     
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -309,6 +312,7 @@ class AIWorkSummaryReport(SQLModel, table=True):
     
     # 報告內容
     summary_markdown: str = Field(default="")
+    gitlab_metrics: str = Field(default="{}")
     
     # 對話紀錄 for Follow-up
     conversation_history: str = Field(default="[]") # JSON
@@ -316,3 +320,40 @@ class AIWorkSummaryReport(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     owner: User = Relationship(back_populates="work_summary_reports")
+
+
+class GitLabInstance(SQLModel, table=True):
+    """GitLab 伺服器實體設定"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    instance_name: str = Field(description="實例名稱，如 GitLab-Office")
+    url: str = Field(description="GitLab URL")
+    personal_access_token: str = Field(description="個人存取權杖")
+    
+    # 限制資料範圍的過濾器
+    target_users_json: str = Field(default="[]", description="目標使用者清單 (JSON)")
+    target_projects_json: str = Field(default="[]", description="目標專案路徑清單 (JSON)")
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="gitlab_instances")
+
+
+class GitLabWatchlist(SQLModel, table=True):
+    """使用者關注的 GitLab 專案"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    instance_id: int = Field(foreign_key="gitlabinstance.id")
+    gitlab_project_id: int = Field(description="GitLab 內部的專案 ID")
+    project_name: str
+    project_path_with_namespace: str
+    
+    # 是否納入報表計算
+    is_included: bool = Field(default=True)
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    owner: User = Relationship(back_populates="gitlab_watchlists")

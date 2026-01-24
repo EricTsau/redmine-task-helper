@@ -98,6 +98,21 @@
             "testSuccess": "Connection successful",
             "testFailed": "Connection failed"
         },
+        "gitlab": {
+            "title": "GitLab Pulse",
+            "manageInstances": "Manage Multi-Environment GitLab Instances",
+            "addInstance": "Add Instance",
+            "instanceName": "Instance Name",
+            "url": "Server URL",
+            "token": "Personal Access Token (PAT)",
+            "saveAndConnect": "Connect & Save",
+            "connected": "Connected",
+            "noInstances": "No GitLab instances configured yet.",
+            "noInstancesHint": "Add an instance to start monitoring code pulse",
+            "confirmDelete": "Are you sure you want to delete this GitLab instance?",
+            "deleteSuccess": "Instance deleted",
+            "addSuccess": "Instance added"
+        },
         "language": {
             "title": "Language",
             "select": "Select Language"

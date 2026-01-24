@@ -9,8 +9,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AIChatFloating } from "./AIChatFloating";
-import { Save, RotateCw, Pencil, Download, Check } from "lucide-react";
+import { Save, RotateCw, Pencil, Download, Check, Globe, Activity, GitCommit, GitMerge } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
 
 interface SummaryViewProps {
     report: {
@@ -19,6 +20,7 @@ interface SummaryViewProps {
         date_range_start: string;
         date_range_end: string;
         summary_markdown: string;
+        gitlab_metrics?: string;
     };
     onReportUpdated?: (report: any) => void;
 }
@@ -236,6 +238,110 @@ export function SummaryView(props: SummaryViewProps) {
                         </div>
                     ) : (
                         <>
+                            {/* GitLab Pulse Dashboard */}
+                            {(() => {
+                                try {
+                                    const metrics = JSON.parse(report.gitlab_metrics || "{}");
+                                    if (!metrics.instances || metrics.instances.length === 0) return null;
+
+                                    return (
+                                        <div className="mb-10 space-y-6">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <div className="p-2 bg-primary/10 rounded-lg">
+                                                    <Activity className="w-5 h-5 text-primary" />
+                                                </div>
+                                                <h2 className="text-xl font-black tracking-tight text-slate-800">GitLab Pulse Dashboard</h2>
+                                            </div>
+
+                                            {metrics.instances.map((inst: any, idx: number) => (
+                                                <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <Globe className="w-5 h-5 text-cyan-600" />
+                                                            <h3 className="font-bold text-slate-800">{inst.name}</h3>
+                                                        </div>
+                                                        <div className="flex gap-4">
+                                                            <div className="text-center px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Commits</div>
+                                                                <div className="text-lg font-black text-slate-800">{inst.impact.total_commits}</div>
+                                                            </div>
+                                                            <div className="text-center px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MR Time</div>
+                                                                <div className="text-lg font-black text-slate-800">{(inst.cycle.average_cycle_time_seconds / 3600).toFixed(1)}h</div>
+                                                            </div>
+                                                            <div className="text-center px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Reviews</div>
+                                                                <div className="text-lg font-black text-slate-800">{inst.cycle.total_review_notes}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {inst.impact.tech_stack && inst.impact.tech_stack.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {inst.impact.tech_stack.map((item: any, i: number) => (
+                                                                <div key={i} className="px-3 py-1 bg-white border border-slate-100 rounded-full flex items-center gap-2 shadow-sm">
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">{item.language}</span>
+                                                                    <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-cyan-500" style={{ width: `${item.percentage}%` }} />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-black text-cyan-600">{item.percentage}%</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    <div className="bg-white rounded-xl p-4 border border-slate-100">
+                                                        <ActivityHeatmap data={inst.heatmap} />
+                                                    </div>
+
+                                                    <div className="grid grid-cols-4 gap-4">
+                                                        <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                                                            <div className="p-2 bg-green-50 rounded-lg">
+                                                                <GitCommit className="w-4 h-4 text-green-600" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Additions</div>
+                                                                <div className="text-sm font-bold text-slate-700">+{inst.impact.additions}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                                                            <div className="p-2 bg-red-50 rounded-lg">
+                                                                <GitCommit className="w-4 h-4 text-red-600" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Deletions</div>
+                                                                <div className="text-sm font-bold text-slate-700">-{inst.impact.deletions}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                                                            <div className="p-2 bg-indigo-50 rounded-lg">
+                                                                <GitMerge className="w-4 h-4 text-indigo-600" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Merged</div>
+                                                                <div className="text-sm font-bold text-slate-700">{inst.cycle.merged_count}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
+                                                            <div className="p-2 bg-cyan-50 rounded-lg">
+                                                                <GitMerge className="w-4 h-4 text-cyan-600" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Opened</div>
+                                                                <div className="text-sm font-bold text-slate-700">{inst.cycle.opened_count}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="border-b border-slate-200 pt-4" />
+                                        </div>
+                                    );
+                                } catch (e) {
+                                    return null;
+                                }
+                            })()}
+
                             {/* If report indicates no updates, show clearer guidance */}
                             {(currentMarkdown.includes('Found 0 updated issues') || currentMarkdown.includes('無更新')) && (
                                 <div className="mb-4 p-4 rounded border bg-yellow-50 text-sm">

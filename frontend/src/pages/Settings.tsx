@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { WatchlistSettings } from '@/components/dashboard/WatchlistSettings';
+import GitLabSettings from '@/components/GitLabSettings';
 import { useAuth } from '@/contexts/AuthContext';
-import { Shield, AlertTriangle, Link as LinkIcon, Sparkles, Globe } from 'lucide-react';
+import { Shield, AlertTriangle, Link as LinkIcon, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
 import { api } from '@/lib/api';
 
 interface SettingsData {
@@ -39,7 +39,6 @@ export function Settings() {
     const [pwdStatus, setPwdStatus] = useState<string>('');
 
     useEffect(() => {
-        // Load settings from backend
         api.get<SettingsData>('/settings')
             .then(data => {
                 if (data) {
@@ -58,50 +57,42 @@ export function Settings() {
             .catch(console.error);
     }, []);
 
+    const updateField = (field: keyof SettingsData, value: string | number | null) => {
+        setSettings(prev => ({ ...prev, [field]: value }));
+    };
+
     const handleSaveRedmine = async () => {
         setStatus(t('settings.savingRedmine'));
         try {
-            const backendSettings = {
+            const data = await api.put<SettingsData>('/settings', {
                 redmine_url: settings.redmine_url,
                 redmine_token: settings.redmine_token,
                 redmine_default_activity_id: settings.redmine_default_activity_id ? parseInt(settings.redmine_default_activity_id) : null,
                 task_warning_days: settings.task_warning_days,
                 task_severe_warning_days: settings.task_severe_warning_days
-            };
-
-            const data = await api.put<SettingsData>('/settings', backendSettings);
+            });
             updateField('redmine_token', data.redmine_token);
-
             setStatus(t('settings.redmineSaved'));
             setTimeout(() => setStatus(''), 2000);
-        } catch (e: any) {
-            setStatus('Error: ' + e.message);
-        }
+        } catch (e: any) { setStatus('Error: ' + e.message); }
     };
 
     const handleSaveOpenAI = async () => {
         setStatus(t('settings.savingOpenAI'));
         try {
-            const backendSettings = {
+            const data = await api.put<SettingsData>('/settings', {
                 openai_url: settings.openai_url,
                 openai_key: settings.openai_key,
                 openai_model: settings.openai_model
-            };
-
-            const data = await api.put<SettingsData>('/settings', backendSettings);
+            });
             updateField('openai_key', data.openai_key);
-
             setStatus(t('settings.openaiSaved'));
             setTimeout(() => setStatus(''), 2000);
-        } catch (e: any) {
-            setStatus('Error: ' + e.message);
-        }
+        } catch (e: any) { setStatus('Error: ' + e.message); }
     };
 
     const saveTaskWarnings = async () => {
-        // Prevent saving if values are invalid
         if (!settings.task_warning_days || !settings.task_severe_warning_days) return;
-
         setStatus(t('settings.savingWarnings'));
         try {
             await api.put<SettingsData>('/settings', {
@@ -110,9 +101,7 @@ export function Settings() {
             });
             setStatus(t('settings.warningsSaved'));
             setTimeout(() => setStatus(''), 2000);
-        } catch (e: any) {
-            setStatus('Error saving warnings: ' + e.message);
-        }
+        } catch (e: any) { setStatus('Error: ' + e.message); }
     };
 
     const handlePasswordChange = async (e: React.FormEvent) => {
@@ -123,16 +112,11 @@ export function Settings() {
         }
         setPwdStatus(t('settings.updating'));
         try {
-            await api.post('/auth/change-password', {
-                old_password: passwords.old,
-                new_password: passwords.new
-            });
+            await api.post('/auth/change-password', { old_password: passwords.old, new_password: passwords.new });
             setPwdStatus(t('settings.security.passwordChanged'));
             setPasswords({ old: '', new: '', confirm: '' });
             setTimeout(() => setPwdStatus(''), 3000);
-        } catch (e: any) {
-            setPwdStatus('Error: ' + (e.response?.data?.detail || e.message));
-        }
+        } catch (e: any) { setPwdStatus('Error: ' + (e.response?.data?.detail || e.message)); }
     };
 
     const testConnection = async () => {
@@ -143,25 +127,16 @@ export function Settings() {
                 api_key: settings.redmine_token === '******' ? '******' : settings.redmine_token
             });
             setTestStatus(`✓ Connected as ${data.user.firstname}`);
-        } catch (e: any) {
-            setTestStatus('✗ Connection failed');
-        }
+        } catch (e: any) { setTestStatus('✗ Connection failed'); }
     };
 
     const testOpenAI = async () => {
         setOpenaiTestStatus(t('settings.testing'));
         try {
-            const headers: Record<string, string> = {};
-            // Only send if it's not the masked value
-            if (settings.openai_key && settings.openai_key !== '******') {
-                headers['X-OpenAI-Key'] = settings.openai_key;
-            }
-            if (settings.openai_url) {
-                headers['X-OpenAI-URL'] = settings.openai_url;
-            }
-            if (settings.openai_model) {
-                headers['X-OpenAI-Model'] = settings.openai_model;
-            }
+            const headers: any = {};
+            if (settings.openai_key !== '******') headers['X-OpenAI-Key'] = settings.openai_key;
+            headers['X-OpenAI-URL'] = settings.openai_url;
+            headers['X-OpenAI-Model'] = settings.openai_model;
 
             await api.post('/chat/test-connection', {}, { headers });
             setOpenaiTestStatus(`✓ Connected(${settings.openai_model})`);
@@ -170,299 +145,220 @@ export function Settings() {
         }
     };
 
-    const updateField = (field: keyof SettingsData, value: string) => {
-        setSettings(prev => ({ ...prev, [field]: value }));
-    };
-
     return (
-        <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <div className="space-y-2">
-                <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/50">
-                    {t('settings.title')}
-                </h1>
-                <p className="text-muted-foreground font-medium">{t('settings.subtitle')}</p>
+        <div className="max-w-7xl mx-auto space-y-12 pb-20 animate-in fade-in duration-1000">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 pt-8 px-4">
+                <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-sky-100 text-sky-600 rounded-xl shadow-sm border border-sky-200/50">
+                            <SettingsIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-[0.3em] text-sky-500/80">System Configuration</span>
+                    </div>
+                    <div>
+                        <h1 className="text-6xl font-black tracking-tight text-slate-900 leading-tight">
+                            系統設定
+                        </h1>
+                        <p className="text-slate-400 font-bold text-lg mt-1">設定連線資訊與偏好選項</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4 bg-white p-2.5 rounded-2xl shadow-sm border border-slate-100">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3">選擇語言</span>
+                    <select
+                        value={i18n.language}
+                        onChange={(e) => i18n.changeLanguage(e.target.value)}
+                        className="h-10 px-4 rounded-xl border border-slate-200 bg-slate-50 font-black text-xs outline-none focus:ring-2 focus:ring-sky-500/20 transition-all cursor-pointer"
+                    >
+                        <option value="zh-TW">繁體中文</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Security Section */}
-                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden bg-gradient-to-br from-white/5 to-transparent">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/30" />
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-tech-cyan/10 rounded-xl border border-tech-cyan/20">
-                            <Shield className="h-6 w-6 text-tech-cyan" />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">{t('settings.security.title')}</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 px-4">
+                {/* Left Column (GitLab, Redmine, OpenAI) */}
+                <div className="lg:col-span-8 space-y-10">
+                    {/* GitLab Section - Clean White Focus */}
+                    <section className="bg-white rounded-[48px] border border-slate-100 p-12 space-y-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all duration-500">
+                        <GitLabSettings />
+                    </section>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        {/* Redmine Card */}
+                        <section className="bg-white rounded-[40px] border border-slate-100 p-10 space-y-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all duration-500">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-sky-100/50 rounded-2xl border border-sky-100 flex items-center justify-center">
+                                    <LinkIcon className="h-6 w-6 text-sky-500" />
+                                </div>
+                                <h2 className="text-2xl font-black tracking-tight text-slate-800">Redmine 樞紐</h2>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">網路端點網址</label>
+                                    <input
+                                        type="url"
+                                        value={settings.redmine_url}
+                                        onChange={(e) => updateField('redmine_url', e.target.value)}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-sky-500/20 outline-none transition-all placeholder:text-slate-300"
+                                        placeholder="http://127.0.0.1:10083"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">同步金鑰 (API)</label>
+                                    <input
+                                        type="password"
+                                        value={settings.redmine_token}
+                                        onChange={(e) => updateField('redmine_token', e.target.value)}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 pt-4">
+                                <button onClick={handleSaveRedmine} className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
+                                <button onClick={testConnection} className="w-full py-3 text-slate-400 hover:text-sky-500 font-black text-[10px] uppercase tracking-widest transition-all">測試連線狀態</button>
+                                {testStatus && <p className="text-[10px] font-black uppercase text-center text-sky-500 animate-pulse">{testStatus}</p>}
+                            </div>
+                        </section>
+
+                        {/* OpenAI Card */}
+                        <section className="bg-white rounded-[40px] border border-slate-100 p-10 space-y-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)] transition-all duration-500">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-indigo-100/50 rounded-2xl border border-indigo-100 flex items-center justify-center">
+                                    <Sparkles className="h-6 w-6 text-indigo-500" />
+                                </div>
+                                <h2 className="text-2xl font-black tracking-tight text-slate-800">AI 智慧引擎</h2>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">OPENAI API KEY</label>
+                                    <input
+                                        type="password"
+                                        value={settings.openai_key}
+                                        onChange={(e) => updateField('openai_key', e.target.value)}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                        placeholder="••••••"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">SELECT MODEL</label>
+                                    <input
+                                        type="text"
+                                        value={settings.openai_model}
+                                        onChange={(e) => updateField('openai_model', e.target.value)}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                        placeholder="openai/gpt-4o-mini"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 pt-4">
+                                <button onClick={handleSaveOpenAI} className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
+                                <button onClick={testOpenAI} className="w-full py-3 text-slate-400 hover:text-indigo-500 font-black text-[10px] uppercase tracking-widest transition-all">測試模型響應</button>
+                                {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-indigo-500 animate-pulse">{openaiTestStatus}</p>}
+                            </div>
+                        </section>
                     </div>
 
-                    {user?.auth_source === 'ldap' ? (
-                        <div className="flex items-start gap-4 p-6 bg-tech-indigo/5 border border-tech-indigo/10 rounded-2xl group transition-all hover:bg-tech-indigo/10">
-                            <AlertTriangle className="h-6 w-6 text-tech-indigo flex-shrink-0 animate-pulse" />
-                            <div className="space-y-1">
-                                <p className="text-xs font-bold text-foreground">{t('settings.security.ldapTitle')}</p>
-                                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                    {t('settings.security.ldapNotice')}
-                                </p>
+                    <div className="bg-white rounded-[48px] border border-slate-100 overflow-hidden shadow-sm">
+                        <WatchlistSettings />
+                    </div>
+                </div>
+
+                {/* Right Column (Security, Warnings) */}
+                <div className="lg:col-span-4 space-y-10">
+                    <section className="bg-white rounded-[40px] border border-slate-100 p-10 space-y-8 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-red-50 rounded-2xl border border-red-100">
+                                <Shield className="h-6 w-6 text-red-500" />
                             </div>
+                            <h2 className="text-2xl font-black tracking-tight text-slate-800">安全核心</h2>
                         </div>
-                    ) : (
-                        <form onSubmit={handlePasswordChange} className="space-y-6">
-                            <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.currentSignature')}</label>
+
+                        {user?.auth_source === 'ldap' ? (
+                            <div className="bg-amber-50 border border-amber-100/50 p-6 rounded-3xl">
+                                <p className="text-sm font-bold text-amber-800 leading-relaxed opacity-70">您的帳號管理權限來自外部目錄，如需變更安全性憑證請洽管理人員。</p>
+                            </div>
+                        ) : (
+                            <form onSubmit={handlePasswordChange} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">目前簽章</label>
                                     <input
                                         type="password"
                                         value={passwords.old}
                                         onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
-                                        className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold"
                                         placeholder="••••••••"
-                                        required
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.newHash')}</label>
-                                        <input
-                                            type="password"
-                                            value={passwords.new}
-                                            onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
-                                            placeholder="••••••••"
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.verifyHash')}</label>
-                                        <input
-                                            type="password"
-                                            value={passwords.confirm}
-                                            onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                                            className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all"
-                                            placeholder="••••••••"
-                                            required
-                                        />
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">新雜湊</label>
+                                    <input
+                                        type="password"
+                                        value={passwords.new}
+                                        onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold"
+                                        placeholder="••••••••"
+                                    />
                                 </div>
+                                <button type="submit" className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 transition-all active:scale-[0.98]">更新協議</button>
+                                {pwdStatus && <p className="text-[10px] font-black uppercase text-center text-red-500">{pwdStatus}</p>}
+                            </form>
+                        )}
+                    </section>
+
+                    <section className="bg-white rounded-[40px] border border-slate-100 p-10 space-y-10 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-rose-50 rounded-2xl border border-rose-100">
+                                <AlertTriangle className="h-6 w-6 text-rose-500" />
                             </div>
-                            <div className="flex items-center justify-between pt-2">
-                                <button
-                                    type="submit"
-                                    className="px-8 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-glow"
-                                >
-                                    {t('settings.security.updatePassword')}
-                                </button>
-                                {pwdStatus && <span className={`text-[10px] font-black uppercase tracking-widest ${pwdStatus.startsWith('Error') ? 'text-tech-rose' : 'text-tech-cyan animate-pulse'}`}>{pwdStatus}</span>}
+                            <h2 className="text-2xl font-black tracking-tight text-slate-800">警示門檻</h2>
+                        </div>
+
+                        <div className="space-y-10">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-end">
+                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Standard Warning</span>
+                                    <span className="text-xl font-black text-rose-500">{settings.task_warning_days}D</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    value={settings.task_warning_days}
+                                    step="1" min="1" max="14"
+                                    onChange={(e) => setSettings(p => ({ ...p, task_warning_days: parseInt(e.target.value) }))}
+                                    onMouseUp={saveTaskWarnings}
+                                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                                />
                             </div>
-                        </form>
-                    )}
-                </section>
-
-                {/* Task Warnings Section */}
-                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden bg-gradient-to-br from-white/5 to-transparent">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-rose/30" />
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-tech-rose/10 rounded-xl border border-tech-rose/20">
-                            <AlertTriangle className="h-6 w-6 text-tech-rose" />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">{t('settings.warnings.title')}</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6 pt-2">
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-end">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.warnings.standardDays')}</label>
-                                <span className="text-lg font-black text-tech-rose">{settings.task_warning_days}d</span>
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-end">
+                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Critical Warning</span>
+                                    <span className="text-xl font-black text-rose-500">{settings.task_severe_warning_days}D</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    value={settings.task_severe_warning_days}
+                                    step="1" min="1" max="30"
+                                    onChange={(e) => setSettings(p => ({ ...p, task_severe_warning_days: parseInt(e.target.value) }))}
+                                    onMouseUp={saveTaskWarnings}
+                                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                                />
                             </div>
-                            <input
-                                type="range"
-                                value={settings.task_warning_days}
-                                step="1"
-                                min="1"
-                                max="14"
-                                onChange={(e) => setSettings(p => ({ ...p, task_warning_days: parseInt(e.target.value) }))}
-                                onMouseUp={saveTaskWarnings}
-                                className="w-full accent-tech-rose"
-                            />
-                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">{t('settings.warnings.standardHint')}</p>
                         </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-end">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.warnings.criticalDays')}</label>
-                                <span className="text-lg font-black text-tech-rose">{settings.task_severe_warning_days}d</span>
-                            </div>
-                            <input
-                                type="range"
-                                value={settings.task_severe_warning_days}
-                                step="1"
-                                min="1"
-                                max="30"
-                                onChange={(e) => setSettings(p => ({ ...p, task_severe_warning_days: parseInt(e.target.value) }))}
-                                onMouseUp={saveTaskWarnings}
-                                className="w-full accent-tech-rose"
-                            />
-                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">{t('settings.warnings.criticalHint')}</p>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Redmine Section */}
-                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-1 bg-gradient-to-br from-white/5 to-transparent">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-primary/30" />
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-primary/10 rounded-xl border border-primary/20">
-                            <LinkIcon className="h-6 w-6 text-primary" />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">{t('settings.redmine.title')}</h2>
-                    </div>
-
-                    <div className="space-y-5">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.url')}</label>
-                            <input
-                                type="url"
-                                value={settings.redmine_url}
-                                onChange={(e) => updateField('redmine_url', e.target.value)}
-                                placeholder="https://redmine.example.com"
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.apiKey')}</label>
-                            <input
-                                type="password"
-                                value={settings.redmine_token}
-                                onChange={(e) => updateField('redmine_token', e.target.value)}
-                                placeholder="••••••••••••••••••••••••"
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.defaultActivity')}</label>
-                            <input
-                                type="number"
-                                value={settings.redmine_default_activity_id}
-                                onChange={(e) => updateField('redmine_default_activity_id', e.target.value)}
-                                placeholder="e.g. 9"
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 pt-4">
-                        <button
-                            onClick={testConnection}
-                            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                        >
-                            {t('settings.redmine.testConnection')}
-                        </button>
-                        <button
-                            onClick={handleSaveRedmine}
-                            className="flex-1 px-4 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-widest shadow-glow"
-                        >
-                            {t('settings.redmine.save')}
-                        </button>
-                    </div>
-                    {testStatus && <p className="text-[10px] font-black uppercase text-center text-primary tracking-widest animate-pulse">{testStatus}</p>}
-                </section>
-
-                {/* OpenAI Section */}
-                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-1 bg-gradient-to-br from-white/5 to-transparent">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-tech-indigo/30" />
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-tech-indigo/10 rounded-xl border border-tech-indigo/20">
-                            <Sparkles className="h-6 w-6 text-tech-indigo" />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">{t('settings.openai.title')}</h2>
-                    </div>
-
-                    <div className="space-y-5">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.url')}</label>
-                            <input
-                                type="url"
-                                value={settings.openai_url}
-                                onChange={(e) => updateField('openai_url', e.target.value)}
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.apiKey')}</label>
-                            <input
-                                type="password"
-                                value={settings.openai_key}
-                                onChange={(e) => updateField('openai_key', e.target.value)}
-                                placeholder="sk-••••••••••••••••••••"
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.model')}</label>
-                            <input
-                                type="text"
-                                value={settings.openai_model}
-                                onChange={(e) => updateField('openai_model', e.target.value)}
-                                placeholder="gpt-4o-mini"
-                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 pt-4">
-                        <button
-                            onClick={testOpenAI}
-                            className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
-                        >
-                            {t('settings.openai.testModel')}
-                        </button>
-                        <button
-                            onClick={handleSaveOpenAI}
-                            className="flex-1 px-4 py-3 bg-gradient-to-r from-tech-indigo to-primary text-white shadow-glow-indigo rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-                        >
-                            {t('settings.openai.save')}
-                        </button>
-                    </div>
-                    {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-tech-indigo tracking-widest animate-pulse">{openaiTestStatus}</p>}
-                </section>
-
-                {/* Language Section */}
-                <section className="glass-card rounded-[32px] border-border/20 p-8 space-y-8 relative overflow-hidden lg:col-span-2 bg-gradient-to-br from-white/5 to-transparent">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-green-500/30" />
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20">
-                            <Globe className="h-6 w-6 text-green-500" />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight">{t('settings.language.title')}</h2>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <label className="text-sm font-bold text-muted-foreground">{t('settings.language.select')}</label>
-                        <select
-                            value={i18n.language}
-                            onChange={(e) => i18n.changeLanguage(e.target.value)}
-                            className="h-12 px-4 rounded-xl border border-white/10 bg-black/20 font-bold focus:ring-2 focus:ring-green-500/30 outline-none transition-all"
-                        >
-                            <option value="zh-TW">繁體中文</option>
-                            <option value="en">English</option>
-                        </select>
-                    </div>
-                </section>
+                    </section>
+                </div>
             </div>
 
-            {/* Watchlist Section - Should probably be updated inside the component itself for consistency */}
-            <div className="glass-card rounded-[40px] border-border/20 p-2 overflow-hidden shadow-2xl relative">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-tech-cyan via-tech-indigo to-tech-rose opacity-20" />
-                <WatchlistSettings />
-            </div>
-
-            {/* Central Status Messenger */}
+            {/* Status Messenger */}
             {status && (
-                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 duration-300">
-                    <div className="bg-primary/90 backdrop-blur-md text-primary-foreground px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-[0_0_40px_rgba(var(--primary),0.4)] flex items-center gap-4">
-                        <Sparkles className="h-4 w-4 animate-spin" />
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
+                    <div className="bg-[#1e293b] text-white px-10 py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.3em] shadow-2xl flex items-center gap-5 border border-white/10">
+                        <div className="w-2 h-2 bg-sky-400 rounded-full animate-ping" />
                         {status}
                     </div>
                 </div>

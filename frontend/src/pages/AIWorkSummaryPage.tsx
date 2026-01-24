@@ -52,13 +52,13 @@ export default function AIWorkSummaryPage() {
         try {
             const res = await api.post("/ai-summary/generate", {
                 start_date: startDate,
-                end_date: endDate || undefined, // let backend handle default
+                end_date: endDate || undefined,
                 language: i18n.language || 'zh-TW'
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCurrentReport(res as any);
-            fetchHistory(); // Refresh list
+            fetchHistory();
         } catch (error) {
             showError(t('aiSummary.generateFailed'));
         } finally {
@@ -66,10 +66,7 @@ export default function AIWorkSummaryPage() {
         }
     };
 
-
     const handleSelectReport = (id: number) => {
-        // Find existing or fetch details
-        // Since list response has full markdown (wait, implementation details: router sends full markdown in list? yes.)
         const r = reports.find(item => item.id === id);
         if (r) {
             setCurrentReport(r);
@@ -94,7 +91,6 @@ export default function AIWorkSummaryPage() {
         }
     };
 
-    // Callback when a report is updated (e.g. title or content changed)
     const handleReportUpdate = (updatedReport: any) => {
         setReports(prev => prev.map(r => r.id === updatedReport.id ? { ...r, ...updatedReport } : r));
         if (currentReport?.id === updatedReport.id) {
@@ -242,8 +238,6 @@ export default function AIWorkSummaryPage() {
                         >
                             {isSetupCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
                         </button>
-                        {/* ... */}
-
 
                         {currentReport && (
                             <div className="flex items-center gap-3">

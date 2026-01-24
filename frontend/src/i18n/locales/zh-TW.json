@@ -98,6 +98,21 @@
             "testSuccess": "連線成功",
             "testFailed": "連線失敗"
         },
+        "gitlab": {
+            "title": "GitLab Pulse 脈動",
+            "manageInstances": "管理多環境 GitLab 實例",
+            "addInstance": "新增實例",
+            "instanceName": "實例名稱",
+            "url": "伺服器網址",
+            "token": "個人存取權杖 (PAT)",
+            "saveAndConnect": "連線並儲存",
+            "connected": "連線正常",
+            "noInstances": "尚未設定任何 GitLab 實例。",
+            "noInstancesHint": "新增一個實例以開始監控代碼脈動",
+            "confirmDelete": "確定要刪除此 GitLab 實例嗎？",
+            "deleteSuccess": "實例已刪除",
+            "addSuccess": "實例已新增"
+        },
         "language": {
             "title": "語言設定",
             "select": "選擇語言"

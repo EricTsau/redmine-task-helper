@@ -186,16 +186,18 @@ export function WatchlistSettings() {
     const { t } = useTranslation();
 
     return (
-        <section className="glass-card rounded-2xl p-6 space-y-4">
+        <section className="bg-white rounded-[48px] p-10 space-y-10">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="w-1 h-5 bg-primary rounded-full" />
-                    <h2 className="text-sm font-bold">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-sky-100/50 rounded-2xl border border-sky-100">
+                        <Plus className="w-6 h-6 text-sky-500" />
+                    </div>
+                    <h2 className="text-2xl font-black tracking-tight text-slate-800">
                         {t('watchlist.title')}
                     </h2>
                 </div>
-                <button onClick={fetchData} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-                    <Loader2 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <button onClick={fetchData} className="p-3 hover:bg-slate-50 rounded-2xl transition-all active:scale-95 group">
+                    <Loader2 className={`h-6 w-6 text-slate-300 group-hover:text-sky-500 ${loading ? 'animate-spin' : ''}`} />
                 </button>
             </div>
 
@@ -204,22 +206,22 @@ export function WatchlistSettings() {
             </p>
 
             {/* Watchlist */}
-            <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('watchlist.watching')} ({watchlist.length})</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-6">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('watchlist.watching')} ({watchlist.length})</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {watchlist.map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-3 bg-white/5 border border-border/20 rounded-xl">
-                            <span className="font-medium text-sm">{item.project_name}</span>
+                        <div key={item.id} className="group flex items-center justify-between p-5 bg-slate-50/50 border border-slate-100 rounded-[28px] hover:bg-white hover:shadow-xl hover:border-white transition-all duration-300">
+                            <span className="font-bold text-slate-700">{item.project_name}</span>
                             <button
                                 onClick={() => removeFromWatchlist(item.redmine_project_id)}
-                                className="text-muted-foreground hover:text-destructive p-1 transition-colors"
+                                className="text-slate-300 hover:text-red-500 p-2.5 hover:bg-red-50 rounded-2xl transition-all"
                             >
                                 <Trash2 className="h-4 w-4" />
                             </button>
                         </div>
                     ))}
                     {watchlist.length === 0 && (
-                        <div className="col-span-full py-4 text-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-xl">
+                        <div className="col-span-full py-16 text-center text-sm font-bold text-slate-300 border-2 border-dashed border-slate-100 rounded-[40px]">
                             {t('watchlist.noProjectsWatched')}
                         </div>
                     )}
@@ -227,15 +229,15 @@ export function WatchlistSettings() {
             </div>
 
             {/* Add Project */}
-            <div className="space-y-3 pt-4 border-t border-border/20">
+            <div className="space-y-6 pt-10 border-t border-slate-100">
                 <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-5 top-4.5 h-6 w-6 text-slate-300" />
                     <input
                         type="text"
                         placeholder={t('watchlist.searchProjects')}
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-white/5 border border-border/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                        className="w-full h-15 pl-14 pr-6 bg-slate-50 border border-slate-100 rounded-[24px] text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all placeholder:text-slate-200"
                     />
                 </div>
 

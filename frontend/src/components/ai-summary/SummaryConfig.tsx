@@ -18,6 +18,12 @@ interface User {
     name: string;
 }
 
+interface GitLabWatchlist {
+    id: number;
+    project_name: string;
+    gitlab_project_id: number;
+}
+
 interface ConfigProps {
     onConfigSaved: () => void;
 }
@@ -33,11 +39,15 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
     // Members state
     const [members, setMembers] = useState<User[]>([]);
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-
     const [loading, setLoading] = useState(false);
+
+    // GitLab state
+    const [gitlabWatchlists, setGitlabWatchlists] = useState<GitLabWatchlist[]>([]);
+    const [selectedGitlabProjectIds, setSelectedGitlabProjectIds] = useState<number[]>([]);
 
     useEffect(() => {
         fetchProjects();
+        fetchGitLabWatchlists();
         fetchSettings();
     }, []);
 
@@ -60,6 +70,17 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         }
     };
 
+    const fetchGitLabWatchlists = async () => {
+        try {
+            const res = await api.get<GitLabWatchlist[]>("/gitlab/watchlists", undefined, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setGitlabWatchlists(res as any);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     const fetchSettings = async () => {
         try {
             const res = await api.get<any>("/ai-summary/settings", undefined, {
@@ -67,39 +88,25 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
             });
             setSelectedProjectIds(res.target_project_ids || []);
             setSelectedUserIds(res.target_user_ids || []);
+            setSelectedGitlabProjectIds(res.target_gitlab_project_ids || []);
         } catch (error) {
             console.error(error);
         }
     };
 
     const fetchMembers = async (projectIds: number[]) => {
-        // We probably need an endpoint to get members of multiple projects.
-        // Or we loop CLIENT SIDE (bad for perf but ok for MVP).
-        // Let's rely on backend service 'fetching members' or just listing all known users?
-        // Actually, Redmine 'get_project_members' is per project.
-        // Let's implement a loop here for MVP.
         let allMembers: User[] = [];
         for (const pid of projectIds) {
             try {
                 const res = await api.get<any>(`/projects/${pid}/members`, undefined, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                // res should be list of members (direct response or in data prop depending on API structure? backend RedmineService returns list directly mostly, but let's check. 
-                // api.ts returns response directly if JSON.
-                // Redmine usually returns { memberships: [...] } or list? 
-                // Let's assume list or handle both. 
-                // Based on previous code assumption: res.data. 
-                // But my api.ts returns parsed JSON body directly as T. 
-                // So if backend returns list, T is list.
-                // Let's cast to any and access safely.
                 const data = Array.isArray(res) ? res : (res.memberships || res.data || []);
                 allMembers = [...allMembers, ...data];
             } catch (e) {
                 console.warn(`Failed to fetch members for project ${pid}`, e);
             }
         }
-
-        // Dedup by ID and sort alphabetically by name
         const unique = Array.from(new Map(allMembers.map(item => [item.id, item])).values());
         const sorted = unique.sort((a, b) => a.name.localeCompare(b.name));
         setMembers(sorted);
@@ -110,7 +117,8 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         try {
             await api.put("/ai-summary/settings", {
                 project_ids: selectedProjectIds,
-                user_ids: selectedUserIds
+                user_ids: selectedUserIds,
+                gitlab_project_ids: selectedGitlabProjectIds
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -123,7 +131,6 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         }
     };
 
-    // Toggle helper
     const toggleSelection = (id: number, list: number[], setList: (l: number[]) => void) => {
         if (list.includes(id)) {
             setList(list.filter(i => i !== id));
@@ -132,7 +139,6 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         }
     };
 
-    // Build project tree structure
     const projectsByParent = useMemo(() => {
         const result: Record<number, Project[]> = {};
         projects.forEach(p => {
@@ -143,7 +149,6 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         return result;
     }, [projects]);
 
-    // Auto-expand parents of selected projects
     const autoExpandedNodes = useMemo(() => {
         const expanded = new Set<number>();
         selectedProjectIds.forEach(id => {
@@ -250,7 +255,26 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
                     </div>
                 </div>
 
-                <Button onClick={handleSave} disabled={loading} className="tech-button-primary">
+                <div>
+                    <Label className="text-xs font-medium text-muted-foreground mb-2 block">GitLab 專案</Label>
+                    <div className="flex flex-col gap-1 max-h-40 overflow-y-auto border border-border/20 p-3 rounded-xl bg-white/5 custom-scrollbar">
+                        {gitlabWatchlists.length === 0 && <span className="text-muted-foreground text-sm">尚未設定 GitLab 關注專案</span>}
+                        {gitlabWatchlists.map(wl => (
+                            <div key={wl.id} className="flex items-center space-x-2 py-1 hover:bg-white/5 rounded px-1 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    id={`gl-${wl.id}`}
+                                    checked={selectedGitlabProjectIds.includes(wl.gitlab_project_id)}
+                                    onChange={() => toggleSelection(wl.gitlab_project_id, selectedGitlabProjectIds, setSelectedGitlabProjectIds)}
+                                    className="rounded"
+                                />
+                                <label htmlFor={`gl-${wl.id}`} className="text-sm cursor-pointer flex-1">{wl.project_name}</label>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <Button onClick={handleSave} disabled={loading} className="tech-button-primary w-full">
                     {loading ? t('aiSummary.saving') : t('aiSummary.saveConfig')}
                 </Button>
             </div>
