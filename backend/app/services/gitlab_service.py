@@ -42,6 +42,19 @@ class GitLabService:
         return await self._get(f"projects/{project_id}")
 
 
+    def _patch_url(self, api_url: str) -> str:
+        """Replace the host in the API URL with the User Setting's instance URL."""
+        if not api_url or not self.instance.url:
+            return api_url
+        try:
+            parsed_api = urllib.parse.urlparse(api_url)
+            parsed_instance = urllib.parse.urlparse(self.instance.url)
+            # Reconstruct, replacing scheme and netloc
+            new_url = parsed_api._replace(scheme=parsed_instance.scheme, netloc=parsed_instance.netloc).geturl()
+            return new_url
+        except Exception:
+            return api_url
+
     async def get_commits(self, project_id: int, since: datetime, until: datetime) -> List[Dict[str, Any]]:
         """獲取專案在指定時間內的所有 Commits"""
         params = {
@@ -51,7 +64,11 @@ class GitLabService:
             "per_page": 100,
             "all": "true"
         }
-        return await self._get(f"projects/{project_id}/repository/commits", params=params)
+        commits = await self._get(f"projects/{project_id}/repository/commits", params=params)
+        for c in commits:
+            if "web_url" in c:
+                c["web_url"] = self._patch_url(c["web_url"])
+        return commits
 
     async def get_merge_requests(self, project_id: int, updated_after: datetime) -> List[Dict[str, Any]]:
         """獲取更新過的 Merge Requests"""
@@ -59,7 +76,11 @@ class GitLabService:
             "updated_after": updated_after.isoformat(),
             "per_page": 100
         }
-        return await self._get(f"projects/{project_id}/merge_requests", params=params)
+        mrs = await self._get(f"projects/{project_id}/merge_requests", params=params)
+        for mr in mrs:
+            if "web_url" in mr:
+                mr["web_url"] = self._patch_url(mr["web_url"])
+        return mrs
 
     async def get_mr_notes_count(self, project_id: int, mr_iid: int) -> int:
         """獲取 MR 的留言總數"""

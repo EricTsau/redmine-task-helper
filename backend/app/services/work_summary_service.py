@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional, TypedDict
 from datetime import datetime, timedelta
+import asyncio
 import json
 import traceback
 from sqlmodel import Session, select
@@ -11,6 +12,10 @@ from app.services.redmine_client import RedmineService
 from app.services.openai_service import OpenAIService
 from app.services.gitlab_service import GitLabService
 from app.models import UserSettings
+import hashlib
+import os
+import time
+import shutil
 
 class AgentState(TypedDict):
     project_ids: List[int]
@@ -26,6 +31,7 @@ class AgentState(TypedDict):
     gitlab_commits: List[Dict[str, Any]]
     gitlab_mrs: List[Dict[str, Any]]
     gitlab_metrics: Dict[str, Any]
+    gitlab_project_map: Dict[int, str]
 
 class WorkSummaryService:
     def __init__(self, session: Session, user: User, redmine: RedmineService, openai: OpenAIService):
@@ -56,6 +62,64 @@ class WorkSummaryService:
         self.session.commit()
         self.session.refresh(settings)
         return settings
+
+    def _cleanup_temp_files(self):
+        """Delete files in temp_files older than 20 days."""
+        temp_dir = "temp_files"
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir, exist_ok=True)
+            return
+
+        now = time.time()
+        cutoff = now - (20 * 86400) # 20 days
+
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(temp_dir, filename)
+            if os.path.isfile(file_path):
+                 try:
+                     if os.path.getmtime(file_path) < cutoff:
+                         os.remove(file_path)
+                         print(f"[WorkSummary] Cleanup: Deleted old file {filename}")
+                 except Exception as e:
+                     print(f"[WorkSummary] Cleanup error: {e}")
+
+    def _save_temp_image(self, url: str, content: bytes) -> str:
+        """Save image content to temp_files and return the relative URL."""
+        temp_dir = "temp_files"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Determine extension
+        ext = ".png"
+        lower_url = url.lower()
+        if lower_url.endswith('.jpg') or lower_url.endswith('.jpeg'):
+            ext = ".jpg"
+        elif lower_url.endswith('.gif'):
+            ext = ".gif"
+        elif lower_url.endswith('.webp'):
+            ext = ".webp"
+
+        # Generate unique filename based on URL hash (stable across runs)
+        hash_name = hashlib.md5(url.encode('utf-8')).hexdigest()
+        filename = f"{hash_name}{ext}"
+        file_path = os.path.join(temp_dir, filename)
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        # Return URL relative to backend server root for static serving
+        # Note: Frontend must prepend the Backend Host URL (http://localhost:8000)
+        # But Report Markdown usually rendered by frontend which knows where backend is?
+        # Actually Markdown render usually just puts `<img src="/temp_images/...">`.
+        # If Frontend and Backend on same domain/port (e.g. proxied), fine.
+        # But development: Front 5173, Back 8000.
+        # We should return full URL or rely on frontend proxy.
+        # Standard: Return full URL using a configured BASE_URL or just relative path and assume frontend helps.
+        # For simplicity in local dev, let's inject backend URL if I can guess it, OR assume proxy config.
+        # But user didn't specify. Assuming `/temp_images/...` works if proxy setup or User handles it.
+        # Wait, simple `src="/temp_images/..."` works if the Frontend Vite proxy forwards `/temp_images` to backend.
+        # I should assume typical setup.
+        return f"/temp_images/{filename}"
 
     def get_history(self) -> List[AIWorkSummaryReport]:
         return self.session.exec(
@@ -107,7 +171,8 @@ class WorkSummaryService:
             "language": language,
             "gitlab_commits": [],
             "gitlab_mrs": [],
-            "gitlab_metrics": {}
+            "gitlab_metrics": {},
+            "gitlab_project_map": {}
         }
 
         try:
@@ -270,7 +335,8 @@ class WorkSummaryService:
                     'hours': te_hours,
                     'user': te_user_name,
                     'issue_id': te_issue_id,
-                    'comments': getattr(e, 'comments', '')
+                    'comments': getattr(e, 'comments', ''),
+                    'project_name': getattr(e.project, 'name', 'Unknown') if getattr(e, 'project', None) else 'Unknown'
                 })
 
         # Build raw_logs structured for analysis + summary
@@ -367,6 +433,8 @@ class WorkSummaryService:
 
         since = datetime.fromisoformat(start_date.replace("Z", "+00:00")) - timedelta(days=1)
         until = datetime.fromisoformat(end_date.replace("Z", "+00:00")) + timedelta(days=1)
+        
+        gitlab_project_map = {}
 
         for instance in instances:
             gs = GitLabService(instance)
@@ -381,6 +449,7 @@ class WorkSummaryService:
             instance_mrs = []
 
             for wl in watchlists:
+                gitlab_project_map[wl.gitlab_project_id] = wl.project_name
                 try:
                     commits = await gs.get_commits(wl.gitlab_project_id, since, until)
                     # Inject project_id into commits
@@ -444,8 +513,10 @@ class WorkSummaryService:
             'issues': structured_issues,
             'time_entries': time_entries,
             'gitlab_commits': gitlab_commits,
+            'gitlab_commits': gitlab_commits,
             'gitlab_mrs': gitlab_mrs,
-            'gitlab_metrics': gitlab_metrics
+            'gitlab_metrics': gitlab_metrics,
+            'gitlab_project_map': gitlab_project_map
         }
 
     async def error_dump_to_txt(self, prompt, p_name, u_name, error=None):
@@ -484,9 +555,9 @@ class WorkSummaryService:
         start_date = state.get('start_date')
         end_date = state.get('end_date')
         
-        # 1. Group Data by (Project, User)
-        # Groups: Dict[project_id, Dict[user_name, List[str]]]
-        grouped_data: Dict[str, Dict[str, List[str]]] = {}
+        # 1. Group Data by (Project, User) -> Source
+        # Groups: Dict[project_id, Dict[user_name, Dict[source, List[str]]]]
+        grouped_data: Dict[str, Dict[str, Dict[str, List[str]]]] = {}
         
         # Determine redmine base URL
         user_settings = self.session.exec(
@@ -498,28 +569,44 @@ class WorkSummaryService:
         else:
             redmine_base = getattr(self.redmine, 'base_url', '') if hasattr(self.redmine, 'base_url') else ''
 
-        def add_to_group(project_name, user_name, line):
+        def add_to_group(project_name, user_name, line, source):
             if project_name not in grouped_data:
                 grouped_data[project_name] = {}
             if user_name not in grouped_data[project_name]:
-                grouped_data[project_name][user_name] = []
-            grouped_data[project_name][user_name].append(line)
+                grouped_data[project_name][user_name] = {'redmine': [], 'gitlab': []}
+            grouped_data[project_name][user_name][source].append(line)
 
         # Image Placeholder Logic
         img_placeholder_map = {}
         img_counter = 0
         
+        # Track images per (project, user) with issue context for Attachments section
+        # Structure: {(project_name, user_name): [(issue_id, subject, [placeholders])] }
+        issue_images_data = {}
+        
         def get_img_placeholder(url):
             nonlocal img_counter
-            # Check if url already mapped? (O(N) search or reverse map? keeping it simple for now)
             for k, v in img_placeholder_map.items():
                 if v == url:
                     return k
-            
             key = f"IMG_PLACEHOLDER_{img_counter}"
             img_placeholder_map[key] = url
             img_counter += 1
             return key
+        
+        def register_issue_images(project_name, user_name, issue_id, subject, image_urls):
+            """Register images for an issue to be displayed in the Attachments section."""
+            if not image_urls:
+                return
+            key = (project_name, user_name)
+            if key not in issue_images_data:
+                issue_images_data[key] = []
+            
+            # Only add if this issue hasn't been registered yet for this user
+            existing_ids = [x[0] for x in issue_images_data[key]]
+            if issue_id not in existing_ids:
+                placeholders = [get_img_placeholder(url) for url in image_urls]
+                issue_images_data[key].append((issue_id, subject, placeholders))
 
 
         # Process Issues
@@ -527,202 +614,227 @@ class WorkSummaryService:
             p_name = i.get('project_name', 'Unknown Project')
             link = f"{redmine_base}/issues/{i['id']}" if redmine_base else f"issues/{i['id']}"
             subject_clean = i['subject'].replace('|', '-') 
-            
-            # Images context with Placeholder
-            img_context = ""
-            if i.get('images'):
-                placeholders = []
-                for img_url in i['images']:
-                    ph = get_img_placeholder(img_url)
-                    placeholders.append(ph)
-                img_context = f"\n  - Images: {', '.join(placeholders)}"
 
             # 1. Journals (Filtered)
-            # Only add if we have journals (User Activity)
             for j in i.get('journals', []):
                 u_name = j.get('user', 'Unknown User')
-                # Include issue subject in the log line for context
                 note_preview = j.get('notes', '').replace('\n', ' ')
                 
-                # Replace any image URLs in the note text with placeholders too (optimization)
                 if i.get('images'):
                     for img_url in i['images']:
-                         # Simple text replacement if exact match found
                          if img_url in note_preview:
                              ph = get_img_placeholder(img_url)
                              note_preview = note_preview.replace(img_url, ph)
                 
-                # Format dates
-                created_date = i.get('created_on', '')
-                if created_date and 'T' in str(created_date):
-                     created_date = str(created_date).split('T')[0]
-                
-                closed_date = i.get('closed_on', '')
-                if closed_date and 'T' in str(closed_date):
-                     closed_date = str(closed_date).split('T')[0]
+                created_date = str(i.get('created_on', ''))[:10]
+                closed_date = str(i.get('closed_on', ''))[:10]
 
-                line = f"- {j.get('created_on', '')[:10]} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | {note_preview} {img_context}"
-                add_to_group(p_name, u_name, line)
+                line = f"- {str(j.get('created_on', ''))[:10]} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | {note_preview}"
+                add_to_group(p_name, u_name, line, 'redmine')
+                
+                # Register images for this user's chunk (only once per issue per user)
+                if i.get('images'):
+                    register_issue_images(p_name, u_name, i['id'], subject_clean, i['images'])
             
-            # If no journals but updated_on is recent, and we have images or key info, add a general line
+            # General update line if no journals
             updated_on_day = i['updated_on'].split('T')[0] if i['updated_on'] else ''
             if not i.get('journals') and updated_on_day and start_date <= updated_on_day <= end_date:
-                u_name = "General" # Default if no specific user journal
-                created_date = i.get('created_on', '')
-                if created_date and 'T' in str(created_date):
-                     created_date = str(created_date).split('T')[0]
-                closed_date = i.get('closed_on', '')
-                if closed_date and 'T' in str(closed_date):
-                     closed_date = str(closed_date).split('T')[0]
+                u_name = "General" 
+                created_date = str(i.get('created_on', ''))[:10]
+                closed_date = str(i.get('closed_on', ''))[:10]
                 
-                line = f"- {updated_on_day} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | (Issue Updated) {img_context}"
-                add_to_group(p_name, u_name, line)
+                line = f"- {updated_on_day} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | (Issue Updated)"
+                add_to_group(p_name, u_name, line, 'redmine')
+                
+                # Register images for General user
+                if i.get('images'):
+                    register_issue_images(p_name, u_name, i['id'], subject_clean, i['images'])
 
         # Process Time Entries
         for te in time_entries:
             u_name = te.get('user', 'Unknown User')
-            # Try to infer project or use "Time Entries"
-            # Since we don't have project name in TE struct easily without map, we group by User under "Time Entries"
+            project_name = te.get('project_name', 'Time Logs')
             line = f"- {te.get('date')} | Issue #{te.get('issue_id')} | {te.get('hours')}h | {te.get('comments')}"
-            add_to_group("Time Logs", u_name, line)
+            add_to_group(project_name, u_name, line, 'redmine')
 
         # Process GitLab Commits
         gitlab_commits = state.get("gitlab_commits", [])
+        gitlab_project_map = state.get("gitlab_project_map", {})
+        
         for c in gitlab_commits:
             u_name = c.get("author_name", "Unknown Dev")
-            project_name = "Code Updates" # Or map from project_id if available
+            pid = c.get("project_id")
+            project_name = gitlab_project_map.get(pid, "Code Updates")
+            
             date = c.get("created_at", "")[:10]
             message = c.get("message", "").replace("\n", " ")
             stats = c.get("stats", {})
             line = f"- {date} | COMMIT | {message} (+{stats.get('additions', 0)} -{stats.get('deletions', 0)}) | [View]({c.get('web_url')})"
-            add_to_group(project_name, u_name, line)
+            add_to_group(project_name, u_name, line, 'gitlab')
 
         # Process GitLab MRs
         gitlab_mrs = state.get("gitlab_mrs", [])
         for mr in gitlab_mrs:
             u_name = mr.get("author", {}).get("name", "Unknown Dev")
-            project_name = "Code Updates"
+            pid = mr.get("project_id")
+            project_name = gitlab_project_map.get(pid, "Code Updates")
+            
             date = mr.get("updated_at", "")[:10]
             status = mr.get("state", "")
             notes = f" | Notes: {mr['notes_summary']}" if mr.get("notes_summary") else ""
             line = f"- {date} | MR | {mr.get('title')} ({status}){notes} | [View]({mr.get('web_url')})"
-            add_to_group(project_name, u_name, line)
+            add_to_group(project_name, u_name, line, 'gitlab')
 
         # 2. Map Phase: Summarize each (Project, User) chunk
         import asyncio
         
-        async def analyze_chunk(p_name, u_name, lines):
-            if not lines: return ""
+        # 2. Map Phase: Summarize each (Project, User) chunk
+        import asyncio
+        
+        async def analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines):
+            if not redmine_lines and not gitlab_lines: return ""
             lang = state.get('language', 'zh-TW')
 
-            text = "\n".join(lines)
-            prompt = f"""
-            Task: Summarize the work logs for this user in this project.
-            Language: {lang}
-            Report End Date: {end_date} (or Today)
+            redmine_result = ""
+            gitlab_result = ""
             
-            Project: {p_name}
-            User: {u_name}
-            Logs:
-            {text}
-            
-            Instruction:
-            1. **Overall Summary**: Provide a high-level summary of the user's main contributions and focus areas in this project for the given period.
-            2. **Work Items List**: Create a markdown table with the following columns:
-               - Issue ID (with link if using markdown []())
-               - **Subject** (Exact title from logs - THIS IS MANDATORY AND MUST BE PRESERVED)
-               - Status
-               - **Duration / Timeline**:
-                 - If Open: "Created <date> (Open for X days)" - Calculate days from Created Date to Report End Date.
-                 - If Closed: "Created <date>, Closed <date>"
-               - Updated Time (Last update in logs)
-               - Spent Hours (Sum up time entries if any)
-               - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
-               
-            CRITICAL REQUIREMENTS:
-            - The Subject column must ALWAYS contain the exact issue title from the logs
-            - Never leave the Subject column empty or use generic text like "Untitled"
-            - If an issue appears in the logs, its subject must be included in the table
-            - Double-check that every issue in the input logs has its subject properly displayed in the table
-            - Verify that each row in the table corresponds to a unique issue from the logs
-            
-            3. **Git Log Translation (Critical)**:
-               - For COMMIT items, do NOT just copy the git log.
-               - Translate technical commit messages into human-readable descriptions of "Feature Development" or "Bug Fix".
-               - Try to correlate them with Redmine Issue IDs if mentioned in the message or related issues.
-
-            4. **Attachments Footer**:
-               - Identify any images mentioned in logs (they will have placeholders like IMG_PLACEHOLDER_0, IMG_PLACEHOLDER_1, etc.).
-               - For each image placeholder, output using this EXACT format: `![Issue #ID - Description](IMG_PLACEHOLDER_N)`
-               - Example: If you see IMG_PLACEHOLDER_0, write `![Issue #123 - Screenshot](IMG_PLACEHOLDER_0)`
-               - **CRITICAL**: Keep the placeholder exactly as provided. Do NOT try to replace it with a URL.
-               - Group all images at the very bottom under "#### Attachments".
-
-            Output Format (Markdown):
-            ### {p_name} - {u_name}
-            
-            #### Overall Summary
-            (Summary content here...)
-
-            #### Work Items
-            | Issue | Subject | Status | Duration/Timeline | Updated | Hours | Summary & Actions |
-            |-------|---------|--------|-------------------|---------|-------|-------------------|
-            | ...   | ...     | ...    | ...               | ...     | ...   | ...               |
-
-            #### Attachments
-            (Images here...)
-            """
-            try:
-                # Use standard chat completion
-                res = await self.openai.chat_completion([
-                    {"role": "system", "content": "You are a Project Manager Assistant."},
-                    {"role": "user", "content": prompt}
-                ])
-                final_res = res
-                # Restore happens after try block or logic flow needs adjustment? 
-                # Better to return here and restore in caller? No, analyze_chunk returns the string summary.
-                # So we must restore HERE before returning.
+            # --- ACTION A: Redmine ---
+            if redmine_lines:
+                text = "\n".join(redmine_lines)
+                prompt_redmine = f"""
+                Task: Summarize Redmine tasks/logs for this user.
+                Language: {lang}
+                Project: {p_name} | User: {u_name}
+                Logs:
+                {text}
                 
-                # We do restoration at end of function.
-                pass 
-            except Exception as e:
-                print(f"Error analyzing chunk {p_name}-{u_name}: {e}")
+                Instruction:
+                1. **Overall Summary**: Provide a high-level summary of the user's main contributions and focus areas in this project for the given period.
+                   - **IMPORTANT**: In the text, refer to issues by their **Subject/Title** (e.g. "Fixed auth bug") instead of Issue IDs (e.g. "#123") to ensure readability.
+                2. **Work Items List**: Create a markdown table with the following columns:
+                    - Issue ID (with link if using markdown []())
+                    - **Subject** (Exact title from logs - THIS IS MANDATORY AND MUST BE PRESERVED)
+                    - Status
+                    - **Duration / Timeline**:
+                        - If Open: "Created <date> (Open for X days)" - Calculate days from Created Date to Report End Date.
+                        - If Closed: "Created <date>, Closed <date>"
+                    - Updated Time (Last update in logs)
+                    - Spent Hours (Sum up time entries if any)
+                    - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
                 
-                # Error Dump Feature
-                should_dump = False
+
+                CRITICAL REQUIREMENTS:
+                - The Subject column must ALWAYS contain the exact issue title from the logs
+                - Never leave the Subject column empty or use generic text like "Untitled"
+                
+                **DO NOT include any attachments or images section. Attachments are handled separately.**
+
+                Output Format:
+                #### 🔴 Redmine Tasks
+                **Summary**: ...
+                
+                | Issue | Subject | Status | Timeline | Updated | Hours | Summary & Actions |
+                |-------|---------|--------|----------|---------|-------|-------------------|
+                ...
+                """
                 try:
-                    # Check DB setting first
-                    app_settings = self.session.exec(select(AppSettings).where(AppSettings.id == 1)).first()
-                    if app_settings and app_settings.enable_ai_debug_dump:
-                        should_dump = True
-                except Exception:
-                    # Fallback or just ignore if DB fails, maybe check env var as backup?
-                    # For now, strict DB setting as requested. or keep env var as override?
-                    # User asked to "Change to Admin setting", implying env var is replaced or secondary.
-                    pass
+                    res = await self.openai.chat_completion([
+                         {"role": "system", "content": "You are a Project Manager Assistant."},
+                         {"role": "user", "content": prompt_redmine}
+                    ])
+                    redmine_result = res
+                except Exception as e:
+                    redmine_result = f"(Redmine AI Error: {e})"
 
-                if should_dump:
-                     try:
-                         dump_dir = "logs/ai_error_dumps"
-                         import os
-                         os.makedirs(dump_dir, exist_ok=True)
-                         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                         filename = f"{dump_dir}/error_{ts}_{p_name}_{u_name}.txt"
-                         
-                         with open(filename, "w", encoding="utf-8") as f:
-                             f.write(f"Error: {str(e)}\n\n")
-                             f.write(f"Prompt:\n{prompt}\n")
-                         print(f"[DEBUG] Dumped error context to {filename}")
-                     except Exception as dump_err:
-                         print(f"[DEBUG] Failed to dump error context: {dump_err}")
+            # --- ACTION B: GitLab ---
+            if gitlab_lines:
+                text = "\n".join(gitlab_lines)
+                prompt_gitlab = f"""
+                Task: Summarize GitLab activity for this user.
+                Language: {lang}
+                Project: {p_name} | User: {u_name}
+                Logs:
+                {text}
                 
-                return f"**{p_name} - {u_name}**: (AI Analysis Failed: {str(e)})"
+                Instruction:
+                1. Overall Code Summary.
+                2. Code Activity Table (Date, Type, Summary, Link).
+                Requirements: Use exact links from logs.
+                
+                Output Format:
+                #### 🦊 GitLab Activity
+                **Summary**: ...
+                
+                | Date | Type | Summary | Link |
+                |------|------|---------|------|
+                ...
+                """
+                try:
+                    res = await self.openai.chat_completion([
+                         {"role": "system", "content": "You are a Tech Lead Assistant."},
+                         {"role": "user", "content": prompt_gitlab}
+                    ])
+                    gitlab_result = res
+                except Exception as e:
+                    gitlab_result = f"(GitLab AI Error: {e})"
+
+            # --- MERGE ---
+            final_res = f"### {p_name} - {u_name}\n\n"
+            if redmine_result:
+                final_res += redmine_result + "\n\n"
+            if gitlab_result:
+                final_res += gitlab_result + "\n\n"
             
-            # Restore Image Placeholders
-            if isinstance(final_res, str): # Verify it's string (it should be)
-                for ph, original_url in img_placeholder_map.items():
-                    if ph in final_res:
-                        final_res = final_res.replace(ph, original_url)
+            # --- ATTACHMENTS HANDLING ---
+            # Use pre-registered image data from issue_images_data
+            chunk_key = (p_name, u_name)
+            image_entries = issue_images_data.get(chunk_key, [])
+            
+            if image_entries:
+                final_res += "\n#### Attachments\n"
+                seen_urls = set()
+                
+                for issue_id, subject, placeholders in image_entries:
+                    for ph in placeholders:
+                        original_url = img_placeholder_map.get(ph)
+                        if not original_url:
+                            continue
+                        
+                        # Deduplicate by URL
+                        if original_url in seen_urls:
+                            continue
+                        seen_urls.add(original_url)
+                        
+                        caption = f"Issue #{issue_id} - {subject} - Screenshot"
+                        final_res += f"\n![{caption}]({ph})\n"
+            
+            # --- CLEANUP OLD FILES ---
+            self._cleanup_temp_files()
+
+            # Restore Image Placeholders (Download & Save to Temp)
+            # Sort placeholders to avoid partial replacement issues if any
+            for ph, original_url in img_placeholder_map.items():
+                if ph in final_res:
+                     # Download image content
+                     try:
+                         print(f"[WorkSummary] Downloading image for temp storage: {original_url}")
+                         # Check if already exists in temp? (Optimization)
+                         # We use hash, so we can check.
+                         hash_name = hashlib.md5(original_url.encode('utf-8')).hexdigest()
+                         # We don't know extension easily without parsing again, but _save_temp_image handles it.
+                         # Let's just download to be safe or update.
+                         
+                         img_data = self.redmine.download_file(original_url)
+                         if img_data:
+                             # Save to temp
+                             local_url = self._save_temp_image(original_url, img_data)
+                             final_res = final_res.replace(ph, local_url)
+                         else:
+                             # Fallback
+                             final_res = final_res.replace(ph, original_url)
+                     except Exception as e:
+                         print(f"[WorkSummary] Failed to save image {original_url}: {e}")
+                         final_res = final_res.replace(ph, original_url)
             
             return final_res
 
@@ -736,15 +848,17 @@ class WorkSummaryService:
         print(f"[DEBUG] Using concurrency limit: {concurrency_limit}")
         semaphore = asyncio.Semaphore(concurrency_limit)
 
-        async def restricted_analyze_chunk(p_name, u_name, lines):
+        async def restricted_analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines):
             async with semaphore:
-                return await analyze_chunk(p_name, u_name, lines)
+                return await analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines)
 
         tasks = []
         for p_name, users_map in grouped_data.items():
-            for u_name, lines in users_map.items():
-                if lines:
-                    tasks.append(restricted_analyze_chunk(p_name, u_name, lines))
+            for u_name, sources in users_map.items():
+                redmine_lines = sources.get('redmine', [])
+                gitlab_lines = sources.get('gitlab', [])
+                if redmine_lines or gitlab_lines:
+                    tasks.append(restricted_analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines))
         
         chunk_summaries = []
         if tasks:

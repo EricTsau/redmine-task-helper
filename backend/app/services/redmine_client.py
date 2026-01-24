@@ -23,7 +23,21 @@ class RedmineService:
 
         # Pass requests options to python-redmine's underlying requests usage
         requests_opts = {'verify': verify}
+        self.api_key = api_key
         self.redmine = Redmine(self.base_url, key=api_key, requests=requests_opts)
+
+    def download_file(self, url: str) -> Optional[bytes]:
+        """Download file content from Redmine (using authentication)."""
+        import requests
+        try:
+            headers = {'X-Redmine-API-Key': self.api_key}
+            # Use verify setting from init
+            response = requests.get(url, headers=headers, verify=self.verify, timeout=30)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            print(f"Error downloading file {url}: {e}")
+            return None
 
     def get_current_user(self) -> Dict[str, Any]:
         """Fetches the current authenticated user to validate credentials."""

@@ -102,6 +102,13 @@ from app.routers import dashboard, gitlab
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(gitlab.router, prefix="/api/v1/gitlab", tags=["gitlab"])
 
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Create temp_files directory if not exists
+os.makedirs("temp_files", exist_ok=True)
+app.mount("/temp_images", StaticFiles(directory="temp_files"), name="temp_images")
+
 @app.get("/")
 async def root():
     return {"message": "Redmine Task Helper API is running"}
