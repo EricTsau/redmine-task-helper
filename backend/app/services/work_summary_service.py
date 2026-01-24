@@ -750,6 +750,42 @@ class WorkSummaryService:
         header = f"# 工作總結報告 ({start_date} ~ {end_date})\n\n"
         
         combined_chunk_text = "\n\n".join(chunk_summaries)
+
+        # Optimize: Reduce context size by extracting ONLY the "Overall Summary" section for Grand Summary
+        # Strategy: 
+        # 1. Keep the Header (### Project - User)
+        # 2. Capture text between "#### Overall Summary" and "#### Work Items"
+        # 3. Discard everything else (Work Items, Attachments, etc.)
+        summary_context = []
+        for report in chunk_summaries:
+            lines = report.split('\n')
+            capturing = False
+            
+            # Add identity header (assume it's the first non-empty line formatted as header)
+            # Or simplified: just look for the standard format we generated: ### {p_name} - {u_name}
+            
+            for line in lines:
+                stripped = line.strip()
+                
+                # Always keep the main Identity Header
+                if stripped.startswith('### ') and ' - ' in stripped:
+                    summary_context.append(line)
+                    continue
+
+                if "#### Overall Summary" in stripped:
+                    capturing = True
+                    summary_context.append(line)
+                    continue
+                
+                # Stop capturing when hitting the next section
+                if "#### Work Items" in stripped or "#### Attachments" in stripped:
+                    capturing = False
+                    continue
+                
+                if capturing:
+                    summary_context.append(line)
+
+        combined_chunk_text_for_prompt = "\n".join(summary_context)
         
         # Grand Summary Generation
         grand_summary = ""
@@ -759,7 +795,7 @@ class WorkSummaryService:
             Language: {state.get('language', 'zh-TW')}
             
             Reports:
-            {combined_chunk_text}
+            {combined_chunk_text_for_prompt}
             
             Instruction:
             - Synthesize a high-level "Grand Summary" that covers the key achievements across ALL projects and users.
