@@ -371,5 +371,15 @@
             "noFilterMatches": "No activity matches filters."
         },
         "viewOnGitLab": "View on GitLab"
+    },
+    "copilot": {
+        "title": "AI Assistant",
+        "thinking": "Thinking...",
+        "placeholder": "Enter your question...",
+        "requestFailed": "AI request failed",
+        "welcomeGitlab": "Ask about GitLab activity, KPIs, commits, etc.",
+        "welcomeTask": "Ask about task status, progress, work distribution, etc.",
+        "welcomeSummary": "Ask about this report",
+        "welcomeDefault": "How can I help you?"
     }
 }

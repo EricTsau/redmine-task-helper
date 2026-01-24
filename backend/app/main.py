@@ -102,6 +102,10 @@ from app.routers import dashboard, gitlab
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(gitlab.router, prefix="/api/v1/gitlab", tags=["gitlab"])
 
+# 通用 AI Copilot
+from app.routers import copilot
+app.include_router(copilot.router, prefix="/api/v1", tags=["copilot"])
+
 from fastapi.staticfiles import StaticFiles
 import os
 

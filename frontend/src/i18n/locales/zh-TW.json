@@ -226,7 +226,7 @@
         "copilot": "AI 副駕駛",
         "copy": "複製",
         "askAboutReport": "詢問關於此報告的任何問題...",
-        "1Day": "今日",
+        "1Day": "今天",
         "7Days": "7天",
         "30Days": "30天"
     },
@@ -371,5 +371,15 @@
             "noFilterMatches": "沒有活動符合目前的過濾條件。"
         },
         "viewOnGitLab": "前往 GitLab 查看"
+    },
+    "copilot": {
+        "title": "AI 助手",
+        "thinking": "思考中...",
+        "placeholder": "輸入您的問題...",
+        "requestFailed": "AI 請求失敗",
+        "welcomeGitlab": "詢問關於 GitLab 活動、KPI、commits 等問題",
+        "welcomeTask": "詢問關於任務狀態、進度、工作分配等問題",
+        "welcomeSummary": "詢問關於這份報告的問題",
+        "welcomeDefault": "有什麼可以幫助您的？"
     }
 }

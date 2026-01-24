@@ -369,17 +369,17 @@ export function SummaryView(props: SummaryViewProps) {
                                         img: ({ node, ...props }) => {
                                             // 檢查是否為 Redmine 圖片 URL
                                             const isRedmineImage = props.src && props.src.includes('/attachments/') && props.src.startsWith('http');
-                                            
+
                                             if (isRedmineImage && props.src) {
                                                 // 使用代理端點獲取圖片
                                                 const proxyUrl = `/api/v1/ai-summary/redmine-image?url=${encodeURIComponent(props.src)}`;
                                                 return (
                                                     <span>
-                                                        <img 
-                                                            src={proxyUrl} 
-                                                            alt={props.alt} 
-                                                            className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50 my-6" 
-                                                            loading="lazy" 
+                                                        <img
+                                                            src={proxyUrl}
+                                                            alt={props.alt}
+                                                            className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50 my-6"
+                                                            loading="lazy"
                                                             onError={(e) => {
                                                                 // 圖片加載失敗時的處理
                                                                 const target = e.target as HTMLImageElement;
@@ -391,16 +391,16 @@ export function SummaryView(props: SummaryViewProps) {
                                                                 target.parentNode?.appendChild(errorDiv);
                                                             }}
                                                         />
-                                                        {props.alt && <div className="text-center text-xs text-slate-500 mt-2 italic">{props.alt}</div>}
+                                                        {props.alt && <span className="text-center text-xs text-slate-500 mt-2 italic block">{props.alt}</span>}
                                                     </span>
                                                 );
                                             }
-                                            
+
                                             // 非 Redmine 圖片使用默認渲染
                                             return (
                                                 <span>
                                                     <img {...props} className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50 my-6" loading="lazy" />
-                                                    {props.alt && <div className="text-center text-xs text-slate-500 mt-2 italic">{props.alt}</div>}
+                                                    {props.alt && <span className="text-center text-xs text-slate-500 mt-2 italic block">{props.alt}</span>}
                                                 </span>
                                             );
                                         },

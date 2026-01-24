@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTimer } from '@/contexts/TimerContext';
 import { useNavigate } from 'react-router-dom';
 import { TaskListView } from '@/components/dashboard/TaskListView';
@@ -7,7 +7,9 @@ import { TaskGroupView, TaskImportModal } from '@/components/tracking';
 import { Link } from 'react-router-dom';
 import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
 import { ChatBox } from '@/components/Chat/ChatBox';
+import { AICopilotFloating } from '@/components/shared/AICopilotFloating';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/contexts/AuthContext';
 
 import { api } from '@/lib/api';
 import { isTokenExpired } from '@/lib/jwt';
@@ -19,12 +21,14 @@ export function Dashboard() {
     const { timer, startTimer, submitEntry } = useTimer();
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { token } = useAuth();
     const [setupStatus, setSetupStatus] = useState<SetupStatus>('loading');
 
     const [errorMessage, setErrorMessage] = useState<string>('');
     const [activeTab, setActiveTab] = useState<ViewTab>('my-tasks');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [taskList, setTaskList] = useState<any[]>([]);
 
     const checkSetup = async () => {
         const token = localStorage.getItem('token');
@@ -80,6 +84,37 @@ export function Dashboard() {
     useEffect(() => {
         checkSetup();
     }, []);
+
+    // Fetch tasks for AI Copilot context
+    useEffect(() => {
+        const fetchTasks = async () => {
+            if (setupStatus !== 'ready' || !token) return;
+            try {
+                const res = await api.get('/tasks', undefined, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setTaskList(Array.isArray(res) ? res : []);
+            } catch (e) {
+                console.error('Failed to fetch tasks for copilot', e);
+            }
+        };
+        fetchTasks();
+    }, [setupStatus, token, refreshKey]);
+
+    // Context for AI Copilot
+    const getContextData = useCallback(() => {
+        return {
+            summary: `當前有 ${taskList.length} 筆任務`,
+            tasks: taskList.slice(0, 30).map((t: any) => ({
+                id: t.id,
+                subject: t.subject,
+                status_name: t.status?.name,
+                assigned_to_name: t.assigned_to?.name,
+                due_date: t.due_date
+            })),
+            active_tab: activeTab
+        };
+    }, [taskList, activeTab]);
 
     // Loading state
     if (setupStatus === 'loading') {
@@ -240,12 +275,14 @@ export function Dashboard() {
                 </div>
             </div>
 
-            {/* Import Modal */}
             <TaskImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 onImportSuccess={() => setRefreshKey(k => k + 1)}
             />
+
+            {/* AI Copilot */}
+            <AICopilotFloating contextType="task_workbench" getContextData={getContextData} />
         </div>
     );
 }
