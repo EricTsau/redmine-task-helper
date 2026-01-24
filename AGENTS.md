@@ -36,3 +36,5 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - 日期顯示格式順序為 年->月->日->時->分->秒
 - 網頁設計風格: 淺色現代科技風(毛玻璃效果、淺色背景、漸層邊框、圓角設計), RWD 響應式網頁設計
 - 使用i18n做多國語系功能
+- pythonn backend venv路徑: backend/venv
+- nodejs frontend venv路徑: frontend/node_modules

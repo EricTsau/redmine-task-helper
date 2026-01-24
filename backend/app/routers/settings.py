@@ -66,7 +66,7 @@ async def update_settings(
     settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
     
     if not settings:
-        settings = UserSettings(user_id=current_user.id)
+        settings = UserSettings(user_id=current_user.id)  # type: ignore
     
     # Update Redmine settings
     if update.redmine_url is not None:

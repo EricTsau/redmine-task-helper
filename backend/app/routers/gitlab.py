@@ -3,11 +3,13 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 import httpx
+import asyncio
 from pydantic import BaseModel, HttpUrl
 
 from app.database import get_session
 from app.models import User, GitLabInstance, GitLabWatchlist
 from app.dependencies import get_current_user
+from app.services.gitlab_service import GitLabService
 
 router = APIRouter(tags=["gitlab"])
 
@@ -28,6 +30,18 @@ class GitLabWatchlistCreate(BaseModel):
 class GitLabConnectionTest(BaseModel):
     url: HttpUrl
     personal_access_token: str
+
+class GitLabUser(BaseModel):
+    id: int
+    username: str
+    name: str
+    state: str
+
+class GitLabProject(BaseModel):
+    id: int
+    name: str
+    path_with_namespace: str
+    description: Optional[str]
 
 @router.post("/test-connection")
 async def test_gitlab_connection(
@@ -71,6 +85,164 @@ async def test_gitlab_connection(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}"
+        )
+
+
+@router.post("/fetch-users-projects")
+async def fetch_gitlab_users_projects(
+    data: GitLabConnectionTest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Fetch GitLab users and projects with provided URL and token without creating an instance
+    """
+    try:
+        # Create a temporary GitLabInstance object for the service
+        temp_instance = GitLabInstance(
+            owner_id=user.id or 0,  # fallback to 0 if user.id is None
+            instance_name="temp",
+            url=str(data.url),
+            personal_access_token=data.personal_access_token,
+            target_users_json="[]",
+            target_projects_json="[]"
+        )
+        
+        gitlab_service = GitLabService(temp_instance)
+        
+        # Fetch users and projects concurrently
+        users_task = gitlab_service.get_users()
+        projects_task = gitlab_service.get_projects()
+        
+        users, projects = await asyncio.gather(users_task, projects_task)
+        
+        # Transform to our response models
+        user_list = [
+            GitLabUser(
+                id=u["id"],
+                username=u["username"],
+                name=u["name"],
+                state=u["state"]
+            )
+            for u in users
+        ]
+        
+        project_list = [
+            GitLabProject(
+                id=p["id"],
+                name=p["name"],
+                path_with_namespace=p["path_with_namespace"],
+                description=p.get("description")
+            )
+            for p in projects
+        ]
+        
+        return {
+            "users": user_list,
+            "projects": project_list
+        }
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Connection timeout - please check your network or GitLab server"
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Connection error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch users and projects: {str(e)}"
+        )
+
+@router.get("/users", response_model=List[GitLabUser])
+async def get_gitlab_users(
+    instance_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Get GitLab users from a specific instance
+    """
+    # Verify instance belongs to user
+    instance = session.get(GitLabInstance, instance_id)
+    if not instance or instance.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Instance access denied")
+    
+    try:
+        gitlab_service = GitLabService(instance)
+        users = await gitlab_service.get_users()
+        
+        # Transform to our response model
+        return [
+            GitLabUser(
+                id=u["id"],
+                username=u["username"],
+                name=u["name"],
+                state=u["state"]
+            )
+            for u in users
+        ]
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Connection timeout - please check your network or GitLab server"
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Connection error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch users: {str(e)}"
+        )
+
+@router.get("/projects", response_model=List[GitLabProject])
+async def get_gitlab_projects(
+    instance_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Get GitLab projects from a specific instance
+    """
+    # Verify instance belongs to user
+    instance = session.get(GitLabInstance, instance_id)
+    if not instance or instance.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Instance access denied")
+    
+    try:
+        gitlab_service = GitLabService(instance)
+        projects = await gitlab_service.get_projects()
+        
+        # Transform to our response model
+        return [
+            GitLabProject(
+                id=p["id"],
+                name=p["name"],
+                path_with_namespace=p["path_with_namespace"],
+                description=p.get("description")
+            )
+            for p in projects
+        ]
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Connection timeout - please check your network or GitLab server"
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Connection error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch projects: {str(e)}"
         )
 
 @router.post("/instances", response_model=GitLabInstance)

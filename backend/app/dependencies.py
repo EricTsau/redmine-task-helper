@@ -54,6 +54,8 @@ def get_redmine_service(
             detail="Redmine settings not configured for this user"
         )
     
+    # Create a new RedmineService instance with current settings
+    # This ensures that any changes to settings are immediately reflected
     return RedmineService(settings.redmine_url, settings.api_key)
 
 def get_openai_service(
@@ -69,6 +71,8 @@ def get_openai_service(
             detail="OpenAI settings not configured for this user"
         )
     
+    # Create a new OpenAIService instance with current settings
+    # This ensures that any changes to settings are immediately reflected
     return OpenAIService(
         api_key=settings.openai_key,
         base_url=settings.openai_url or "https://api.openai.com/v1",

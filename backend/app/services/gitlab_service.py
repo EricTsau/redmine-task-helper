@@ -21,6 +21,14 @@ class GitLabService:
             response.raise_for_status()
             return response.json()
 
+    async def get_users(self) -> List[Dict[str, Any]]:
+        """獲取 GitLab 用戶列表"""
+        return await self._get("users", params={"per_page": 100})
+
+    async def get_projects(self) -> List[Dict[str, Any]]:
+        """獲取 GitLab 專案列表"""
+        return await self._get("projects", params={"per_page": 100, "membership": "true"})
+
     async def get_commits(self, project_id: int, since: datetime, until: datetime) -> List[Dict[str, Any]]:
         """獲取專案在指定時間內的所有 Commits"""
         params = {

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from app.database import create_db_and_tables
 from app.tasks.forget_safe import start_forget_safe_task
@@ -44,6 +45,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Fallback middleware: ensure CORS headers are present on all responses (including errors)
+@app.middleware("http")
+async def ensure_cors_headers(request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        response = JSONResponse(status_code=500, content={"detail": str(e)})
+
+    origin = request.headers.get("origin")
+    if origin:
+        allowed = ["http://localhost:5173", "http://127.0.0.1:5173"]
+        response.headers.setdefault("Access-Control-Allow-Origin", origin if origin in allowed else "http://localhost:5173")
+        response.headers.setdefault("Access-Control-Allow-Credentials", "true")
+        response.headers.setdefault("Access-Control-Allow-Methods", "*")
+        response.headers.setdefault("Access-Control-Allow-Headers", "*")
+
+    return response
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(tasks.router, prefix="/api/v1/tasks", tags=["tasks"])

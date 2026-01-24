@@ -442,7 +442,7 @@ class WorkSummaryService:
             'gitlab_metrics': gitlab_metrics
         }
 
-    async def error_dump_to_txt(self, prompt, p_name, u_name):
+    async def error_dump_to_txt(self, prompt, p_name, u_name, error=None):
         # Error Dump Feature
         should_dump = False
         try:
@@ -463,9 +463,8 @@ class WorkSummaryService:
                 os.makedirs(dump_dir, exist_ok=True)
                 ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
                 filename = f"{dump_dir}/error_{ts}_{p_name}_{u_name}.txt"
-                
                 with open(filename, "w", encoding="utf-8") as f:
-                    f.write(f"Error: {str(e)}\n\n")
+                    f.write(f"Error: {str(error)}\n\n")
                     f.write(f"Prompt:\n{prompt}\n")
                 print(f"[DEBUG] Dumped error context to {filename}")
             except Exception as dump_err:
@@ -625,7 +624,7 @@ class WorkSummaryService:
             1. **Overall Summary**: Provide a high-level summary of the user's main contributions and focus areas in this project for the given period.
             2. **Work Items List**: Create a markdown table with the following columns:
                - Issue ID (with link if using markdown []())
-               - **Subject** (Exact title from logs)
+               - **Subject** (Exact title from logs - THIS IS MANDATORY AND MUST BE PRESERVED)
                - Status
                - **Duration / Timeline**:
                  - If Open: "Created <date> (Open for X days)" - Calculate days from Created Date to Report End Date.
@@ -633,6 +632,13 @@ class WorkSummaryService:
                - Updated Time (Last update in logs)
                - Spent Hours (Sum up time entries if any)
                - **Item Summary** (Critical): Explain what was done, key results, and any pending action items or follow-ups required.
+               
+            CRITICAL REQUIREMENTS:
+            - The Subject column must ALWAYS contain the exact issue title from the logs
+            - Never leave the Subject column empty or use generic text like "Untitled"
+            - If an issue appears in the logs, its subject must be included in the table
+            - Double-check that every issue in the input logs has its subject properly displayed in the table
+            - Verify that each row in the table corresponds to a unique issue from the logs
             
             3. **Git Log Translation (Critical)**:
                - For COMMIT items, do NOT just copy the git log.
@@ -810,7 +816,7 @@ class WorkSummaryService:
             grand_summary = f"## 總體摘要\n{grand_summary_res}\n\n---\n\n"
         except Exception as e:
             print(f"[DEBUG] Grand summary generation failed: {e}")
-            await self.error_dump_to_txt(reduce_prompt, "ALL", "ALL")
+            await self.error_dump_to_txt(reduce_prompt, "ALL", "ALL", error=e)
             grand_summary = "## 總體摘要\n(自動生成失敗 - 請檢查後台日誌或降低報告範圍)\n\n---\n\n"
 
         final_report = header + grand_summary + combined_chunk_text

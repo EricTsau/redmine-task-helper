@@ -36,22 +36,17 @@ async def sync_tracked_tasks():
         for task in tasks:
             try:
                 # 取得該任務持有者的 Redmine 設定
-                if task.owner_id not in clients:
-                    from app.models import UserSettings
-                    user_settings = session.exec(
-                        select(UserSettings).where(UserSettings.user_id == task.owner_id)
-                    ).first()
-                    
-                    if not user_settings or not user_settings.redmine_url or not user_settings.api_key:
-                        print(f"[sync_tasks] User {task.owner_id} Redmine not configured, skipping")
-                        clients[task.owner_id] = None
-                        continue
-                    
-                    clients[task.owner_id] = RedmineService(user_settings.redmine_url, user_settings.api_key)
+                # 每次都重新查詢設定以確保使用最新設定
+                from app.models import UserSettings
+                user_settings = session.exec(
+                    select(UserSettings).where(UserSettings.user_id == task.owner_id)
+                ).first()
                 
-                service = clients[task.owner_id]
-                if not service:
+                if not user_settings or not user_settings.redmine_url or not user_settings.api_key:
+                    print(f"[sync_tasks] User {task.owner_id} Redmine not configured, skipping")
                     continue
+                
+                service = RedmineService(user_settings.redmine_url, user_settings.api_key)
 
                 issue = service.redmine.issue.get(task.redmine_issue_id)
                 

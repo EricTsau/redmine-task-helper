@@ -23,6 +23,20 @@ interface GitLabWatchlist {
     is_included: boolean;
 }
 
+interface GitLabUser {
+    id: number;
+    username: string;
+    name: string;
+    state: string;
+}
+
+interface GitLabProject {
+    id: number;
+    name: string;
+    path_with_namespace: string;
+    description: string | null;
+}
+
 const GitLabSettings: React.FC = () => {
     const { token } = useAuth();
     const { showError, showSuccess } = useToast();
@@ -50,6 +64,19 @@ const GitLabSettings: React.FC = () => {
     const [step, setStep] = useState(1); // 1 for connection setup, 2 for watchlist selection
     const [connectionTested, setConnectionTested] = useState(false);
     const [testingConnection, setTestingConnection] = useState(false);
+    
+    // Step 2: GitLab users and projects selection
+    const [gitlabUsers, setGitlabUsers] = useState<GitLabUser[]>([]);
+    const [gitlabProjects, setGitlabProjects] = useState<GitLabProject[]>([]);
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
+    const [fetchingUsers, setFetchingUsers] = useState(false);
+    const [fetchingProjects, setFetchingProjects] = useState(false);
+    const [currentInstanceId, setCurrentInstanceId] = useState<number | null>(null);
+    
+    // Search filters
+    const [userSearch, setUserSearch] = useState('');
+    const [projectSearch, setProjectSearch] = useState('');
 
     useEffect(() => {
         if (token) {
@@ -68,6 +95,54 @@ const GitLabSettings: React.FC = () => {
         } finally { setFetching(false); }
     };
 
+    const fetchGitLabUsersAndProjects = async () => {
+        setFetchingUsers(true);
+        setFetchingProjects(true);
+        try {
+            const response = await api.post<{
+                users: GitLabUser[];
+                projects: GitLabProject[];
+            }>('/gitlab/fetch-users-projects', {
+                url: formData.url,
+                personal_access_token: formData.personal_access_token
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setGitlabUsers(response.users);
+            setGitlabProjects(response.projects);
+        } catch (error) {
+            showError('Failed to fetch GitLab users and projects');
+        } finally {
+            setFetchingUsers(false);
+            setFetchingProjects(false);
+        }
+    };
+
+    const fetchGitLabUsers = async (instanceId: number) => {
+        setFetchingUsers(true);
+        try {
+            const data = await api.get<GitLabUser[]>(`/gitlab/users?instance_id=${instanceId}`, undefined, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setGitlabUsers(data);
+        } catch (error) {
+            showError('Failed to fetch GitLab users');
+        } finally { setFetchingUsers(false); }
+    };
+
+    const fetchGitLabProjects = async (instanceId: number) => {
+        setFetchingProjects(true);
+        try {
+            const data = await api.get<GitLabProject[]>(`/gitlab/projects?instance_id=${instanceId}`, undefined, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setGitlabProjects(data);
+        } catch (error) {
+            showError('Failed to fetch GitLab projects');
+        } finally { setFetchingProjects(false); }
+    };
+
     const fetchWatchlist = async () => {
         setFetchingWatchlist(true);
         try {
@@ -78,11 +153,22 @@ const GitLabSettings: React.FC = () => {
         } finally { setFetchingWatchlist(false); }
     };
 
-    const handleAddInstance = async (e: React.FormEvent) => {
+    const handleAddInstance = (e: React.FormEvent) => {
         e.preventDefault();
+        addInstance();
+    };
+    
+    const addInstance = async () => {
         setLoading(true);
         try {
-            await api.post('/gitlab/instances', formData);
+            // Convert selected IDs to JSON strings
+            const formDataToSend = {
+                ...formData,
+                target_users_json: JSON.stringify(selectedUserIds),
+                target_projects_json: JSON.stringify(selectedProjectIds)
+            };
+            
+            await api.post('/gitlab/instances', formDataToSend);
             setIsAdding(false);
             resetForm();
             fetchInstances();
@@ -92,6 +178,36 @@ const GitLabSettings: React.FC = () => {
         } finally { setLoading(false); }
     };
 
+const handleUpdateInstance = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (editingId === null) return;
+        updateInstance();
+    };
+    
+    const updateInstance = async () => {
+        setLoading(true);
+        try {
+            // Convert selected IDs to JSON strings
+            const formDataToSend = {
+                ...formData,
+                target_users_json: JSON.stringify(selectedUserIds),
+                target_projects_json: JSON.stringify(selectedProjectIds)
+            };
+            
+            await api.put(`/gitlab/instances/${editingId}`, formDataToSend);
+            setEditingId(null);
+            resetForm();
+            fetchInstances();
+            showSuccess('Updated successfully');
+        } catch (error) {
+            showError('Update failed');
+        } finally { setLoading(false); }
+    };
+
+    const handleTestConnection = () => {
+        testConnection();
+    };
+    
     const testConnection = async () => {
         setTestingConnection(true);
         try {
@@ -121,22 +237,7 @@ const GitLabSettings: React.FC = () => {
         }
     };
 
-    const handleUpdateInstance = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (editingId === null) return;
-        setLoading(true);
-        try {
-            await api.put(`/gitlab/instances/${editingId}`, formData);
-            setEditingId(null);
-            resetForm();
-            fetchInstances();
-            showSuccess('Updated successfully');
-        } catch (error) {
-            showError('Update failed');
-        } finally { setLoading(false); }
-    };
-
-    const handleDeleteInstance = async (id: number) => {
+const handleDeleteInstance = async (id: number) => {
         if (!confirm('Are you sure you want to delete this instance?')) return;
         try {
             await api.delete(`/gitlab/instances/${id}`);
@@ -175,10 +276,21 @@ const GitLabSettings: React.FC = () => {
             target_users_json: inst.target_users_json || '[]',
             target_projects_json: inst.target_projects_json || '[]'
         });
+        // Parse existing selections
+        try {
+            const users = JSON.parse(inst.target_users_json || '[]');
+            const projects = JSON.parse(inst.target_projects_json || '[]');
+            setSelectedUserIds(users);
+            setSelectedProjectIds(projects);
+        } catch (e) {
+            setSelectedUserIds([]);
+            setSelectedProjectIds([]);
+        }
         // When editing, we start at step 1 but with connection already tested
         setConnectionTested(true);
         setStep(1);
         setIsAdding(false);
+        setCurrentInstanceId(inst.id);
     };
 
     const resetForm = () => {
@@ -192,6 +304,15 @@ const GitLabSettings: React.FC = () => {
         // Reset step and connection status when resetting form
         setStep(1);
         setConnectionTested(false);
+        // Reset selection states
+        setSelectedUserIds([]);
+        setSelectedProjectIds([]);
+        setGitlabUsers([]);
+        setGitlabProjects([]);
+        setCurrentInstanceId(null);
+        // Reset search filters
+        setUserSearch('');
+        setProjectSearch('');
     };
 
     return (
@@ -274,7 +395,7 @@ const GitLabSettings: React.FC = () => {
                                 <div className="space-y-3 flex items-end">
                                     <button
                                         type="button"
-                                        onClick={testConnection}
+                                        onClick={handleTestConnection}
                                         disabled={testingConnection || !formData.url || !formData.personal_access_token}
                                         className="flex items-center gap-2 px-6 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
                                     >
@@ -291,28 +412,147 @@ const GitLabSettings: React.FC = () => {
                         {/* Step 2: Filtering Configuration (only shown after connection is tested) */}
                         {step === 2 && connectionTested && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Filtering fields */}
+                                {/* Target Users Selection */}
                                 <div className="space-y-3 lg:col-span-1">
                                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                         <Users className="w-3 h-3" /> 目標人員 (Target users)
                                     </label>
-                                    <textarea
-                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
-                                        placeholder='["user1", "user2"]'
-                                        value={formData.target_users_json}
-                                        onChange={e => setFormData({ ...formData, target_users_json: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="搜尋用戶..."
+                                            className="w-full h-10 bg-white border border-slate-200 rounded-lg pl-3 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="w-full min-h-[100px] max-h-[300px] bg-slate-50 border border-slate-100 rounded-[24px] p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none overflow-y-auto custom-scrollbar">
+                                        {fetchingUsers ? (
+                                            <div className="flex items-center justify-center h-full">
+                                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                            </div>
+                                        ) : gitlabUsers.length === 0 ? (
+                                            <div className="text-slate-400 text-center py-4">
+                                                無可用用戶
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {gitlabUsers
+                                                    .filter(user => 
+                                                        user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                                        user.username.toLowerCase().includes(userSearch.toLowerCase())
+                                                    )
+                                                    .map(user => (
+                                                        <div 
+                                                            key={user.id} 
+                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                                                                selectedUserIds.includes(user.id) 
+                                                                    ? 'bg-sky-100 border border-sky-200' 
+                                                                    : 'hover:bg-white'
+                                                            }`}
+                                                            onClick={() => {
+                                                                if (selectedUserIds.includes(user.id)) {
+                                                                    setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
+                                                                } else {
+                                                                    setSelectedUserIds([...selectedUserIds, user.id]);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                                                                selectedUserIds.includes(user.id) 
+                                                                    ? 'bg-sky-500 border-sky-500' 
+                                                                    : 'border-slate-300'
+                                                            }`}>
+                                                                {selectedUserIds.includes(user.id) && (
+                                                                    <Check className="w-3 h-3 text-white" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                            <div className="font-bold text-slate-800 truncate">{user.name}</div>
+                                                                <div className="text-[10px] text-slate-500 truncate">{user.username}</div>
+                                                            </div>
+                                                            <div className={`text-xs px-2 py-1 rounded-full ${
+                                                                user.state === 'active' 
+                                                                    ? 'bg-green-100 text-green-800' 
+                                                                    : 'bg-slate-100 text-slate-800'
+                                                            }`}>
+                                                                {user.state === 'active' ? 'Active' : 'Inactive'}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                                
+                                {/* Target Projects Selection */}
                                 <div className="space-y-3 lg:col-span-2">
                                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                         <Box className="w-3 h-3" /> 目標專案 (Target projects)
                                     </label>
-                                    <textarea
-                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
-                                        placeholder='["group/project1", "group/project2"]'
-                                        value={formData.target_projects_json}
-                                        onChange={e => setFormData({ ...formData, target_projects_json: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="搜尋專案..."
+                                            className="w-full h-10 bg-white border border-slate-200 rounded-lg pl-3 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
+                                            value={projectSearch}
+                                            onChange={(e) => setProjectSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="w-full min-h-[100px] max-h-[300px] bg-slate-50 border border-slate-100 rounded-[24px] p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none overflow-y-auto custom-scrollbar">
+                                        {fetchingProjects ? (
+                                            <div className="flex items-center justify-center h-full">
+                                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                            </div>
+                                        ) : gitlabProjects.length === 0 ? (
+                                            <div className="text-slate-400 text-center py-4">
+                                                無可用專案
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {gitlabProjects
+                                                    .filter(project => 
+                                                        project.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                        project.path_with_namespace.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                        (project.description && project.description.toLowerCase().includes(projectSearch.toLowerCase()))
+                                                    )
+                                                    .map(project => (
+                                                        <div 
+                                                            key={project.id} 
+                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                                                                selectedProjectIds.includes(project.id) 
+                                                                    ? 'bg-sky-100 border border-sky-200' 
+                                                                    : 'hover:bg-white'
+                                                            }`}
+                                                            onClick={() => {
+                                                                if (selectedProjectIds.includes(project.id)) {
+                                                                    setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
+                                                                } else {
+                                                                    setSelectedProjectIds([...selectedProjectIds, project.id]);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                                                                selectedProjectIds.includes(project.id) 
+                                                                    ? 'bg-sky-500 border-sky-500' 
+                                                                    : 'border-slate-300'
+                                                            }`}>
+                                                                {selectedProjectIds.includes(project.id) && (
+                                                                    <Check className="w-3 h-3 text-white" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-bold text-slate-800 truncate">{project.name}</div>
+                                                                <div className="text-[10px] text-slate-500 truncate">{project.path_with_namespace}</div>
+                                                                {project.description && (
+                                                                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{project.description}</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -331,7 +571,29 @@ const GitLabSettings: React.FC = () => {
                             {step === 1 && connectionTested && (
                                 <button
                                     type="button"
-                                    onClick={() => setStep(2)}
+                                    onClick={() => {
+                                        if (editingId) {
+                                            // For editing, we already have the instance ID
+                                            fetchGitLabUsers(editingId);
+                                            fetchGitLabProjects(editingId);
+                                            setCurrentInstanceId(editingId);
+                                            
+                                            // Parse existing selections
+                                            try {
+                                                const users = JSON.parse(formData.target_users_json || '[]');
+                                                const projects = JSON.parse(formData.target_projects_json || '[]');
+                                                setSelectedUserIds(users);
+                                                setSelectedProjectIds(projects);
+                                            } catch (e) {
+                                                setSelectedUserIds([]);
+                                                setSelectedProjectIds([]);
+                                            }
+                                        } else {
+                                            // For adding new instance, fetch users and projects using the connection details
+                                            fetchGitLabUsersAndProjects();
+                                        }
+                                        setStep(2);
+                                    }}
                                     className="px-8 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
                                 >
                                     下一步 (設定過濾條件)
