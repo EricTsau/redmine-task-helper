@@ -72,9 +72,9 @@ export function Settings() {
                 task_severe_warning_days: settings.task_severe_warning_days
             });
             updateField('redmine_token', data.redmine_token);
-            
+
             // 更新認證上下文中的 Redmine URL
-            const response = await api.get('/auth/me');
+            await api.get('/auth/me');
             setStatus(t('settings.redmineSaved'));
             setTimeout(() => setStatus(''), 2000);
         } catch (e: any) { setStatus('Error: ' + e.message); }

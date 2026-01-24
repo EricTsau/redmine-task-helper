@@ -15,6 +15,7 @@ export interface WorkLogEditorHandle {
     setMode: (mode: 'edit' | 'preview') => void;
     setContent: (content: string) => void;
     focus: () => void;
+    submit: () => Promise<void>;
 }
 
 interface WorkLogEditorProps {
@@ -51,17 +52,7 @@ export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    useImperativeHandle(ref, () => ({
-        setMode: (newMode) => setMode(newMode),
-        setContent: (newContent) => {
-            setContent(newContent);
-            onUpdate(newContent); // Sync with parent state if needed, though strictly this might be "viewing"
-            // If we are setting content programmatically for preview, we might not want to trigger 'onUpdate' as a user edit?
-            // But WorkLogEditor state usually reflects "what is in the box".
-            // Let's assume setContent implies replacing the draft.
-        },
-        focus: () => textareaRef.current?.focus()
-    }));
+
 
     // Image compression helper
     const compressImage = (file: File, maxWidth = 1920, quality = 0.8): Promise<File> => {
@@ -147,7 +138,7 @@ export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>
                 const fileId = addFile(file);
 
                 // Insert markdown image
-                const markdownImage = `![Loading ${file.name}...](${fileId})`;
+                const markdownImage = `![${file.name}](pending:${fileId})`;
                 const textarea = e.target as HTMLTextAreaElement;
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
@@ -233,7 +224,7 @@ export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>
             }
 
             const fileId = addFile(finalFile);
-            const placeholder = `![image](pending:${fileId})`;
+            const placeholder = `![${finalFile.name}](pending:${fileId})`;
             setContent(prev => prev + '\n' + placeholder);
             setHasUnsavedChanges(true);
         }
@@ -259,7 +250,7 @@ export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>
             const fileId = addFile(file);
             // Use different placeholder for non-image files
             const placeholder = file.type.startsWith('image/')
-                ? `![image](pending:${fileId})`
+                ? `![${file.name}](pending:${fileId})`
                 : `[${file.name}](attachment:${fileId})`;
             setContent(prev => prev + '\n' + placeholder);
             setHasUnsavedChanges(true);
@@ -476,6 +467,16 @@ export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>
 
         return <img src={src} alt={alt} className="max-w-full h-auto rounded" />;
     };
+
+    useImperativeHandle(ref, () => ({
+        setMode: (newMode) => setMode(newMode),
+        setContent: (newContent) => {
+            setContent(newContent);
+            onUpdate(newContent);
+        },
+        focus: () => textareaRef.current?.focus(),
+        submit: handleSubmit
+    }));
 
     return (
         <div className={`flex flex-col h-full border rounded-md overflow-hidden bg-card relative ${className}`}>

@@ -365,7 +365,7 @@ class WorkSummaryService:
             select(GitLabInstance).where(GitLabInstance.owner_id == self.user.id)
         ).all()
 
-        since = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+        since = datetime.fromisoformat(start_date.replace("Z", "+00:00")) - timedelta(days=1)
         until = datetime.fromisoformat(end_date.replace("Z", "+00:00")) + timedelta(days=1)
 
         for instance in instances:
@@ -383,9 +383,15 @@ class WorkSummaryService:
             for wl in watchlists:
                 try:
                     commits = await gs.get_commits(wl.gitlab_project_id, since, until)
+                    # Inject project_id into commits
+                    for c in commits:
+                        c["project_id"] = wl.gitlab_project_id
                     instance_commits.extend(commits)
                     
                     mrs = await gs.get_merge_requests(wl.gitlab_project_id, since)
+                    # Inject project_id into MRs
+                    for mr in mrs:
+                        mr["project_id"] = wl.gitlab_project_id
                     instance_mrs.extend(mrs)
                 except Exception as e:
                     print(f"Error fetching GitLab data for {wl.project_name}: {e}")

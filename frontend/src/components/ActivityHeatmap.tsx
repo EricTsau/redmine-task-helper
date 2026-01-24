@@ -23,11 +23,11 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, instanceName })
     }, [data]);
 
     const getColor = (count: number) => {
-        if (count === 0) return 'bg-slate-800';
-        if (count < 3) return 'bg-cyan-900';
-        if (count < 6) return 'bg-cyan-700';
-        if (count < 10) return 'bg-cyan-500';
-        return 'bg-cyan-300';
+        if (count === 0) return 'bg-slate-200/50 dark:bg-slate-800/50';
+        if (count < 3) return 'bg-emerald-200 dark:bg-emerald-900';
+        if (count < 6) return 'bg-emerald-400 dark:bg-emerald-700';
+        if (count < 10) return 'bg-emerald-500 dark:bg-emerald-500';
+        return 'bg-emerald-600 dark:bg-emerald-400';
     };
 
     // Group by weeks for better layout
@@ -44,7 +44,7 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, instanceName })
             currentWeek.push({ date: '', count: -1 });
         }
 
-        days.forEach((day, index) => {
+        days.forEach((day) => {
             currentWeek.push(day);
             if (currentWeek.length === 7) {
                 result.push(currentWeek);
@@ -59,17 +59,17 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, instanceName })
     }, [days]);
 
     return (
-        <div className="bg-slate-900/50 border border-slate-700 p-4 rounded-xl backdrop-blur-sm">
+        <div className="bg-white/40 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 rounded-xl backdrop-blur-sm">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-medium text-slate-300">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
                     {instanceName ? `${instanceName} Activity` : 'Commit Activity'}
                 </h3>
-                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
                     <span>Less</span>
-                    <div className="w-2.5 h-2.5 rounded-sm bg-slate-800"></div>
-                    <div className="w-2.5 h-2.5 rounded-sm bg-cyan-900"></div>
-                    <div className="w-2.5 h-2.5 rounded-sm bg-cyan-500"></div>
-                    <div className="w-2.5 h-2.5 rounded-sm bg-cyan-300"></div>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-slate-200/50 dark:bg-slate-800/50"></div>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-200 dark:bg-emerald-900"></div>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500 dark:bg-emerald-500"></div>
+                    <div className="w-2.5 h-2.5 rounded-sm bg-emerald-600 dark:bg-emerald-400"></div>
                     <span>More</span>
                 </div>
             </div>
@@ -81,14 +81,14 @@ const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ data, instanceName })
                             <div
                                 key={`${wIdx}-${dIdx}`}
                                 title={day.date ? `${day.date}: ${day.count} commits` : ''}
-                                className={`w-3 h-3 rounded-sm ${day.count === -1 ? 'bg-transparent' : getColor(day.count)} transition-colors duration-200 hover:scale-125`}
+                                className={`w-3 h-3 rounded-sm ${day.count === -1 ? 'bg-transparent' : getColor(day.count)} transition-all duration-200 hover:scale-125 hover:ring-1 ring-emerald-400`}
                             ></div>
                         ))}
                     </div>
                 ))}
             </div>
 
-            <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+            <div className="mt-2 flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>365 days ago</span>
                 <span>Today</span>
             </div>

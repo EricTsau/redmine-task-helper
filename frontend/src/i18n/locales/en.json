@@ -338,5 +338,38 @@
             "updated": "System config updated",
             "updateFailed": "Update failed"
         }
+    },
+    "gitlabDashboard": {
+        "title": "GitLab Pulse",
+        "subtitle": "Real-time code activity and development velocity",
+        "refresh": "Refresh",
+        "loading": "Loading...",
+        "noActivity": "No recent activity found",
+        "filters": {
+            "searchPlaceholder": "Search Commits...",
+            "allProjects": "All Projects",
+            "allAuthors": "All Authors",
+            "allTypes": "All Types",
+            "commit": "Commit",
+            "mr": "Merge Request",
+            "showing": "Showing {{count}} items"
+        },
+        "stats": {
+            "totalCommits": "Total Commits",
+            "mergeRequests": "Merge Requests",
+            "activeProjects": "Active Projects",
+            "instances": "Instances",
+            "commitsDesc": "Total number of commits pushed to tracked projects in the last {{days}} days.",
+            "mrsDesc": "Total merge requests created or updated across all instances.",
+            "projectsDesc": "Number of projects currently being monitored.",
+            "instancesDesc": "Connected GitLab server instances."
+        },
+        "sections": {
+            "heatmap": "Activity Heatmap",
+            "timeline": "Code Pulse Timeline",
+            "explorer": "Activity Explorer",
+            "noFilterMatches": "No activity matches filters."
+        },
+        "viewOnGitLab": "View on GitLab"
     }
 }

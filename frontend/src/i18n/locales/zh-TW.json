@@ -338,5 +338,38 @@
             "updated": "系統設定已更新",
             "updateFailed": "更新失敗"
         }
+    },
+    "gitlabDashboard": {
+        "title": "GitLab 脈動",
+        "subtitle": "即時程式碼活動與開發速率",
+        "refresh": "重新整理",
+        "loading": "載入中...",
+        "noActivity": "找不到近期活動",
+        "filters": {
+            "searchPlaceholder": "搜尋 Commits...",
+            "allProjects": "所有專案",
+            "allAuthors": "所有作者",
+            "allTypes": "所有類型",
+            "commit": "提交 (Commit)",
+            "mr": "合併請求 (MR)",
+            "showing": "顯示 {{count}} 筆資料"
+        },
+        "stats": {
+            "totalCommits": "總提交數",
+            "mergeRequests": "合併請求",
+            "activeProjects": "活躍專案",
+            "instances": "實例數",
+            "commitsDesc": "過去 {{days}} 天內推送到受監控專案的提交總數。",
+            "mrsDesc": "所有實例中建立或更新的總合併請求(MR)數。",
+            "projectsDesc": "目前正在監控的專案數量。",
+            "instancesDesc": "已連線的 GitLab 伺服器實例。"
+        },
+        "sections": {
+            "heatmap": "活動熱力圖",
+            "timeline": "代碼脈動時間軸",
+            "explorer": "活動探索器",
+            "noFilterMatches": "沒有活動符合目前的過濾條件。"
+        },
+        "viewOnGitLab": "前往 GitLab 查看"
     }
 }

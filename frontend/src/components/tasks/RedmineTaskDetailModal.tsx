@@ -49,12 +49,13 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
     const [expandedJournals, setExpandedJournals] = useState<Set<number>>(new Set());
     const [editorHeight, setEditorHeight] = useState(200); // Default height in px
 
-    const editorRef = useRef<WorkLogEditorHandle>(null);
+    const noteEditorRef = useRef<WorkLogEditorHandle>(null);
+    const descEditorRef = useRef<WorkLogEditorHandle>(null);
 
     const handlePreviewNote = (note: string) => {
-        if (editorRef.current) {
-            editorRef.current.setContent(note);
-            editorRef.current.setMode('preview');
+        if (noteEditorRef.current) {
+            noteEditorRef.current.setContent(note);
+            noteEditorRef.current.setMode('preview');
             // Allow user to see "Edit" button if they want to copy/edit from it
         }
     };
@@ -99,34 +100,47 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
         }
     };
 
-    const handleSaveDescription = async () => {
+    const onDescriptionSubmit = async (content: string, _files: any[] = [], uploads: any[] = []) => {
         setIsLoading(true);
         try {
-            await api.put(`/tasks/${taskId}`, { description });
+            await api.put(`/tasks/${taskId}`, { description: content, uploads });
             showSuccess('描述已更新');
             if (onUpdate) onUpdate();
             // Refresh details
             fetchDetails();
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            showError('更新描述失敗');
+            showError('更新描述失敗: ' + (e.response?.data?.detail || e.message));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleSendNote = async () => {
-        if (!newNote.trim()) return;
+    const handleSaveDescription = () => {
+        // Trigger internal submit which handles uploads and calls onDescriptionSubmit
+        descEditorRef.current?.submit();
+    };
+
+    const onNoteSubmit = async (content: string, _files: any[] = [], uploads: any[] = []) => {
+        if (!content.trim()) return;
         setIsLoading(true);
         try {
-            await api.post(`/tasks/${taskId}/notes`, { notes: newNote });
+            await api.post(`/tasks/${taskId}/notes`, { notes: content, uploads });
             showSuccess('筆記已發送');
+
+            // Allow editor to clear itself or we force it?
+            // WorkLogEditor clears files but not content automatically in all cases.
+            // But since we provided onSubmit/onSubmitWithFiles, we responsible for clearing logic if needed?
+            // Actually WorkLogEditor submit implementation (line 300) doesn't clear content.
+
             setNewNote('');
+            noteEditorRef.current?.setContent('');
+
             if (onUpdate) onUpdate();
             fetchDetails();
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            showError('發送筆記失敗');
+            showError('發送筆記失敗: ' + (e.response?.data?.detail || e.message));
         } finally {
             setIsLoading(false);
         }
@@ -225,8 +239,11 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                         <div className="h-full flex flex-col p-4 max-w-4xl mx-auto w-full">
                             <div className="bg-card rounded-lg border shadow-sm flex-1 flex flex-col overflow-hidden">
                                 <WorkLogEditor
+                                    ref={descEditorRef}
                                     initialContent={description}
                                     onUpdate={setDescription}
+                                    onSubmit={onDescriptionSubmit}
+                                    onSubmitWithFiles={onDescriptionSubmit}
                                     hideSaveButton={true}
                                     className="flex-1 min-h-0" // Use flex-1 to fill space, min-h-0 to allow shrinking
                                 />
@@ -343,14 +360,12 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                                     </h4>
                                     <div style={{ height: `${editorHeight}px` }}>
                                         <WorkLogEditor
-                                            ref={editorRef}
+                                            ref={noteEditorRef}
                                             initialContent={newNote}
                                             onUpdate={setNewNote}
                                             submitLabel="發送"
-                                            onSubmit={async (content) => {
-                                                setNewNote(content);
-                                                await handleSendNote();
-                                            }}
+                                            onSubmit={onNoteSubmit}
+                                            onSubmitWithFiles={onNoteSubmit}
                                             placeholder="輸入筆記..."
                                             className="h-full"
                                         />

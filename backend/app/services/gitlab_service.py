@@ -2,6 +2,7 @@ import httpx
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import asyncio
+import urllib.parse
 from app.models import GitLabInstance, GitLabWatchlist
 
 class GitLabService:
@@ -12,14 +13,21 @@ class GitLabService:
 
     async def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/{endpoint}",
-                headers=self.headers,
-                params=params,
-                timeout=30.0
-            )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = await client.get(
+                    f"{self.base_url}/{endpoint}",
+                    headers=self.headers,
+                    params=params,
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                print(f"GitLab API Error: {e.response.status_code} - {e.response.text}")
+                raise e
+            except Exception as e:
+                 print(f"GitLab Request Failed: {e}")
+                 raise e
 
     async def get_users(self) -> List[Dict[str, Any]]:
         """獲取 GitLab 用戶列表"""
@@ -29,13 +37,19 @@ class GitLabService:
         """獲取 GitLab 專案列表"""
         return await self._get("projects", params={"per_page": 100, "membership": "true"})
 
+    async def get_project(self, project_id: int) -> Dict[str, Any]:
+        """獲取單一專案詳情"""
+        return await self._get(f"projects/{project_id}")
+
+
     async def get_commits(self, project_id: int, since: datetime, until: datetime) -> List[Dict[str, Any]]:
         """獲取專案在指定時間內的所有 Commits"""
         params = {
             "since": since.isoformat(),
             "until": until.isoformat(),
             "with_stats": "true",
-            "per_page": 100
+            "per_page": 100,
+            "all": "true"
         }
         return await self._get(f"projects/{project_id}/repository/commits", params=params)
 

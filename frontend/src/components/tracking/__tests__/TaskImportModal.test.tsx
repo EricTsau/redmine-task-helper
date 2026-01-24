@@ -3,7 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { TaskImportModal } from '../TaskImportModal';
 
 // Mock fetch
-global.fetch = vi.fn();
+globalThis.fetch = vi.fn();
 
 const mockProjects = [
     { id: 1, name: 'Main Project', parent_id: null },
@@ -27,7 +27,7 @@ describe('TaskImportModal', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         // Default mock implementation for projects
-        (global.fetch as any).mockImplementation((url: string) => {
+        (globalThis.fetch as any).mockImplementation((url: string) => {
             if (url.includes('/projects')) {
                 return Promise.resolve({
                     ok: true,
@@ -74,7 +74,7 @@ describe('TaskImportModal', () => {
 
         await waitFor(() => {
             // Check if fetch called with project_id
-            const calls = (global.fetch as any).mock.calls;
+            const calls = (globalThis.fetch as any).mock.calls;
             const searchCall = calls.find((call: any[]) => call[0].includes('/search'));
             expect(searchCall).toBeTruthy();
             expect(searchCall[0]).toContain('project_id=1');

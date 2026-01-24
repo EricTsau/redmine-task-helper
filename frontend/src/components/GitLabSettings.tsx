@@ -59,12 +59,12 @@ const GitLabSettings: React.FC = () => {
         target_users_json: '[]',
         target_projects_json: '[]'
     });
-    
+
     // Step 1: GitLab connection setup
     const [step, setStep] = useState(1); // 1 for connection setup, 2 for watchlist selection
     const [connectionTested, setConnectionTested] = useState(false);
     const [testingConnection, setTestingConnection] = useState(false);
-    
+
     // Step 2: GitLab users and projects selection
     const [gitlabUsers, setGitlabUsers] = useState<GitLabUser[]>([]);
     const [gitlabProjects, setGitlabProjects] = useState<GitLabProject[]>([]);
@@ -72,8 +72,7 @@ const GitLabSettings: React.FC = () => {
     const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
     const [fetchingUsers, setFetchingUsers] = useState(false);
     const [fetchingProjects, setFetchingProjects] = useState(false);
-    const [currentInstanceId, setCurrentInstanceId] = useState<number | null>(null);
-    
+
     // Search filters
     const [userSearch, setUserSearch] = useState('');
     const [projectSearch, setProjectSearch] = useState('');
@@ -108,7 +107,7 @@ const GitLabSettings: React.FC = () => {
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setGitlabUsers(response.users);
             setGitlabProjects(response.projects);
         } catch (error) {
@@ -157,7 +156,7 @@ const GitLabSettings: React.FC = () => {
         e.preventDefault();
         addInstance();
     };
-    
+
     const addInstance = async () => {
         setLoading(true);
         try {
@@ -167,23 +166,24 @@ const GitLabSettings: React.FC = () => {
                 target_users_json: JSON.stringify(selectedUserIds),
                 target_projects_json: JSON.stringify(selectedProjectIds)
             };
-            
+
             await api.post('/gitlab/instances', formDataToSend);
             setIsAdding(false);
             resetForm();
             fetchInstances();
+            fetchWatchlist();
             showSuccess('Instance added');
         } catch (error) {
             showError('Failed to add instance');
         } finally { setLoading(false); }
     };
 
-const handleUpdateInstance = (e: React.FormEvent) => {
+    const handleUpdateInstance = (e: React.FormEvent) => {
         e.preventDefault();
         if (editingId === null) return;
         updateInstance();
     };
-    
+
     const updateInstance = async () => {
         setLoading(true);
         try {
@@ -193,11 +193,12 @@ const handleUpdateInstance = (e: React.FormEvent) => {
                 target_users_json: JSON.stringify(selectedUserIds),
                 target_projects_json: JSON.stringify(selectedProjectIds)
             };
-            
+
             await api.put(`/gitlab/instances/${editingId}`, formDataToSend);
             setEditingId(null);
             resetForm();
             fetchInstances();
+            fetchWatchlist();
             showSuccess('Updated successfully');
         } catch (error) {
             showError('Update failed');
@@ -207,11 +208,11 @@ const handleUpdateInstance = (e: React.FormEvent) => {
     const handleTestConnection = () => {
         testConnection();
     };
-    
+
     const testConnection = async () => {
         setTestingConnection(true);
         try {
-            const response = await api.post<{success: boolean; message: string}>(
+            const response = await api.post<{ success: boolean; message: string }>(
                 '/gitlab/test-connection',
                 {
                     url: formData.url,
@@ -221,7 +222,7 @@ const handleUpdateInstance = (e: React.FormEvent) => {
                     headers: { Authorization: `Bearer ${token}` }
                 }
             );
-            
+
             if (response.success) {
                 showSuccess(response.message);
                 setConnectionTested(true);
@@ -237,7 +238,7 @@ const handleUpdateInstance = (e: React.FormEvent) => {
         }
     };
 
-const handleDeleteInstance = async (id: number) => {
+    const handleDeleteInstance = async (id: number) => {
         if (!confirm('Are you sure you want to delete this instance?')) return;
         try {
             await api.delete(`/gitlab/instances/${id}`);
@@ -290,7 +291,7 @@ const handleDeleteInstance = async (id: number) => {
         setConnectionTested(true);
         setStep(1);
         setIsAdding(false);
-        setCurrentInstanceId(inst.id);
+        setIsAdding(false);
     };
 
     const resetForm = () => {
@@ -309,7 +310,7 @@ const handleDeleteInstance = async (id: number) => {
         setSelectedProjectIds([]);
         setGitlabUsers([]);
         setGitlabProjects([]);
-        setCurrentInstanceId(null);
+        setGitlabProjects([]);
         // Reset search filters
         setUserSearch('');
         setProjectSearch('');
@@ -438,18 +439,17 @@ const handleDeleteInstance = async (id: number) => {
                                         ) : (
                                             <div className="space-y-2">
                                                 {gitlabUsers
-                                                    .filter(user => 
+                                                    .filter(user =>
                                                         user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
                                                         user.username.toLowerCase().includes(userSearch.toLowerCase())
                                                     )
                                                     .map(user => (
-                                                        <div 
-                                                            key={user.id} 
-                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                                                                selectedUserIds.includes(user.id) 
-                                                                    ? 'bg-sky-100 border border-sky-200' 
-                                                                    : 'hover:bg-white'
-                                                            }`}
+                                                        <div
+                                                            key={user.id}
+                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedUserIds.includes(user.id)
+                                                                ? 'bg-sky-100 border border-sky-200'
+                                                                : 'hover:bg-white'
+                                                                }`}
                                                             onClick={() => {
                                                                 if (selectedUserIds.includes(user.id)) {
                                                                     setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
@@ -458,24 +458,22 @@ const handleDeleteInstance = async (id: number) => {
                                                                 }
                                                             }}
                                                         >
-                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                                                                selectedUserIds.includes(user.id) 
-                                                                    ? 'bg-sky-500 border-sky-500' 
-                                                                    : 'border-slate-300'
-                                                            }`}>
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedUserIds.includes(user.id)
+                                                                ? 'bg-sky-500 border-sky-500'
+                                                                : 'border-slate-300'
+                                                                }`}>
                                                                 {selectedUserIds.includes(user.id) && (
                                                                     <Check className="w-3 h-3 text-white" />
                                                                 )}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                            <div className="font-bold text-slate-800 truncate">{user.name}</div>
+                                                                <div className="font-bold text-slate-800 truncate">{user.name}</div>
                                                                 <div className="text-[10px] text-slate-500 truncate">{user.username}</div>
                                                             </div>
-                                                            <div className={`text-xs px-2 py-1 rounded-full ${
-                                                                user.state === 'active' 
-                                                                    ? 'bg-green-100 text-green-800' 
-                                                                    : 'bg-slate-100 text-slate-800'
-                                                            }`}>
+                                                            <div className={`text-xs px-2 py-1 rounded-full ${user.state === 'active'
+                                                                ? 'bg-green-100 text-green-800'
+                                                                : 'bg-slate-100 text-slate-800'
+                                                                }`}>
                                                                 {user.state === 'active' ? 'Active' : 'Inactive'}
                                                             </div>
                                                         </div>
@@ -484,7 +482,7 @@ const handleDeleteInstance = async (id: number) => {
                                         )}
                                     </div>
                                 </div>
-                                
+
                                 {/* Target Projects Selection */}
                                 <div className="space-y-3 lg:col-span-2">
                                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
@@ -511,19 +509,18 @@ const handleDeleteInstance = async (id: number) => {
                                         ) : (
                                             <div className="space-y-2">
                                                 {gitlabProjects
-                                                    .filter(project => 
+                                                    .filter(project =>
                                                         project.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
                                                         project.path_with_namespace.toLowerCase().includes(projectSearch.toLowerCase()) ||
                                                         (project.description && project.description.toLowerCase().includes(projectSearch.toLowerCase()))
                                                     )
                                                     .map(project => (
-                                                        <div 
-                                                            key={project.id} 
-                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                                                                selectedProjectIds.includes(project.id) 
-                                                                    ? 'bg-sky-100 border border-sky-200' 
-                                                                    : 'hover:bg-white'
-                                                            }`}
+                                                        <div
+                                                            key={project.id}
+                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedProjectIds.includes(project.id)
+                                                                ? 'bg-sky-100 border border-sky-200'
+                                                                : 'hover:bg-white'
+                                                                }`}
                                                             onClick={() => {
                                                                 if (selectedProjectIds.includes(project.id)) {
                                                                     setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
@@ -532,11 +529,10 @@ const handleDeleteInstance = async (id: number) => {
                                                                 }
                                                             }}
                                                         >
-                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                                                                selectedProjectIds.includes(project.id) 
-                                                                    ? 'bg-sky-500 border-sky-500' 
-                                                                    : 'border-slate-300'
-                                                            }`}>
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedProjectIds.includes(project.id)
+                                                                ? 'bg-sky-500 border-sky-500'
+                                                                : 'border-slate-300'
+                                                                }`}>
                                                                 {selectedProjectIds.includes(project.id) && (
                                                                     <Check className="w-3 h-3 text-white" />
                                                                 )}
@@ -576,8 +572,7 @@ const handleDeleteInstance = async (id: number) => {
                                             // For editing, we already have the instance ID
                                             fetchGitLabUsers(editingId);
                                             fetchGitLabProjects(editingId);
-                                            setCurrentInstanceId(editingId);
-                                            
+
                                             // Parse existing selections
                                             try {
                                                 const users = JSON.parse(formData.target_users_json || '[]');
@@ -601,7 +596,7 @@ const handleDeleteInstance = async (id: number) => {
                             )}
                             <div className="ml-auto">
                                 <button
-                                    type="submit" 
+                                    type="submit"
                                     disabled={loading || (step === 1 && !connectionTested)}
                                     className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
                                 >

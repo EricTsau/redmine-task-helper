@@ -230,6 +230,7 @@ class UpdateTaskRequest(BaseModel):
     status_id: Optional[int] = None
     done_ratio: Optional[int] = None
     assigned_to_id: Optional[int] = None
+    uploads: Optional[List[dict]] = None  # List of {token, filename, content_type}
     
 @router.put("/{task_id}")
 async def update_task(
@@ -250,6 +251,7 @@ async def update_task(
 
 class AddNoteRequest(BaseModel):
     notes: str
+    uploads: Optional[List[dict]] = None  # List of {token, filename, content_type}
 
 
 @router.post("/{task_id}/notes")
@@ -260,7 +262,7 @@ async def add_task_note(
 ):
     """Add a note to a task in Redmine."""
     try:
-        service.add_issue_note(task_id, request.notes)
+        service.add_issue_note(task_id, request.notes, uploads=request.uploads)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

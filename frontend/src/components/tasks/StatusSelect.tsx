@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '@/lib/api';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';

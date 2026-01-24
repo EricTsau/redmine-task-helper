@@ -18,11 +18,7 @@ interface User {
     name: string;
 }
 
-interface GitLabWatchlist {
-    id: number;
-    project_name: string;
-    gitlab_project_id: number;
-}
+
 
 interface ConfigProps {
     onConfigSaved: () => void;
@@ -42,12 +38,8 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
     const [loading, setLoading] = useState(false);
 
     // GitLab state
-    const [gitlabWatchlists, setGitlabWatchlists] = useState<GitLabWatchlist[]>([]);
-    const [selectedGitlabProjectIds, setSelectedGitlabProjectIds] = useState<number[]>([]);
-
     useEffect(() => {
         fetchProjects();
-        fetchGitLabWatchlists();
         fetchSettings();
     }, []);
 
@@ -70,16 +62,7 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         }
     };
 
-    const fetchGitLabWatchlists = async () => {
-        try {
-            const res = await api.get<GitLabWatchlist[]>("/gitlab/watchlists", undefined, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setGitlabWatchlists(res as any);
-        } catch (error) {
-            console.error(error);
-        }
-    };
+
 
     const fetchSettings = async () => {
         try {
@@ -88,7 +71,11 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
             });
             setSelectedProjectIds(res.target_project_ids || []);
             setSelectedUserIds(res.target_user_ids || []);
-            setSelectedGitlabProjectIds(res.target_gitlab_project_ids || []);
+            // setSelectedGitlabProjectIds(res.target_gitlab_project_ids || []); // Keep in DB/backend but hide from UI? 
+            // Actually I should verify if I need to preserve the state for saving.
+            // If the UI doesn't allow selecting, handleSave will send empty or old value?
+            // handleSave sends selectedGitlabProjectIds. If I remove the state, what do I send?
+            // If I remove the UI, I should probably just not update it, OR send what was fetched.
         } catch (error) {
             console.error(error);
         }
@@ -117,8 +104,8 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
         try {
             await api.put("/ai-summary/settings", {
                 project_ids: selectedProjectIds,
-                user_ids: selectedUserIds,
-                gitlab_project_ids: selectedGitlabProjectIds
+                user_ids: selectedUserIds
+                // gitlab_project_ids removed - managed via Global Settings -> GitLab
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -255,24 +242,7 @@ export function SummaryConfig({ onConfigSaved }: ConfigProps) {
                     </div>
                 </div>
 
-                <div>
-                    <Label className="text-xs font-medium text-muted-foreground mb-2 block">GitLab 專案</Label>
-                    <div className="flex flex-col gap-1 max-h-40 overflow-y-auto border border-border/20 p-3 rounded-xl bg-white/5 custom-scrollbar">
-                        {gitlabWatchlists.length === 0 && <span className="text-muted-foreground text-sm">尚未設定 GitLab 關注專案</span>}
-                        {gitlabWatchlists.map(wl => (
-                            <div key={wl.id} className="flex items-center space-x-2 py-1 hover:bg-white/5 rounded px-1 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    id={`gl-${wl.id}`}
-                                    checked={selectedGitlabProjectIds.includes(wl.gitlab_project_id)}
-                                    onChange={() => toggleSelection(wl.gitlab_project_id, selectedGitlabProjectIds, setSelectedGitlabProjectIds)}
-                                    className="rounded"
-                                />
-                                <label htmlFor={`gl-${wl.id}`} className="text-sm cursor-pointer flex-1">{wl.project_name}</label>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+
 
                 <Button onClick={handleSave} disabled={loading} className="tech-button-primary w-full">
                     {loading ? t('aiSummary.saving') : t('aiSummary.saveConfig')}
