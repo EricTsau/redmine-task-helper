@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Clock, LayoutDashboard, Settings, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface CommandItem {
     id: string;
@@ -14,11 +15,12 @@ export function CommandPalette() {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const staticCommands: CommandItem[] = [
-        { id: 'nav-dashboard', title: 'Go to Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, action: () => navigate('/'), category: 'navigation' },
-        { id: 'nav-settings', title: 'Go to Settings', icon: <Settings className="h-4 w-4" />, action: () => navigate('/settings'), category: 'navigation' },
-        { id: 'nav-timelog', title: 'Go to Time Log', icon: <Clock className="h-4 w-4" />, action: () => navigate('/time-log'), category: 'navigation' },
+        { id: 'nav-dashboard', title: t('commandPalette.goToDashboard'), icon: <LayoutDashboard className="h-4 w-4" />, action: () => navigate('/'), category: 'navigation' },
+        { id: 'nav-settings', title: t('commandPalette.goToSettings'), icon: <Settings className="h-4 w-4" />, action: () => navigate('/settings'), category: 'navigation' },
+        { id: 'nav-timelog', title: t('commandPalette.goToTimeLog'), icon: <Clock className="h-4 w-4" />, action: () => navigate('/time-log'), category: 'navigation' },
     ];
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -60,7 +62,7 @@ export function CommandPalette() {
                         type="text"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Search commands or issues..."
+                        placeholder={t('commandPalette.searchPlaceholder')}
                         className="flex-1 px-3 py-3 bg-transparent outline-none text-sm"
                         autoFocus
                     />
@@ -80,14 +82,14 @@ export function CommandPalette() {
                         </button>
                     ))}
                     {filteredCommands.length === 0 && (
-                        <div className="text-center text-muted-foreground text-sm py-4">No results found</div>
+                        <div className="text-center text-muted-foreground text-sm py-4">{t('commandPalette.noResults')}</div>
                     )}
                 </div>
                 <div className="border-t px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
                     <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">⌘K</kbd>
-                    <span>to toggle</span>
+                    <span>{t('commandPalette.toToggle')}</span>
                     <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">ESC</kbd>
-                    <span>to close</span>
+                    <span>{t('commandPalette.toClose')}</span>
                 </div>
             </div>
         </div>

@@ -59,7 +59,7 @@ export function Settings() {
     }, []);
 
     const handleSaveRedmine = async () => {
-        setStatus('Saving Redmine...');
+        setStatus(t('settings.savingRedmine'));
         try {
             const backendSettings = {
                 redmine_url: settings.redmine_url,
@@ -72,7 +72,7 @@ export function Settings() {
             const data = await api.put<SettingsData>('/settings', backendSettings);
             updateField('redmine_token', data.redmine_token);
 
-            setStatus('✓ Redmine settings saved');
+            setStatus(t('settings.redmineSaved'));
             setTimeout(() => setStatus(''), 2000);
         } catch (e: any) {
             setStatus('Error: ' + e.message);
@@ -80,7 +80,7 @@ export function Settings() {
     };
 
     const handleSaveOpenAI = async () => {
-        setStatus('Saving OpenAI...');
+        setStatus(t('settings.savingOpenAI'));
         try {
             const backendSettings = {
                 openai_url: settings.openai_url,
@@ -91,7 +91,7 @@ export function Settings() {
             const data = await api.put<SettingsData>('/settings', backendSettings);
             updateField('openai_key', data.openai_key);
 
-            setStatus('✓ OpenAI settings saved');
+            setStatus(t('settings.openaiSaved'));
             setTimeout(() => setStatus(''), 2000);
         } catch (e: any) {
             setStatus('Error: ' + e.message);
@@ -102,13 +102,13 @@ export function Settings() {
         // Prevent saving if values are invalid
         if (!settings.task_warning_days || !settings.task_severe_warning_days) return;
 
-        setStatus('Saving warning settings...');
+        setStatus(t('settings.savingWarnings'));
         try {
             await api.put<SettingsData>('/settings', {
                 task_warning_days: settings.task_warning_days,
                 task_severe_warning_days: settings.task_severe_warning_days
             });
-            setStatus('✓ Warning settings saved');
+            setStatus(t('settings.warningsSaved'));
             setTimeout(() => setStatus(''), 2000);
         } catch (e: any) {
             setStatus('Error saving warnings: ' + e.message);
@@ -118,16 +118,16 @@ export function Settings() {
     const handlePasswordChange = async (e: React.FormEvent) => {
         e.preventDefault();
         if (passwords.new !== passwords.confirm) {
-            setPwdStatus('Passwords do not match');
+            setPwdStatus(t('settings.security.passwordMismatch'));
             return;
         }
-        setPwdStatus('Updating...');
+        setPwdStatus(t('settings.updating'));
         try {
             await api.post('/auth/change-password', {
                 old_password: passwords.old,
                 new_password: passwords.new
             });
-            setPwdStatus('✓ Password changed');
+            setPwdStatus(t('settings.security.passwordChanged'));
             setPasswords({ old: '', new: '', confirm: '' });
             setTimeout(() => setPwdStatus(''), 3000);
         } catch (e: any) {
@@ -136,7 +136,7 @@ export function Settings() {
     };
 
     const testConnection = async () => {
-        setTestStatus('Testing...');
+        setTestStatus(t('settings.testing'));
         try {
             const data = await api.post<{ user: { firstname: string } }>('/auth/connect', {
                 url: settings.redmine_url,
@@ -149,7 +149,7 @@ export function Settings() {
     };
 
     const testOpenAI = async () => {
-        setOpenaiTestStatus('Testing...');
+        setOpenaiTestStatus(t('settings.testing'));
         try {
             const headers: Record<string, string> = {};
             // Only send if it's not the masked value
@@ -191,16 +191,16 @@ export function Settings() {
                         <div className="p-2.5 bg-tech-cyan/10 rounded-xl border border-tech-cyan/20">
                             <Shield className="h-6 w-6 text-tech-cyan" />
                         </div>
-                        <h2 className="text-xl font-black tracking-tight">Security Core</h2>
+                        <h2 className="text-xl font-black tracking-tight">{t('settings.security.title')}</h2>
                     </div>
 
                     {user?.auth_source === 'ldap' ? (
                         <div className="flex items-start gap-4 p-6 bg-tech-indigo/5 border border-tech-indigo/10 rounded-2xl group transition-all hover:bg-tech-indigo/10">
                             <AlertTriangle className="h-6 w-6 text-tech-indigo flex-shrink-0 animate-pulse" />
                             <div className="space-y-1">
-                                <p className="text-xs font-bold text-foreground">External Directory Link Active</p>
+                                <p className="text-xs font-bold text-foreground">{t('settings.security.ldapTitle')}</p>
                                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                    Your identity is managed via LDAP. Password modifications must be executed through the corporate nexus.
+                                    {t('settings.security.ldapNotice')}
                                 </p>
                             </div>
                         </div>
@@ -208,7 +208,7 @@ export function Settings() {
                         <form onSubmit={handlePasswordChange} className="space-y-6">
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Current Signature</label>
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.currentSignature')}</label>
                                     <input
                                         type="password"
                                         value={passwords.old}
@@ -220,7 +220,7 @@ export function Settings() {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">New Hash</label>
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.newHash')}</label>
                                         <input
                                             type="password"
                                             value={passwords.new}
@@ -231,7 +231,7 @@ export function Settings() {
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Verify Hash</label>
+                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.security.verifyHash')}</label>
                                         <input
                                             type="password"
                                             value={passwords.confirm}
@@ -248,7 +248,7 @@ export function Settings() {
                                     type="submit"
                                     className="px-8 py-3 tech-button-primary rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-glow"
                                 >
-                                    Update Protocol
+                                    {t('settings.security.updatePassword')}
                                 </button>
                                 {pwdStatus && <span className={`text-[10px] font-black uppercase tracking-widest ${pwdStatus.startsWith('Error') ? 'text-tech-rose' : 'text-tech-cyan animate-pulse'}`}>{pwdStatus}</span>}
                             </div>
@@ -263,13 +263,13 @@ export function Settings() {
                         <div className="p-2.5 bg-tech-rose/10 rounded-xl border border-tech-rose/20">
                             <AlertTriangle className="h-6 w-6 text-tech-rose" />
                         </div>
-                        <h2 className="text-xl font-black tracking-tight">Warning Thresholds</h2>
+                        <h2 className="text-xl font-black tracking-tight">{t('settings.warnings.title')}</h2>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 pt-2">
                         <div className="space-y-2">
                             <div className="flex justify-between items-end">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Standard Delta (Days)</label>
+                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.warnings.standardDays')}</label>
                                 <span className="text-lg font-black text-tech-rose">{settings.task_warning_days}d</span>
                             </div>
                             <input
@@ -282,12 +282,12 @@ export function Settings() {
                                 onMouseUp={saveTaskWarnings}
                                 className="w-full accent-tech-rose"
                             />
-                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">TASKS UNUPDATED BEYOND THIS POINT TRIGGER CAUTION STATE</p>
+                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">{t('settings.warnings.standardHint')}</p>
                         </div>
 
                         <div className="space-y-2">
                             <div className="flex justify-between items-end">
-                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Critical Delta (Days)</label>
+                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.warnings.criticalDays')}</label>
                                 <span className="text-lg font-black text-tech-rose">{settings.task_severe_warning_days}d</span>
                             </div>
                             <input
@@ -300,7 +300,7 @@ export function Settings() {
                                 onMouseUp={saveTaskWarnings}
                                 className="w-full accent-tech-rose"
                             />
-                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">TASKS UNUPDATED BEYOND THIS POINT TRIGGER CRITICAL STATE</p>
+                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter opacity-60">{t('settings.warnings.criticalHint')}</p>
                         </div>
                     </div>
                 </section>
@@ -312,12 +312,12 @@ export function Settings() {
                         <div className="p-2.5 bg-primary/10 rounded-xl border border-primary/20">
                             <LinkIcon className="h-6 w-6 text-primary" />
                         </div>
-                        <h2 className="text-xl font-black tracking-tight">Redmine Nexus</h2>
+                        <h2 className="text-xl font-black tracking-tight">{t('settings.redmine.title')}</h2>
                     </div>
 
                     <div className="space-y-5">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Nexus Endpoint URL</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.url')}</label>
                             <input
                                 type="url"
                                 value={settings.redmine_url}
@@ -328,7 +328,7 @@ export function Settings() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Synchronization Key (API)</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.apiKey')}</label>
                             <input
                                 type="password"
                                 value={settings.redmine_token}
@@ -339,7 +339,7 @@ export function Settings() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Default Activity Vector ID</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.redmine.defaultActivity')}</label>
                             <input
                                 type="number"
                                 value={settings.redmine_default_activity_id}
@@ -374,12 +374,12 @@ export function Settings() {
                         <div className="p-2.5 bg-tech-indigo/10 rounded-xl border border-tech-indigo/20">
                             <Sparkles className="h-6 w-6 text-tech-indigo" />
                         </div>
-                        <h2 className="text-xl font-black tracking-tight">AI Intelligence Engine</h2>
+                        <h2 className="text-xl font-black tracking-tight">{t('settings.openai.title')}</h2>
                     </div>
 
                     <div className="space-y-5">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Intelligence Endpoint URL</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.url')}</label>
                             <input
                                 type="url"
                                 value={settings.openai_url}
@@ -389,7 +389,7 @@ export function Settings() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Engine Authorization Key</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.apiKey')}</label>
                             <input
                                 type="password"
                                 value={settings.openai_key}
@@ -400,7 +400,7 @@ export function Settings() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Specified Intelligence Model</label>
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{t('settings.openai.model')}</label>
                             <input
                                 type="text"
                                 value={settings.openai_model}

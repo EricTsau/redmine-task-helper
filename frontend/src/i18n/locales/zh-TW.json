@@ -19,6 +19,15 @@
         "previous": "上一步",
         "preview": "預覽"
     },
+    "commandPalette": {
+        "searchPlaceholder": "搜尋指令或議題...",
+        "noResults": "找不到結果",
+        "toToggle": "開關",
+        "toClose": "關閉",
+        "goToDashboard": "前往儀表板",
+        "goToSettings": "前往設定",
+        "goToTimeLog": "前往工時記錄"
+    },
     "nav": {
         "workbench": "我的工作台",
         "executiveDashboard": "高階儀表板",
@@ -49,37 +58,41 @@
         "title": "系統設定",
         "subtitle": "設定連線資訊與偏好選項",
         "security": {
-            "title": "安全設定",
+            "title": "安全核心",
             "currentPassword": "目前密碼",
             "newPassword": "新密碼",
             "confirmPassword": "確認密碼",
-            "updatePassword": "更新密碼",
+            "updatePassword": "更新協議",
             "ldapNotice": "您的帳號由 LDAP 管理，請透過公司系統修改密碼。",
+            "ldapTitle": "外部目錄連結啟用中",
             "passwordMismatch": "密碼不一致",
-            "passwordChanged": "密碼已更新"
+            "passwordChanged": "密碼已更新",
+            "currentSignature": "目前簽章",
+            "newHash": "新雜湊",
+            "verifyHash": "驗證雜湊"
         },
         "warnings": {
             "title": "警示門檻",
-            "standardDays": "標準警示天數",
-            "criticalDays": "嚴重警示天數",
-            "standardHint": "任務超過此天數未更新將顯示警告",
-            "criticalHint": "任務超過此天數未更新將顯示嚴重警告"
+            "standardDays": "標準差距 (天)",
+            "criticalDays": "嚴重差距 (天)",
+            "standardHint": "任務超過此時間未更新將觸發警告狀態",
+            "criticalHint": "任務超過此時間未更新將觸發嚴重狀態"
         },
         "redmine": {
-            "title": "Redmine 連線",
-            "url": "Redmine 網址",
-            "apiKey": "API 金鑰",
-            "defaultActivity": "預設活動類型 ID",
+            "title": "Redmine 樞紐",
+            "url": "樞紐端點網址",
+            "apiKey": "同步金鑰 (API)",
+            "defaultActivity": "預設活動向量 ID",
             "testConnection": "測試連線",
             "save": "儲存設定",
             "connectionSuccess": "連線成功",
             "connectionFailed": "連線失敗"
         },
         "openai": {
-            "title": "AI 引擎設定",
-            "url": "API 端點網址",
-            "apiKey": "API 金鑰",
-            "model": "模型名稱",
+            "title": "AI 智慧引擎",
+            "url": "智慧端點網址",
+            "apiKey": "引擎授權金鑰",
+            "model": "指定智慧模型",
             "testModel": "測試模型",
             "save": "儲存設定",
             "testSuccess": "連線成功",
@@ -89,7 +102,15 @@
             "title": "語言設定",
             "select": "選擇語言"
         },
-        "saved": "設定已儲存"
+        "saved": "設定已儲存",
+        "savingRedmine": "儲存 Redmine 中...",
+        "redmineSaved": "✓ Redmine 設定已儲存",
+        "savingOpenAI": "儲存 OpenAI 中...",
+        "openaiSaved": "✓ OpenAI 設定已儲存",
+        "savingWarnings": "儲存警示設定中...",
+        "warningsSaved": "✓ 警示設定已儲存",
+        "testing": "測試中...",
+        "updating": "更新中..."
     },
     "focusMode": {
         "title": "專注模式",
@@ -194,8 +215,8 @@
         "7Days": "7天",
         "30Days": "30天"
     },
-    "taskList": {
-        "title": "Watchlist",
+    "watchlist": {
+        "title": "關注清單",
         "description": "選擇專案進行 AI 分析與監控。只有監控中的專案會被處理。",
         "watching": "監控中",
         "coveredByParent": "已包含於父專案",
@@ -203,5 +224,104 @@
         "searchProjects": "搜尋 Redmine 專案...",
         "noProjectsFound": "找不到專案。請檢查您的 Redmine 連線。",
         "noMatchingProjects": "找不到符合的專案"
+    },
+    "aiPlanner": {
+        "title": "Redmine AI",
+        "createNewPRD": "建立新 PRD",
+        "expandSidebar": "展開側邊欄",
+        "collapseSidebar": "收起側邊欄",
+        "emptyStateTitle": "策略規劃工作室",
+        "emptyStateDescription": "選擇現有的產品需求文件或初始化新文件以開始 AI 驅動規劃。",
+        "initializeWorkspace": "初始化工作區",
+        "syncingData": "同步神經數據中...",
+        "prdWorkspace": "PRD 工作區",
+        "taskMatrix": "任務矩陣",
+        "timeline": "時間軸",
+        "projectLink": "專案連結",
+        "configureTarget": "設定目標",
+        "planningModuleUninitialized": "規劃模組未初始化",
+        "planningModuleDescription": "將您的需求轉換為可執行的規劃專案以開始任務生成。",
+        "generateProject": "生成專案",
+        "initializeGantt": "初始化甘特圖",
+        "initializeNewPRD": "初始化新 PRD",
+        "documentTitle": "文件標題",
+        "enterTitle": "輸入策略標題...",
+        "abort": "中止",
+        "create": "建立",
+        "confirmDeletePRD": "確定要刪除此 PRD 嗎？相關的規劃專案可能也會受到影響。",
+        "confirmCreateProject": "確定要為 \"{{title}}\" 建立規劃專案嗎？",
+        "projectSet": "已將預設專案設為: {{name}}",
+        "settingFailed": "設定失敗"
+    },
+    "admin": {
+        "title": "指揮中心",
+        "subtitle": "管理基礎設施、安全協議和操作使用者",
+        "tabs": {
+            "operators": "操作員",
+            "ldap": "LDAP 節點",
+            "holidays": "時程調整",
+            "systemConfig": "系統設定"
+        },
+        "acknowledge": "確認",
+        "retrievingState": "取得系統狀態中",
+        "users": {
+            "title": "存取目錄",
+            "authenticatedEntities": "已認證實體",
+            "bulkSync": "批次同步",
+            "newEntry": "新增條目",
+            "identitySignature": "身份簽章",
+            "designatedTitle": "指定名稱",
+            "authVector": "認證向量",
+            "securityClear": "安全等級",
+            "override": "覆寫",
+            "rootAdmin": "根管理員",
+            "standard": "標準",
+            "rescind": "撤銷",
+            "elevate": "提升",
+            "userCreated": "使用者已建立",
+            "roleUpdated": "使用者角色已更新",
+            "bulkCompleted": "批次匯入完成"
+        },
+        "addUser": {
+            "title": "操作員初始化",
+            "description": "註冊人員實體進行戰術操作",
+            "signature": "簽章 (使用者名稱)",
+            "encryptionCore": "加密核心 (密碼)",
+            "fullDesignation": "完整稱號",
+            "commChannel": "通訊頻道",
+            "abort": "中止",
+            "initialize": "初始化"
+        },
+        "bulkAdd": {
+            "title": "批次節點同步",
+            "description": "大量填充身份叢集到核心目錄",
+            "protocolFormat": "協議格式:",
+            "globalKey": "全域加密金鑰",
+            "generateEntropy": "生成隨機",
+            "cancel": "取消",
+            "commitSync": "提交同步"
+        },
+        "ldap": {
+            "title": "LDAP 核心設定",
+            "description": "將外部神經目錄與中央指揮基礎設施同步",
+            "relayEndpoint": "中繼端點網址",
+            "foundationDN": "基礎 DN 路徑",
+            "identityTemplate": "身份向量範本",
+            "variableHint": "變數: {username} 是動態的",
+            "activeStatus": "啟用中繼狀態",
+            "activeStatusDesc": "允許使用 LDAP 節點進行交叉連結認證",
+            "commitState": "提交操作狀態",
+            "updated": "LDAP 設定已更新"
+        },
+        "systemConfig": {
+            "title": "系統設定",
+            "description": "全域系統參數和 AI 偵錯控制",
+            "aiErrorDump": "AI 錯誤轉儲",
+            "aiErrorDumpDesc": "當 AI 分析失敗時，將完整提示內容儲存到伺服器日誌",
+            "maxParallelJobs": "最大平行任務數",
+            "maxParallelJobsDesc": "同時進行的 AI 分析區塊最大數量 (1-20)。較高的值每秒使用更多 token。",
+            "updated": "系統設定已更新",
+            "updateFailed": "更新失敗"
+        }
     }
 }

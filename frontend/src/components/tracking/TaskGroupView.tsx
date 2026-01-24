@@ -232,6 +232,16 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
         }
     }, [tasks.length]);
 
+    // Tree view expand/collapse all functions
+    const expandAllTree = () => {
+        const allIds = tasks.map(t => t.redmine_issue_id);
+        setTreeExpanded(new Set(allIds));
+    };
+
+    const collapseAllTree = () => {
+        setTreeExpanded(new Set());
+    };
+
 
     const renderTreeNodes = (nodes: (TrackedTask & { children: any[] })[]) => {
         return nodes.map(node => {
@@ -442,24 +452,22 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                         </button>
                     </div>
 
-                    {viewMode === 'list' && (
-                        <div className="flex items-center border rounded overflow-hidden ml-2">
-                            <button
-                                onClick={expandAll}
-                                className="p-2 hover:bg-muted border-r"
-                                title="全部展開"
-                            >
-                                <ChevronsDown className="h-4 w-4" />
-                            </button>
-                            <button
-                                onClick={collapseAll}
-                                className="p-2 hover:bg-muted"
-                                title="全部收合"
-                            >
-                                <ChevronsUp className="h-4 w-4" />
-                            </button>
-                        </div>
-                    )}
+                    <div className="flex items-center border rounded overflow-hidden ml-2">
+                        <button
+                            onClick={viewMode === 'tree' ? expandAllTree : expandAll}
+                            className="p-2 hover:bg-muted border-r"
+                            title="全部展開"
+                        >
+                            <ChevronsDown className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={viewMode === 'tree' ? collapseAllTree : collapseAll}
+                            className="p-2 hover:bg-muted"
+                            title="全部收合"
+                        >
+                            <ChevronsUp className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 

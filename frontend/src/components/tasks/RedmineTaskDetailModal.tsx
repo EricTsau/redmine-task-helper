@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
-import { X, Calendar, User, Info, MessageSquare, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
-import { WorkLogEditor } from '../timer/WorkLogEditor';
+import { X, Calendar, User, Info, MessageSquare, ChevronDown, ChevronUp, GripVertical, FileText } from 'lucide-react';
+import { WorkLogEditor, type WorkLogEditorHandle } from '../timer/WorkLogEditor';
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +48,16 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
     const [newNote, setNewNote] = useState('');
     const [expandedJournals, setExpandedJournals] = useState<Set<number>>(new Set());
     const [editorHeight, setEditorHeight] = useState(200); // Default height in px
+
+    const editorRef = useRef<WorkLogEditorHandle>(null);
+
+    const handlePreviewNote = (note: string) => {
+        if (editorRef.current) {
+            editorRef.current.setContent(note);
+            editorRef.current.setMode('preview');
+            // Allow user to see "Edit" button if they want to copy/edit from it
+        }
+    };
 
     const toggleJournalExpand = (id: number) => {
         setExpandedJournals(prev => {
@@ -256,11 +266,29 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                                                 </span>
                                                 <div className="flex items-center gap-2">
                                                     <span>{new Date(journal.created_on).toLocaleString()}</span>
-                                                    {shouldTruncate && (
-                                                        <button className="p-1 hover:bg-muted rounded">
-                                                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                    <div className="flex gap-1">
+                                                        <button
+                                                            className="p-1 hover:bg-muted rounded"
+                                                            title="在下方預覽"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handlePreviewNote(notes);
+                                                            }}
+                                                        >
+                                                            <FileText size={14} />
                                                         </button>
-                                                    )}
+                                                        {shouldTruncate && (
+                                                            <button
+                                                                className="p-1 hover:bg-muted rounded"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleJournalExpand(journal.id);
+                                                                }}
+                                                            >
+                                                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className={`p-3 ${isExpanded ? 'max-h-[400px] overflow-auto' : ''}`}>
@@ -315,6 +343,7 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                                     </h4>
                                     <div style={{ height: `${editorHeight}px` }}>
                                         <WorkLogEditor
+                                            ref={editorRef}
                                             initialContent={newNote}
                                             onUpdate={setNewNote}
                                             submitLabel="發送"
@@ -332,7 +361,7 @@ export function RedmineTaskDetailModal({ taskId, subject, onClose, onUpdate }: R
                     )}
                 </div>
             </div>
-        </div>,
+        </div >,
         document.body
     );
 }

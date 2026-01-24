@@ -13,6 +13,7 @@ import {
     Bug
 } from 'lucide-react';
 import { HolidayManagement } from '@/components/admin/HolidayManagement';
+import { useTranslation } from 'react-i18next';
 
 interface User {
     id: number;
@@ -33,6 +34,7 @@ interface LDAPSettings {
 }
 
 export const Administration: React.FC = () => {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'users' | 'ldap' | 'holidays' | 'ai'>('users');
     const [users, setUsers] = useState<User[]>([]);
     const [ldapSettings, setLdapSettings] = useState<LDAPSettings>({
@@ -92,7 +94,7 @@ export const Administration: React.FC = () => {
         e.preventDefault();
         try {
             await api.post('/admin/users', newUser);
-            setStatus({ type: 'success', message: 'User created' });
+            setStatus({ type: 'success', message: t('admin.users.userCreated') });
             setShowAddUser(false);
             setNewUser({ username: '', password: '', full_name: '', email: '', is_admin: false, auth_source: 'standard' });
             fetchData();
@@ -119,7 +121,7 @@ export const Administration: React.FC = () => {
                 common_password: bulkPassword,
                 generate_random: randomPassword
             });
-            setStatus({ type: 'success', message: 'Bulk import completed' });
+            setStatus({ type: 'success', message: t('admin.users.bulkCompleted') });
             setShowBulkAdd(false);
             setBulkData('');
             fetchData();
@@ -131,7 +133,7 @@ export const Administration: React.FC = () => {
     const handleToggleAdmin = async (userId: number) => {
         try {
             await api.patch(`/admin/users/${userId}/role`);
-            setStatus({ type: 'success', message: 'User role updated' });
+            setStatus({ type: 'success', message: t('admin.users.roleUpdated') });
             fetchData();
         } catch (e: any) {
             setStatus({ type: 'error', message: e.message });
@@ -141,7 +143,7 @@ export const Administration: React.FC = () => {
     const saveLDAP = async () => {
         try {
             await api.put('/admin/ldap-settings', ldapSettings);
-            setStatus({ type: 'success', message: 'LDAP settings updated' });
+            setStatus({ type: 'success', message: t('admin.ldap.updated') });
         } catch (e: any) {
             setStatus({ type: 'error', message: e.message });
         }
@@ -152,10 +154,10 @@ export const Administration: React.FC = () => {
             const newSettings = { ...appSettings, ...updates };
             await api.put('/admin/app-settings', newSettings);
             setAppSettings(newSettings);
-            setStatus({ type: 'success', message: 'System config updated' });
+            setStatus({ type: 'success', message: t('admin.systemConfig.updated') });
         } catch (error) {
             console.error('Failed to update app settings:', error);
-            setStatus({ type: 'error', message: 'Update failed' });
+            setStatus({ type: 'error', message: t('admin.systemConfig.updateFailed') });
         }
     };
 
@@ -169,18 +171,18 @@ export const Administration: React.FC = () => {
                             <ShieldCheck className="w-6 h-6 text-primary" />
                         </div>
                         <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
-                            Command Center
+                            {t('admin.title')}
                         </h1>
                     </div>
-                    <p className="text-muted-foreground font-medium ml-1">Manage infrastructure, security protocols, and operational users</p>
+                    <p className="text-muted-foreground font-medium ml-1">{t('admin.subtitle')}</p>
                 </div>
 
                 <div className="flex bg-muted/20 p-1 rounded-2xl border border-white/5 backdrop-blur-sm">
                     {[
-                        { id: 'users', icon: Users, label: 'Operators' },
-                        { id: 'ldap', icon: Server, label: 'LDAP Node' },
-                        { id: 'holidays', icon: Calendar, label: 'Timeline Adjust' },
-                        { id: 'ai', icon: Bug, label: 'System Config' },
+                        { id: 'users', icon: Users, label: t('admin.tabs.operators') },
+                        { id: 'ldap', icon: Server, label: t('admin.tabs.ldap') },
+                        { id: 'holidays', icon: Calendar, label: t('admin.tabs.holidays') },
+                        { id: 'ai', icon: Bug, label: t('admin.tabs.systemConfig') },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -204,7 +206,7 @@ export const Administration: React.FC = () => {
                         {status.type === 'success' ? <CheckCircle2 size={24} className="shadow-glow-cyan" /> : <XCircle size={24} className="shadow-glow-rose" />}
                         {status.message}
                     </div>
-                    <button onClick={() => setStatus(null)} className="text-xs font-black uppercase opacity-60 hover:opacity-100 transition-opacity tracking-widest">Acknowledge</button>
+                    <button onClick={() => setStatus(null)} className="text-xs font-black uppercase opacity-60 hover:opacity-100 transition-opacity tracking-widest">{t('admin.acknowledge')}</button>
                 </div>
             )}
 
@@ -214,15 +216,15 @@ export const Administration: React.FC = () => {
                 {loading ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-6 py-32">
                         <div className="h-12 w-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin shadow-glow" />
-                        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Retrieving System State</p>
+                        <p className="font-black text-[10px] uppercase tracking-[0.3em] text-muted-foreground animate-pulse">{t('admin.retrievingState')}</p>
                     </div>
                 ) : activeTab === 'users' ? (
                     <div className="flex flex-col flex-1">
                         <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-white/5">
                             <div className="flex items-center gap-4">
-                                <h3 className="text-xl font-black tracking-tight">Access Directory</h3>
+                                <h3 className="text-xl font-black tracking-tight">{t('admin.users.title')}</h3>
                                 <span className="text-[10px] font-black bg-primary/20 text-primary px-3 py-1 rounded-full uppercase tracking-tighter shadow-glow-sm">
-                                    {users.length} AUTHENTICATED ENTITIES
+                                    {users.length} {t('admin.users.authenticatedEntities')}
                                 </span>
                             </div>
                             <div className="flex gap-4">
@@ -230,13 +232,13 @@ export const Administration: React.FC = () => {
                                     onClick={() => setShowBulkAdd(true)}
                                     className="flex items-center gap-2 px-5 py-2.5 glass-card border-border/30 rounded-xl hover:bg-white/10 font-bold text-xs uppercase tracking-widest transition-all"
                                 >
-                                    <UserPlus size={16} /> Bulk Sync
+                                    <UserPlus size={16} /> {t('admin.users.bulkSync')}
                                 </button>
                                 <button
                                     onClick={() => setShowAddUser(true)}
                                     className="flex items-center gap-2 px-6 py-2.5 tech-button-primary rounded-xl font-black text-xs uppercase tracking-widest transition-all"
                                 >
-                                    <Plus size={18} /> New Entry
+                                    <Plus size={18} /> {t('admin.users.newEntry')}
                                 </button>
                             </div>
                         </div>
@@ -245,11 +247,11 @@ export const Administration: React.FC = () => {
                             <table className="w-full text-left border-separate border-spacing-0">
                                 <thead>
                                     <tr className="bg-muted/10 text-muted-foreground font-black text-[10px] uppercase tracking-widest">
-                                        <th className="px-8 py-5 rounded-tl-2xl">Identity Signature</th>
-                                        <th className="px-8 py-5">Designated Title</th>
-                                        <th className="px-8 py-5 text-center">Auth Vector</th>
-                                        <th className="px-8 py-5 text-center">Security Clear.</th>
-                                        <th className="px-8 py-5 text-right rounded-tr-2xl">Override</th>
+                                        <th className="px-8 py-5 rounded-tl-2xl">{t('admin.users.identitySignature')}</th>
+                                        <th className="px-8 py-5">{t('admin.users.designatedTitle')}</th>
+                                        <th className="px-8 py-5 text-center">{t('admin.users.authVector')}</th>
+                                        <th className="px-8 py-5 text-center">{t('admin.users.securityClear')}</th>
+                                        <th className="px-8 py-5 text-right rounded-tr-2xl">{t('admin.users.override')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -280,10 +282,10 @@ export const Administration: React.FC = () => {
                                                 <div className="flex justify-center">
                                                     {u.is_admin ? (
                                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-tech-rose/10 text-tech-rose border border-tech-rose/20 rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse shadow-glow-rose-sm">
-                                                            <ShieldCheck size={12} /> Root admin
+                                                            <ShieldCheck size={12} /> {t('admin.users.rootAdmin')}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-muted-foreground/40 text-[10px] font-black uppercase tracking-[0.2em]">Standard</span>
+                                                        <span className="text-muted-foreground/40 text-[10px] font-black uppercase tracking-[0.2em]">{t('admin.users.standard')}</span>
                                                     )}
                                                 </div>
                                             </td>
@@ -295,7 +297,7 @@ export const Administration: React.FC = () => {
                                                         : 'bg-white/5 border border-white/10 text-primary hover:bg-primary hover:text-white'
                                                         }`}
                                                 >
-                                                    {u.is_admin ? 'RESCIND' : 'ELEVATE'}
+                                                    {u.is_admin ? t('admin.users.rescind') : t('admin.users.elevate')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -311,15 +313,15 @@ export const Administration: React.FC = () => {
                                 <div className="p-2 bg-tech-indigo/10 rounded-xl border border-tech-indigo/20">
                                     <Server className="w-6 h-6 text-tech-indigo" />
                                 </div>
-                                LDAP Core Configuration
+                                {t('admin.ldap.title')}
                             </h3>
-                            <p className="text-muted-foreground font-medium">Synchronize external neural directories with the central command infrastructure</p>
+                            <p className="text-muted-foreground font-medium">{t('admin.ldap.description')}</p>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
                             <div className="space-y-8">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Relay Endpoint URL</label>
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">{t('admin.ldap.relayEndpoint')}</label>
                                     <input
                                         className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
                                         placeholder="ldap://relay.node.network:389"
@@ -328,7 +330,7 @@ export const Administration: React.FC = () => {
                                     />
                                 </div>
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Foundation DN Path</label>
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">{t('admin.ldap.foundationDN')}</label>
                                     <input
                                         className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
                                         placeholder="dc=central,dc=command,dc=io"
@@ -339,7 +341,7 @@ export const Administration: React.FC = () => {
                             </div>
                             <div className="space-y-8">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">Identity Vector Template</label>
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.25em] ml-1">{t('admin.ldap.identityTemplate')}</label>
                                     <div className="space-y-2">
                                         <input
                                             className="flex h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-indigo/30 outline-none transition-all placeholder:opacity-30"
@@ -347,7 +349,7 @@ export const Administration: React.FC = () => {
                                             value={ldapSettings.user_dn_template}
                                             onChange={e => setLdapSettings({ ...ldapSettings, user_dn_template: e.target.value })}
                                         />
-                                        <p className="text-[10px] text-tech-indigo font-black uppercase tracking-tighter bg-tech-indigo/10 py-1 px-3 rounded inline-block">Variable: {'{username}'} is dynamic</p>
+                                        <p className="text-[10px] text-tech-indigo font-black uppercase tracking-tighter bg-tech-indigo/10 py-1 px-3 rounded inline-block">{t('admin.ldap.variableHint')}</p>
                                     </div>
                                 </div>
                                 <div className="pt-4">
@@ -364,8 +366,8 @@ export const Administration: React.FC = () => {
                                             onChange={e => setLdapSettings({ ...ldapSettings, is_active: e.target.checked })}
                                         />
                                         <div className="space-y-1">
-                                            <div className="font-black text-xs uppercase tracking-widest">Active Relay Status</div>
-                                            <p className="text-[10px] text-muted-foreground font-medium">Permit cross-link authentication with LDAP nodes</p>
+                                            <div className="font-black text-xs uppercase tracking-widest">{t('admin.ldap.activeStatus')}</div>
+                                            <p className="text-[10px] text-muted-foreground font-medium">{t('admin.ldap.activeStatusDesc')}</p>
                                         </div>
                                     </label>
                                 </div>
@@ -377,7 +379,7 @@ export const Administration: React.FC = () => {
                                 onClick={saveLDAP}
                                 className="flex items-center gap-3 px-10 py-4 tech-button-primary rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all active:scale-95"
                             >
-                                <Save size={20} /> Commit Operational State
+                                <Save size={20} /> {t('admin.ldap.commitState')}
                             </button>
                         </div>
                     </div>
@@ -392,15 +394,15 @@ export const Administration: React.FC = () => {
                                 <div className="p-2 bg-tech-cyan/10 rounded-xl border border-tech-cyan/20">
                                     <Bug className="w-6 h-6 text-tech-cyan" />
                                 </div>
-                                System Configuration
+                                {t('admin.systemConfig.title')}
                             </h3>
-                            <p className="text-muted-foreground font-medium">Global system parameters and AI debugging controls</p>
+                            <p className="text-muted-foreground font-medium">{t('admin.systemConfig.description')}</p>
                         </div>
 
                         <div className="flex items-center justify-between p-6 glass-card border-border/20 rounded-[24px]">
                             <div className="space-y-1">
-                                <div className="font-black text-sm uppercase tracking-widest text-foreground">AI Error Dump</div>
-                                <p className="text-xs text-muted-foreground font-medium">Save full prompt content to server logs when AI analysis fails</p>
+                                <div className="font-black text-sm uppercase tracking-widest text-foreground">{t('admin.systemConfig.aiErrorDump')}</div>
+                                <p className="text-xs text-muted-foreground font-medium">{t('admin.systemConfig.aiErrorDumpDesc')}</p>
                             </div>
                             <button
                                 onClick={() => updateAppSettings({ enable_ai_debug_dump: !appSettings.enable_ai_debug_dump })}
@@ -416,8 +418,8 @@ export const Administration: React.FC = () => {
 
                         <div className="flex items-center justify-between p-6 glass-card border-border/20 rounded-[24px]">
                             <div className="space-y-1">
-                                <div className="font-black text-sm uppercase tracking-widest text-foreground">Max Parallel Jobs</div>
-                                <p className="text-xs text-muted-foreground font-medium">Maximum number of concurrent AI analysis chunks (1-20). Higher values use more tokens per second.</p>
+                                <div className="font-black text-sm uppercase tracking-widest text-foreground">{t('admin.systemConfig.maxParallelJobs')}</div>
+                                <p className="text-xs text-muted-foreground font-medium">{t('admin.systemConfig.maxParallelJobsDesc')}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <input
@@ -443,19 +445,19 @@ export const Administration: React.FC = () => {
             {/* Modals - Redesigned with Tech Style */}
             {
                 showAddUser && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-                        <div className="glass-card border-white/10 rounded-[32px] shadow-2xl max-w-lg w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-primary/40" />
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
+                        <div className="bg-card border border-border rounded-3xl shadow-2xl max-w-lg w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tech-indigo" />
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-black tracking-tight">Operator Initialization</h2>
-                                <p className="text-muted-foreground text-sm font-medium">Register a human entity for tactical operations</p>
+                                <h2 className="text-2xl font-black tracking-tight text-foreground">{t('admin.addUser.title')}</h2>
+                                <p className="text-muted-foreground text-sm font-medium">{t('admin.addUser.description')}</p>
                             </div>
                             <form onSubmit={handleAddUser} className="space-y-5">
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Signature (Username)</label>
+                                        <label className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{t('admin.addUser.signature')}</label>
                                         <input
-                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                            className="h-14 w-full rounded-2xl border border-border bg-background px-5 font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
                                             placeholder="X-RAY-01"
                                             value={newUser.username}
                                             onChange={e => setNewUser({ ...newUser, username: e.target.value })}
@@ -463,9 +465,9 @@ export const Administration: React.FC = () => {
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Encryption Core (Password)</label>
+                                        <label className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{t('admin.addUser.encryptionCore')}</label>
                                         <input
-                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                                            className="h-14 w-full rounded-2xl border border-border bg-background px-5 font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
                                             type="password"
                                             placeholder="••••••••"
                                             value={newUser.password}
@@ -475,18 +477,18 @@ export const Administration: React.FC = () => {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 pt-2">
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Full Designation</label>
+                                            <label className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{t('admin.addUser.fullDesignation')}</label>
                                             <input
-                                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                                className="h-12 w-full rounded-xl border border-border bg-background px-4 font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
                                                 placeholder="Agent Name"
                                                 value={newUser.full_name}
                                                 onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Comm Channel</label>
+                                            <label className="text-[10px] font-black text-primary uppercase tracking-widest ml-1">{t('admin.addUser.commChannel')}</label>
                                             <input
-                                                className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 font-bold focus:ring-2 focus:ring-primary/30 outline-none"
+                                                className="h-12 w-full rounded-xl border border-border bg-background px-4 font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
                                                 placeholder="email@local"
                                                 value={newUser.email}
                                                 onChange={e => setNewUser({ ...newUser, email: e.target.value })}
@@ -495,8 +497,8 @@ export const Administration: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex gap-4 pt-6">
-                                    <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Abort</button>
-                                    <button type="submit" className="flex-1 px-4 py-4 tech-button-primary rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Initialize</button>
+                                    <button type="button" onClick={() => setShowAddUser(false)} className="flex-1 px-4 py-4 border border-border rounded-2xl hover:bg-muted font-black text-xs uppercase tracking-widest transition-all">{t('admin.addUser.abort')}</button>
+                                    <button type="submit" className="flex-1 px-4 py-4 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">{t('admin.addUser.initialize')}</button>
                                 </div>
                             </form>
                         </div>
@@ -506,29 +508,29 @@ export const Administration: React.FC = () => {
 
             {
                 showBulkAdd && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center z-[100] p-6">
-                        <div className="glass-card border-white/10 rounded-[40px] shadow-2xl max-w-2xl w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-tech-cyan/40" />
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
+                        <div className="bg-card border border-border rounded-3xl shadow-2xl max-w-2xl w-full p-10 space-y-8 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tech-indigo" />
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-black tracking-tight">Bulk Node Sync</h2>
-                                <p className="text-muted-foreground text-sm font-medium">Mass population of identity clusters into core directory</p>
+                                <h2 className="text-2xl font-black tracking-tight text-foreground">{t('admin.bulkAdd.title')}</h2>
+                                <p className="text-muted-foreground text-sm font-medium">{t('admin.bulkAdd.description')}</p>
                             </div>
                             <div className="space-y-6">
-                                <div className="p-4 bg-tech-cyan/5 border border-tech-cyan/10 rounded-2xl">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-tech-cyan mb-2">Protocol Format:</p>
+                                <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2">{t('admin.bulkAdd.protocolFormat')}</p>
                                     <code className="text-xs font-mono text-foreground/80 font-bold">username, Full Name, email</code>
                                 </div>
                                 <textarea
-                                    className="w-full h-64 rounded-3xl border border-white/10 px-6 py-6 focus:ring-2 focus:ring-tech-cyan/30 outline-none bg-black/30 font-mono text-sm leading-relaxed custom-scrollbar placeholder:opacity-20 font-bold"
+                                    className="w-full h-64 rounded-2xl border border-border px-6 py-6 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none bg-background font-mono text-sm leading-relaxed custom-scrollbar placeholder:text-muted-foreground/40 font-bold"
                                     placeholder="X-01, Alpha Primary, a@node.net&#10;X-02, Beta Secondary, b@node.net"
                                     value={bulkData}
                                     onChange={e => setBulkData(e.target.value)}
                                 />
                                 <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
                                     <div className="relative flex-1 w-full">
-                                        <label className="absolute -top-2.5 left-4 px-2 bg-slate-900 text-[9px] font-black text-tech-cyan uppercase tracking-widest">Global Encryption Key</label>
+                                        <label className="absolute -top-2.5 left-4 px-2 bg-card text-[9px] font-black text-primary uppercase tracking-widest">{t('admin.bulkAdd.globalKey')}</label>
                                         <input
-                                            className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 px-5 font-bold focus:ring-2 focus:ring-tech-cyan/30 outline-none transition-all disabled:opacity-20"
+                                            className="h-14 w-full rounded-2xl border border-border bg-background px-5 font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all disabled:opacity-40"
                                             type="password"
                                             placeholder="••••••••"
                                             value={bulkPassword}
@@ -536,14 +538,14 @@ export const Administration: React.FC = () => {
                                             disabled={randomPassword}
                                         />
                                     </div>
-                                    <label className="flex items-center gap-3 cursor-pointer group select-none py-2 px-4 glass-card rounded-2xl border-white/5 hover:border-tech-cyan/20 transition-all">
-                                        <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-white/10 bg-white/5 text-tech-cyan focus:ring-tech-cyan" />
-                                        <span className="font-black text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-tech-cyan transition-colors">Generate entropy</span>
+                                    <label className="flex items-center gap-3 cursor-pointer group select-none py-2 px-4 bg-muted/50 rounded-2xl border border-border hover:border-primary/30 transition-all">
+                                        <input type="checkbox" checked={randomPassword} onChange={e => setRandomPassword(e.target.checked)} className="w-5 h-5 rounded-md border-border bg-background text-primary focus:ring-primary" />
+                                        <span className="font-black text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">{t('admin.bulkAdd.generateEntropy')}</span>
                                     </label>
                                 </div>
-                                <div className="flex gap-4 pt-6 border-t border-white/5">
-                                    <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-4 border border-white/10 rounded-2xl hover:bg-white/5 font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
-                                    <button onClick={handleBulkAdd} className="flex-1 px-4 py-4 bg-gradient-to-r from-tech-cyan to-tech-indigo text-white shadow-glow-cyan rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Commit Sync</button>
+                                <div className="flex gap-4 pt-6 border-t border-border">
+                                    <button onClick={() => setShowBulkAdd(false)} className="flex-1 px-4 py-4 border border-border rounded-2xl hover:bg-muted font-black text-xs uppercase tracking-widest transition-all">{t('admin.bulkAdd.cancel')}</button>
+                                    <button onClick={handleBulkAdd} className="flex-1 px-4 py-4 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">{t('admin.bulkAdd.commitSync')}</button>
                                 </div>
                             </div>
                         </div>

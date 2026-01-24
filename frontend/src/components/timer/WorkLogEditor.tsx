@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ClipboardEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ClipboardEvent, type ChangeEvent, forwardRef, useImperativeHandle } from 'react';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,6 +9,12 @@ interface UploadToken {
     filename: string;
     token: string;
     content_type: string;
+}
+
+export interface WorkLogEditorHandle {
+    setMode: (mode: 'edit' | 'preview') => void;
+    setContent: (content: string) => void;
+    focus: () => void;
 }
 
 interface WorkLogEditorProps {
@@ -24,7 +30,7 @@ interface WorkLogEditorProps {
     className?: string;
 }
 
-export function WorkLogEditor({
+export const WorkLogEditor = forwardRef<WorkLogEditorHandle, WorkLogEditorProps>(({
     initialContent = '',
     issueId,
 
@@ -36,12 +42,26 @@ export function WorkLogEditor({
     submitLabel = '送出',
     placeholder = "Type work log here... (Ctrl+V to paste images)",
     className = ''
-}: WorkLogEditorProps) {
+}, ref) => {
     const [content, setContent] = useState(initialContent);
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useImperativeHandle(ref, () => ({
+        setMode: (newMode) => setMode(newMode),
+        setContent: (newContent) => {
+            setContent(newContent);
+            onUpdate(newContent); // Sync with parent state if needed, though strictly this might be "viewing"
+            // If we are setting content programmatically for preview, we might not want to trigger 'onUpdate' as a user edit?
+            // But WorkLogEditor state usually reflects "what is in the box".
+            // Let's assume setContent implies replacing the draft.
+        },
+        focus: () => textareaRef.current?.focus()
+    }));
 
     // Image compression helper
     const compressImage = (file: File, maxWidth = 1920, quality = 0.8): Promise<File> => {
@@ -91,12 +111,15 @@ export function WorkLogEditor({
 
     // Initial content sync
     useEffect(() => {
-        setContent(initialContent);
-        setHasUnsavedChanges(false);
+        // Only update if initialContent changes meaningfully and we aren't dirty?
+        // Or if parent forces it.
+        // For simple usage, we sync.
+        if (initialContent !== content && !hasUnsavedChanges) {
+            setContent(initialContent);
+        }
     }, [initialContent]);
 
     // Floating Widget State
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [selection, setSelection] = useState({ start: 0, end: 0, text: '' });
     const [showFloatingWidget, setShowFloatingWidget] = useState(false);
     const [aiInstruction, setAiInstruction] = useState('');
@@ -685,4 +708,4 @@ export function WorkLogEditor({
             )}
         </div>
     );
-}
+});
