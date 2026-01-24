@@ -366,12 +366,44 @@ export function SummaryView(props: SummaryViewProps) {
                                         table: ({ node, ...props }) => <div className="overflow-x-auto my-4 rounded-lg border border-slate-200"><table className="w-full border-collapse bg-white text-sm" {...props} /></div>,
                                         th: ({ node, ...props }) => <th className="border-b border-slate-200 p-3 bg-slate-50 text-left font-bold text-slate-700 whitespace-nowrap" {...props} />,
                                         td: ({ node, ...props }) => <td className="border-b border-slate-100 p-3 text-slate-600 align-top" {...props} />,
-                                        img: ({ node, ...props }) => (
-                                            <div className="my-6">
-                                                <img {...props} className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50" loading="lazy" />
-                                                {props.alt && <div className="text-center text-xs text-slate-500 mt-2 italic">{props.alt}</div>}
-                                            </div>
-                                        ),
+                                        img: ({ node, ...props }) => {
+                                            // 檢查是否為 Redmine 圖片 URL
+                                            const isRedmineImage = props.src && props.src.includes('/attachments/') && props.src.startsWith('http');
+                                            
+                                            if (isRedmineImage && props.src) {
+                                                // 使用代理端點獲取圖片
+                                                const proxyUrl = `/api/v1/ai-summary/redmine-image?url=${encodeURIComponent(props.src)}`;
+                                                return (
+                                                    <span>
+                                                        <img 
+                                                            src={proxyUrl} 
+                                                            alt={props.alt} 
+                                                            className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50 my-6" 
+                                                            loading="lazy" 
+                                                            onError={(e) => {
+                                                                // 圖片加載失敗時的處理
+                                                                const target = e.target as HTMLImageElement;
+                                                                target.style.display = 'none';
+                                                                // 顯示錯誤信息
+                                                                const errorDiv = document.createElement('div');
+                                                                errorDiv.className = 'text-red-500 text-sm p-2 bg-red-50 rounded border border-red-200 my-6';
+                                                                errorDiv.textContent = `圖片加載失敗: ${props.alt || props.src || 'Unknown image'}`;
+                                                                target.parentNode?.appendChild(errorDiv);
+                                                            }}
+                                                        />
+                                                        {props.alt && <div className="text-center text-xs text-slate-500 mt-2 italic">{props.alt}</div>}
+                                                    </span>
+                                                );
+                                            }
+                                            
+                                            // 非 Redmine 圖片使用默認渲染
+                                            return (
+                                                <span>
+                                                    <img {...props} className="rounded-lg border border-slate-200 shadow-sm max-h-[500px] object-contain bg-slate-50 my-6" loading="lazy" />
+                                                    {props.alt && <div className="text-center text-xs text-slate-500 mt-2 italic">{props.alt}</div>}
+                                                </span>
+                                            );
+                                        },
                                         ul: ({ node, ...props }) => <ul className="list-disc ml-6 my-2 marker:text-slate-400" {...props} />,
                                         li: ({ node, ...props }) => <li className="pl-1 my-1" {...props} />,
                                         h1: ({ node, ...props }) => <h1 className="text-3xl font-black tracking-tight border-b border-slate-200 pb-4 mb-6 mt-8 text-slate-900" {...props} />,

@@ -1,10 +1,10 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlmodel import Session, select
 from pydantic import BaseModel
 from datetime import datetime
 import json
-
+import httpx
 from app.database import get_session
 from app.dependencies import get_current_user, get_redmine_service, get_openai_service
 from app.models import User
@@ -76,7 +76,7 @@ async def generate_summary(
         if not request.end_date:
             request.end_date = datetime.now().strftime("%Y-%m-%d")
 
-        report = await service.generate_summary(request.start_date, request.end_date, request.language)
+        report = await service.generate_summary(request.start_date, request.end_date, request.language or "zh-TW")
         return {
             "id": report.id,
             "title": report.title,
@@ -170,3 +170,75 @@ def delete_report(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/redmine-image")
+async def proxy_redmine_image(
+    url: str,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    代理 Redmine 圖片請求，使用用戶的 Redmine 認證信息
+    """
+    print(f"[DEBUG] Proxying image request for user {current_user.id}: {url}")
+    
+    # 獲取用戶的 Redmine 設置
+    from app.models import UserSettings
+    settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+    
+    if not settings or not settings.redmine_url or not settings.api_key:
+        print(f"[ERROR] Redmine not configured for user {current_user.id}")
+        raise HTTPException(status_code=400, detail="Redmine not configured for this user")
+    
+    print(f"[DEBUG] User Redmine settings - URL: {settings.redmine_url}, API Key exists: {bool(settings.api_key)}")
+    
+    # 驗證請求的 URL 是否屬於用戶配置的 Redmine 伺服器
+    # 使用更寬鬆的驗證，允許子路徑和查詢參數
+    from urllib.parse import urlparse
+    redmine_domain = urlparse(settings.redmine_url).netloc
+    image_domain = urlparse(url).netloc
+    
+    print(f"[DEBUG] Domain check - Redmine: {redmine_domain}, Image: {image_domain}")
+    
+    if redmine_domain != image_domain:
+        error_msg = f"Invalid image URL domain. Expected: {redmine_domain}, Got: {image_domain}"
+        print(f"[ERROR] {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    try:
+        # 使用用戶的 Redmine API 金鑰作為認證
+        async with httpx.AsyncClient() as client:
+            print(f"[DEBUG] Making request to Redmine with API key: {settings.api_key[:5]}...")
+            response = await client.get(
+                url,
+                headers={
+                    "X-Redmine-API-Key": settings.api_key
+                },
+                timeout=30.0
+            )
+            
+            print(f"[DEBUG] Redmine response status: {response.status_code}")
+            
+            # 檢查響應狀態
+            if response.status_code != 200:
+                error_msg = f"Failed to fetch image from Redmine (Status: {response.status_code}, URL: {url})"
+                print(f"[ERROR] {error_msg}")
+                raise HTTPException(status_code=response.status_code, detail=error_msg)
+            
+            content_type = response.headers.get("content-type", "image/jpeg")
+            print(f"[DEBUG] Image content type: {content_type}")
+            
+            # 返回圖片內容
+            return Response(
+                content=response.content,
+                media_type=content_type,
+                status_code=200
+            )
+    except httpx.RequestError as e:
+        error_msg = f"Error fetching image from {url}: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        error_msg = f"Unexpected error while fetching image from {url}: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
