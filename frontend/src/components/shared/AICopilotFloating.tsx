@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import * as ReactDOM from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslation } from "react-i18next";
@@ -41,6 +42,11 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
     const containerRef = useRef<HTMLDivElement>(null);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const portal = (children: React.ReactNode) => {
+        if (!document || !document.body) return null;
+        return ReactDOM.createPortal(children, document.body);
+    };
 
     // Scroll to bottom on new message
     useEffect(() => {
@@ -161,12 +167,13 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
     };
 
     if (!isOpen) {
-        return (
+        return portal(
             <div
-                className={`fixed z-50 transition-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                style={{
+                className={`fixed transition-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    style={{
                     right: `${32 + position.x}px`,
-                    bottom: `${32 + position.y}px`
+                    bottom: `${32 + position.y}px`,
+                    zIndex: 100000
                 }}
                 onMouseDown={handleMouseDown}
             >
@@ -184,13 +191,14 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
         );
     }
 
-    return (
+    return portal(
         <div
             ref={containerRef}
-            className={`fixed z-50 flex flex-col bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${isMinimized ? 'w-72 h-14' : 'w-[450px] h-[600px] max-h-[80vh]'} ${isDragging ? 'cursor-grabbing' : ''}`}
+            className={`fixed flex flex-col bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${isMinimized ? 'w-72 h-14' : 'w-[450px] h-[600px] max-h-[80vh]'} ${isDragging ? 'cursor-grabbing' : ''}`}
             style={{
                 right: `${32 + position.x}px`,
-                bottom: `${32 + position.y}px`
+                bottom: `${32 + position.y}px`,
+                zIndex: 100000
             }}
         >
             {/* Header - Draggable */}

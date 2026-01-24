@@ -128,23 +128,49 @@ class CopilotService:
         """構建 GitLab context"""
         lines = []
         
-        if data.get("kpi"):
+        # KPI (guard against missing or malformed structures)
+        if isinstance(data, dict) and data.get("kpi"):
             lines.append("#### KPI 指標")
-            kpi = data["kpi"]
+            kpi = data["kpi"] or {}
             lines.append(f"- 總 Commits: {kpi.get('total_commits', 'N/A')}")
             lines.append(f"- 總 MRs: {kpi.get('total_mrs', 'N/A')}")
             lines.append(f"- 新增行數: {kpi.get('additions', 'N/A')}")
             lines.append(f"- 刪除行數: {kpi.get('deletions', 'N/A')}")
-        
-        if data.get("commits"):
+
+        # Commits (support both dict items and simple string items)
+        commits = []
+        if isinstance(data, dict) and data.get("commits"):
+            commits = data.get("commits") or []
+        if commits:
             lines.append("\n#### 最近 Commits")
-            for c in data["commits"][:10]:
-                lines.append(f"- {c.get('short_id', '')} | {c.get('author_name', '')} | {c.get('title', '')}")
-        
-        if data.get("merge_requests"):
+            for c in commits[:10]:
+                if isinstance(c, dict):
+                    short_id = c.get('short_id') or c.get('id') or ''
+                    author = c.get('author_name') or (c.get('author') if isinstance(c.get('author'), str) else (c.get('author', {}).get('name') if isinstance(c.get('author'), dict) else ''))
+                    title = c.get('title') or c.get('message') or ''
+                    lines.append(f"- {short_id} | {author} | {title}")
+                else:
+                    lines.append(f"- {str(c)}")
+
+        # Merge requests (handle author as dict or string)
+        mrs = []
+        if isinstance(data, dict) and data.get("merge_requests"):
+            mrs = data.get("merge_requests") or []
+        if mrs:
             lines.append("\n#### 最近 MRs")
-            for mr in data["merge_requests"][:10]:
-                lines.append(f"- !{mr.get('iid', '')} | {mr.get('author', {}).get('name', '')} | {mr.get('title', '')} ({mr.get('state', '')})")
+            for mr in mrs[:10]:
+                if isinstance(mr, dict):
+                    iid = mr.get('iid', '')
+                    author_field = mr.get('author')
+                    if isinstance(author_field, dict):
+                        author_name = author_field.get('name', '')
+                    else:
+                        author_name = str(author_field) if author_field is not None else ''
+                    title = mr.get('title', '')
+                    state = mr.get('state', '')
+                    lines.append(f"- !{iid} | {author_name} | {title} ({state})")
+                else:
+                    lines.append(f"- {str(mr)}")
         
         return "\n".join(lines) if lines else "無可用數據"
     

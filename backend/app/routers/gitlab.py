@@ -43,6 +43,12 @@ class GitLabProject(BaseModel):
     path_with_namespace: str
     description: Optional[str]
 
+
+class GitLabProjectMembersRequest(BaseModel):
+    url: HttpUrl
+    personal_access_token: str
+    project_id: int
+
 @router.post("/test-connection")
 async def test_gitlab_connection(
     data: GitLabConnectionTest,
@@ -53,7 +59,7 @@ async def test_gitlab_connection(
     Test GitLab connection with provided URL and token
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(trust_env=False) as client:
             response = await client.get(
                 f"{data.url}/api/v4/projects",
                 headers={"PRIVATE-TOKEN": data.personal_access_token},
@@ -155,6 +161,56 @@ async def fetch_gitlab_users_projects(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch users and projects: {str(e)}"
+        )
+
+
+@router.post("/fetch-project-members")
+async def fetch_project_members(
+    data: GitLabProjectMembersRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Fetch members of a given project using provided URL and token.
+    """
+    try:
+        temp_instance = GitLabInstance(
+            owner_id=user.id or 0,
+            instance_name="temp",
+            url=str(data.url),
+            personal_access_token=data.personal_access_token,
+            target_users_json="[]",
+            target_projects_json="[]"
+        )
+
+        gitlab_service = GitLabService(temp_instance)
+        members = await gitlab_service.get_project_members(data.project_id)
+
+        member_list = [
+            GitLabUser(
+                id=m["id"],
+                username=m.get("username") or m.get("name", ""),
+                name=m.get("name", ""),
+                state=m.get("state", "active")
+            )
+            for m in members
+        ]
+
+        return {"members": member_list}
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Connection timeout - please check your network or GitLab server"
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Connection error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch project members: {str(e)}"
         )
 
 @router.get("/users", response_model=List[GitLabUser])

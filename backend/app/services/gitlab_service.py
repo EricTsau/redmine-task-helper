@@ -12,7 +12,7 @@ class GitLabService:
         self.base_url = instance.url.rstrip("/") + "/api/v4"
 
     async def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(trust_env=False) as client:
             try:
                 response = await client.get(
                     f"{self.base_url}/{endpoint}",
@@ -29,17 +29,61 @@ class GitLabService:
                  print(f"GitLab Request Failed: {e}")
                  raise e
 
+    async def _get_all(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch all paginated results from GitLab API using X-Next-Page header.
+        """
+        results = []
+        page = 1
+        params = params.copy() if params else {}
+        params.setdefault('per_page', 100)
+        async with httpx.AsyncClient(trust_env=False) as client:
+            while True:
+                params['page'] = page
+                try:
+                    response = await client.get(
+                        f"{self.base_url}/{endpoint}",
+                        headers=self.headers,
+                        params=params,
+                        timeout=30.0
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    if isinstance(data, list):
+                        results.extend(data)
+                    else:
+                        # Some endpoints return dict for a single resource
+                        results.append(data)
+
+                    next_page = response.headers.get('X-Next-Page')
+                    if not next_page:
+                        break
+                    try:
+                        page = int(next_page)
+                    except Exception:
+                        break
+                except Exception as e:
+                    print(f"Paginated request failed: {e}")
+                    raise e
+        return results
+
     async def get_users(self) -> List[Dict[str, Any]]:
         """獲取 GitLab 用戶列表"""
-        return await self._get("users", params={"per_page": 100})
+        return await self._get_all("users", params={"per_page": 100})
 
     async def get_projects(self) -> List[Dict[str, Any]]:
         """獲取 GitLab 專案列表"""
-        return await self._get("projects", params={"per_page": 100, "membership": "true"})
+        return await self._get_all("projects", params={"per_page": 100, "membership": "true"})
 
     async def get_project(self, project_id: int) -> Dict[str, Any]:
         """獲取單一專案詳情"""
         return await self._get(f"projects/{project_id}")
+
+    async def get_project_members(self, project_id: int) -> List[Dict[str, Any]]:
+        """獲取專案成員（含所有分頁）"""
+        # GitLab supports /projects/:id/members/all to list all members including inherited
+        endpoint = f"projects/{project_id}/members/all"
+        return await self._get_all(endpoint, params={"per_page": 100})
 
 
     def _patch_url(self, api_url: str) -> str:

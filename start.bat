@@ -14,6 +14,8 @@ IF NOT EXIST venv (
 )
 call venv\Scripts\activate.bat
 pip install -q -r requirements.txt
+REM Start uvicorn and worker = 4
+@REM start "Redmine Backend" cmd /c "uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4"
 start "Redmine Backend" cmd /c "uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
 REM uvicorn will start in a new window; capture its tasklist name is non-trivial
 popd

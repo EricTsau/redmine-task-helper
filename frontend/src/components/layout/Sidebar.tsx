@@ -19,7 +19,7 @@ export function Sidebar() {
 
     const navItems = [
         { icon: LayoutDashboard, label: t('nav.workbench'), href: "/" },
-        { icon: PieChart, label: t('nav.executiveDashboard'), href: "/executive-dashboard" },
+        // { icon: PieChart, label: t('nav.executiveDashboard'), href: "/executive-dashboard" },
         { icon: Brain, label: t('nav.aiPlanner'), href: "/ai-planner" },
         { icon: FileText, label: t('nav.aiSummary'), href: "/ai-summary" },
         { icon: Code2, label: "GitLab", href: "/gitlab-dashboard" },

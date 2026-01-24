@@ -95,7 +95,8 @@ const GitLabSettings: React.FC = () => {
     };
 
     const fetchGitLabUsersAndProjects = async () => {
-        setFetchingUsers(true);
+        // Deprecated: we no longer auto-load users here. Load projects first,
+        // users will be loaded when a project is selected.
         setFetchingProjects(true);
         try {
             const response = await api.post<{
@@ -108,27 +109,40 @@ const GitLabSettings: React.FC = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            setGitlabUsers(response.users);
             setGitlabProjects(response.projects);
+            setGitlabUsers([]); // Clear users until a project is chosen
         } catch (error) {
-            showError('Failed to fetch GitLab users and projects');
+            showError('Failed to fetch GitLab projects');
         } finally {
-            setFetchingUsers(false);
             setFetchingProjects(false);
         }
     };
 
-    const fetchGitLabUsers = async (instanceId: number) => {
+    const fetchProjectMembersByConnection = async (projectId: number) => {
         setFetchingUsers(true);
         try {
-            const data = await api.get<GitLabUser[]>(`/gitlab/users?instance_id=${instanceId}`, undefined, {
+            const response = await api.post<{ members: GitLabUser[] }>('/gitlab/fetch-project-members', {
+                url: formData.url,
+                personal_access_token: formData.personal_access_token,
+                project_id: projectId
+            }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setGitlabUsers(data);
+
+            // Merge members into existing user list, dedupe by id
+            const incoming = response.members || [];
+            const map = new Map<number, GitLabUser>();
+            gitlabUsers.forEach(u => map.set(u.id, u));
+            incoming.forEach(u => map.set(u.id, u));
+            setGitlabUsers(Array.from(map.values()));
         } catch (error) {
-            showError('Failed to fetch GitLab users');
-        } finally { setFetchingUsers(false); }
+            showError('Failed to fetch project members');
+        } finally {
+            setFetchingUsers(false);
+        }
     };
+
+    
 
     const fetchGitLabProjects = async (instanceId: number) => {
         setFetchingProjects(true);
@@ -433,9 +447,9 @@ const GitLabSettings: React.FC = () => {
                                                 <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
                                             </div>
                                         ) : gitlabUsers.length === 0 ? (
-                                            <div className="text-slate-400 text-center py-4">
-                                                無可用用戶
-                                            </div>
+                                                <div className="text-slate-400 text-center py-4">
+                                                    {selectedProjectIds.length === 0 ? '請先選擇專案以載入對應人員' : '無可用用戶'}
+                                                </div>
                                         ) : (
                                             <div className="space-y-2">
                                                 {gitlabUsers
@@ -451,12 +465,13 @@ const GitLabSettings: React.FC = () => {
                                                                 : 'hover:bg-white'
                                                                 }`}
                                                             onClick={() => {
-                                                                if (selectedUserIds.includes(user.id)) {
-                                                                    setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
-                                                                } else {
-                                                                    setSelectedUserIds([...selectedUserIds, user.id]);
-                                                                }
-                                                            }}
+                                                                    if (selectedProjectIds.length === 0) return; // prevent selection before project
+                                                                    if (selectedUserIds.includes(user.id)) {
+                                                                        setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
+                                                                    } else {
+                                                                        setSelectedUserIds([...selectedUserIds, user.id]);
+                                                                    }
+                                                                }}
                                                         >
                                                             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedUserIds.includes(user.id)
                                                                 ? 'bg-sky-500 border-sky-500'
@@ -515,20 +530,22 @@ const GitLabSettings: React.FC = () => {
                                                         (project.description && project.description.toLowerCase().includes(projectSearch.toLowerCase()))
                                                     )
                                                     .map(project => (
-                                                        <div
-                                                            key={project.id}
-                                                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedProjectIds.includes(project.id)
-                                                                ? 'bg-sky-100 border border-sky-200'
-                                                                : 'hover:bg-white'
-                                                                }`}
-                                                            onClick={() => {
-                                                                if (selectedProjectIds.includes(project.id)) {
-                                                                    setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
-                                                                } else {
-                                                                    setSelectedProjectIds([...selectedProjectIds, project.id]);
-                                                                }
-                                                            }}
-                                                        >
+                                                            <div
+                                                                key={project.id}
+                                                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedProjectIds.includes(project.id)
+                                                                    ? 'bg-sky-100 border border-sky-200'
+                                                                    : 'hover:bg-white'
+                                                                    }`}
+                                                                onClick={async () => {
+                                                                    if (selectedProjectIds.includes(project.id)) {
+                                                                        setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
+                                                                    } else {
+                                                                        setSelectedProjectIds([...selectedProjectIds, project.id]);
+                                                                        // Load members for this project and merge into user list
+                                                                        await fetchProjectMembersByConnection(project.id);
+                                                                    }
+                                                                }}
+                                                            >
                                                             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedProjectIds.includes(project.id)
                                                                 ? 'bg-sky-500 border-sky-500'
                                                                 : 'border-slate-300'
@@ -568,27 +585,28 @@ const GitLabSettings: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        if (editingId) {
-                                            // For editing, we already have the instance ID
-                                            fetchGitLabUsers(editingId);
-                                            fetchGitLabProjects(editingId);
-
-                                            // Parse existing selections
-                                            try {
-                                                const users = JSON.parse(formData.target_users_json || '[]');
-                                                const projects = JSON.parse(formData.target_projects_json || '[]');
-                                                setSelectedUserIds(users);
-                                                setSelectedProjectIds(projects);
-                                            } catch (e) {
-                                                setSelectedUserIds([]);
-                                                setSelectedProjectIds([]);
+                                            if (editingId) {
+                                                // For editing: load projects for the instance, then load members for pre-selected projects
+                                                fetchGitLabProjects(editingId).then(async () => {
+                                                    try {
+                                                        const users = JSON.parse(formData.target_users_json || '[]');
+                                                        const projects = JSON.parse(formData.target_projects_json || '[]');
+                                                        setSelectedUserIds(users);
+                                                        setSelectedProjectIds(projects);
+                                                        for (const pid of projects) {
+                                                            await fetchProjectMembersByConnection(pid);
+                                                        }
+                                                    } catch (e) {
+                                                        setSelectedUserIds([]);
+                                                        setSelectedProjectIds([]);
+                                                    }
+                                                });
+                                            } else {
+                                                // For adding new instance: only fetch projects. Users will be loaded after project selection.
+                                                fetchGitLabUsersAndProjects();
                                             }
-                                        } else {
-                                            // For adding new instance, fetch users and projects using the connection details
-                                            fetchGitLabUsersAndProjects();
-                                        }
-                                        setStep(2);
-                                    }}
+                                            setStep(2);
+                                        }}
                                     className="px-8 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
                                 >
                                     下一步 (設定過濾條件)
