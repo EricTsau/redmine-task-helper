@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { WatchlistSettings } from '@/components/dashboard/WatchlistSettings';
 import GitLabSettings from '@/components/GitLabSettings';
 import { useAuth } from '@/contexts/AuthContext';
-import { Shield, AlertTriangle, Link as LinkIcon, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { Shield, AlertTriangle, Link as LinkIcon, Sparkles, Settings as SettingsIcon, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/api';
 
@@ -236,7 +236,20 @@ export function Settings() {
 
                             <div className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">OPENAI API KEY</label>
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">基底網址 (Base URL)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="url"
+                                            value={settings.openai_url}
+                                            onChange={(e) => updateField('openai_url', e.target.value)}
+                                            className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 pl-12 pr-5 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                            placeholder="https://api.openai.com/v1"
+                                        />
+                                        <Globe className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">金鑰 (API Key)</label>
                                     <input
                                         type="password"
                                         value={settings.openai_key}
@@ -246,7 +259,7 @@ export function Settings() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">SELECT MODEL</label>
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">指定模型 (Model)</label>
                                     <input
                                         type="text"
                                         value={settings.openai_model}
@@ -287,26 +300,39 @@ export function Settings() {
                         ) : (
                             <form onSubmit={handlePasswordChange} className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">目前簽章</label>
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">目前密碼</label>
                                     <input
                                         type="password"
+                                        required
                                         value={passwords.old}
                                         onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
-                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold"
-                                        placeholder="••••••••"
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold focus:ring-2 focus:ring-red-500/10 outline-none"
+                                        placeholder="輸入目前密碼"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">新雜湊</label>
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">設定新密碼</label>
                                     <input
                                         type="password"
+                                        required
                                         value={passwords.new}
                                         onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold"
-                                        placeholder="••••••••"
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold focus:ring-2 focus:ring-red-500/10 outline-none"
+                                        placeholder="輸入新密碼"
                                     />
                                 </div>
-                                <button type="submit" className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 transition-all active:scale-[0.98]">更新協議</button>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">確認新密碼</label>
+                                    <input
+                                        type="password"
+                                        required
+                                        value={passwords.confirm}
+                                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                                        className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 font-bold focus:ring-2 focus:ring-red-500/10 outline-none"
+                                        placeholder="再次輸入新密碼"
+                                    />
+                                </div>
+                                <button type="submit" className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 transition-all active:scale-[0.98]">確認變更密碼</button>
                                 {pwdStatus && <p className="text-[10px] font-black uppercase text-center text-red-500">{pwdStatus}</p>}
                             </form>
                         )}

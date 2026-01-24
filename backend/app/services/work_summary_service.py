@@ -774,8 +774,8 @@ class WorkSummaryService:
             grand_summary = f"## 總體摘要\n{grand_summary_res}\n\n---\n\n"
         except Exception as e:
             print(f"[DEBUG] Grand summary generation failed: {e}")
-            self.error_dump_to_txt(reduce_prompt, "ALL", "ALL")
-            grand_summary = "## 總體摘要\n(自動生成失敗)\n\n---\n\n"
+            await self.error_dump_to_txt(reduce_prompt, "ALL", "ALL")
+            grand_summary = "## 總體摘要\n(自動生成失敗 - 請檢查後台日誌或降低報告範圍)\n\n---\n\n"
 
         final_report = header + grand_summary + combined_chunk_text
         
