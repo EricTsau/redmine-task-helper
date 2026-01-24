@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Globe, Lock, Loader2, Server, Edit2, X, Users, Box, Check } from 'lucide-react';
+import { Plus, Trash2, Globe, Lock, Loader2, Server, Edit2, X, Users, Box, Check, TestTube } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -45,6 +45,11 @@ const GitLabSettings: React.FC = () => {
         target_users_json: '[]',
         target_projects_json: '[]'
     });
+    
+    // Step 1: GitLab connection setup
+    const [step, setStep] = useState(1); // 1 for connection setup, 2 for watchlist selection
+    const [connectionTested, setConnectionTested] = useState(false);
+    const [testingConnection, setTestingConnection] = useState(false);
 
     useEffect(() => {
         if (token) {
@@ -85,6 +90,35 @@ const GitLabSettings: React.FC = () => {
         } catch (error) {
             showError('Failed to add instance');
         } finally { setLoading(false); }
+    };
+
+    const testConnection = async () => {
+        setTestingConnection(true);
+        try {
+            const response = await api.post<{success: boolean; message: string}>(
+                '/gitlab/test-connection',
+                {
+                    url: formData.url,
+                    personal_access_token: formData.personal_access_token
+                },
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            
+            if (response.success) {
+                showSuccess(response.message);
+                setConnectionTested(true);
+            } else {
+                showError(response.message);
+                setConnectionTested(false);
+            }
+        } catch (error) {
+            showError('Connection failed: Network error or server unavailable');
+            setConnectionTested(false);
+        } finally {
+            setTestingConnection(false);
+        }
     };
 
     const handleUpdateInstance = async (e: React.FormEvent) => {
@@ -141,6 +175,9 @@ const GitLabSettings: React.FC = () => {
             target_users_json: inst.target_users_json || '[]',
             target_projects_json: inst.target_projects_json || '[]'
         });
+        // When editing, we start at step 1 but with connection already tested
+        setConnectionTested(true);
+        setStep(1);
         setIsAdding(false);
     };
 
@@ -152,6 +189,9 @@ const GitLabSettings: React.FC = () => {
             target_users_json: '[]',
             target_projects_json: '[]'
         });
+        // Reset step and connection status when resetting form
+        setStep(1);
+        setConnectionTested(false);
     };
 
     return (
@@ -192,77 +232,123 @@ const GitLabSettings: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {/* Form fields same as before, simplified for white theme */}
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">實例名稱 (Name)</label>
-                                <input
-                                    required
-                                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
-                                    placeholder="e.g. Office GitLab"
-                                    value={formData.instance_name}
-                                    onChange={e => setFormData({ ...formData, instance_name: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">伺服器網址 (URL)</label>
-                                <div className="relative">
+                        {/* Step 1: Connection Setup */}
+                        {step === 1 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">實例名稱 (Name)</label>
                                     <input
-                                        required type="url"
-                                        className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] pl-12 pr-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
-                                        placeholder="https://gitlab.com"
-                                        value={formData.url}
-                                        onChange={e => setFormData({ ...formData, url: e.target.value })}
+                                        required
+                                        className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] px-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
+                                        placeholder="e.g. Office GitLab"
+                                        value={formData.instance_name}
+                                        onChange={e => setFormData({ ...formData, instance_name: e.target.value })}
                                     />
-                                    <Server className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">伺服器網址 (URL)</label>
+                                    <div className="relative">
+                                        <input
+                                            required type="url"
+                                            className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] pl-12 pr-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
+                                            placeholder="https://gitlab.com"
+                                            value={formData.url}
+                                            onChange={e => setFormData({ ...formData, url: e.target.value })}
+                                        />
+                                        <Server className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Private Token</label>
+                                    <div className="relative">
+                                        <input
+                                            required type="password"
+                                            className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] pl-12 pr-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
+                                            placeholder="glpat-..."
+                                            value={formData.personal_access_token}
+                                            onChange={e => setFormData({ ...formData, personal_access_token: e.target.value })}
+                                        />
+                                        <Lock className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
+                                    </div>
+                                </div>
+                                <div className="space-y-3 flex items-end">
+                                    <button
+                                        type="button"
+                                        onClick={testConnection}
+                                        disabled={testingConnection || !formData.url || !formData.personal_access_token}
+                                        className="flex items-center gap-2 px-6 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        {testingConnection ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+                                        測試連線
+                                    </button>
+                                    {connectionTested && (
+                                        <span className="text-green-500 font-bold text-sm ml-2">✓ 連線成功</span>
+                                    )}
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Private Token</label>
-                                <div className="relative">
-                                    <input
-                                        required type="password"
-                                        className="w-full h-14 bg-slate-50 border border-slate-100 rounded-[20px] pl-12 pr-5 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all"
-                                        placeholder="glpat-..."
-                                        value={formData.personal_access_token}
-                                        onChange={e => setFormData({ ...formData, personal_access_token: e.target.value })}
+                        )}
+
+                        {/* Step 2: Filtering Configuration (only shown after connection is tested) */}
+                        {step === 2 && connectionTested && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                {/* Filtering fields */}
+                                <div className="space-y-3 lg:col-span-1">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                        <Users className="w-3 h-3" /> 目標人員 (Target users)
+                                    </label>
+                                    <textarea
+                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
+                                        placeholder='["user1", "user2"]'
+                                        value={formData.target_users_json}
+                                        onChange={e => setFormData({ ...formData, target_users_json: e.target.value })}
                                     />
-                                    <Lock className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
+                                </div>
+                                <div className="space-y-3 lg:col-span-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                        <Box className="w-3 h-3" /> 目標專案 (Target projects)
+                                    </label>
+                                    <textarea
+                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
+                                        placeholder='["group/project1", "group/project2"]'
+                                        value={formData.target_projects_json}
+                                        onChange={e => setFormData({ ...formData, target_projects_json: e.target.value })}
+                                    />
                                 </div>
                             </div>
-                            {/* Filtering fields */}
-                            <div className="space-y-3 lg:col-span-1">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <Users className="w-3 h-3" /> 目標人員 (Target users)
-                                </label>
-                                <textarea
-                                    className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
-                                    placeholder='["user1", "user2"]'
-                                    value={formData.target_users_json}
-                                    onChange={e => setFormData({ ...formData, target_users_json: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-3 lg:col-span-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <Box className="w-3 h-3" /> 目標專案 (Target projects)
-                                </label>
-                                <textarea
-                                    className="w-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-[24px] p-5 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none"
-                                    placeholder='["group/project1", "group/project2"]'
-                                    value={formData.target_projects_json}
-                                    onChange={e => setFormData({ ...formData, target_projects_json: e.target.value })}
-                                />
+                        )}
+
+                        {/* Navigation between steps */}
+                        <div className="flex justify-between pt-4">
+                            {step === 2 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(1)}
+                                    className="px-8 py-4 bg-slate-200 text-slate-700 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:brightness-95 transition-all"
+                                >
+                                    上一步
+                                </button>
+                            )}
+                            {step === 1 && connectionTested && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(2)}
+                                    className="px-8 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
+                                >
+                                    下一步 (設定過濾條件)
+                                </button>
+                            )}
+                            <div className="ml-auto">
+                                <button
+                                    type="submit" 
+                                    disabled={loading || (step === 1 && !connectionTested)}
+                                    className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId !== null ? '更新連結' : '建立連線')}
+                                </button>
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-4 pt-4">
-                            <button
-                                type="submit" disabled={loading}
-                                className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
-                            >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId !== null ? '更新連結' : '建立連線')}
-                            </button>
-                        </div>
+
                     </form>
                 </div>
             )}
