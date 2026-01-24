@@ -59,3 +59,5 @@ docs/plans/tools/mock_generate_summary.py
 .gemini/
 *.txt
 logs/
+
+todo_spec.md
