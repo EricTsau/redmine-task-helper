@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { Loader2, Send, Bot, X, Copy, Check, Minimize2, Maximize2, GripVertical } from "lucide-react";
 
@@ -25,7 +24,6 @@ interface ChatMessage {
 
 export function AICopilotFloating({ contextType, getContextData, welcomeMessage }: AICopilotFloatingProps) {
     const { t } = useTranslation();
-    const { token } = useAuth();
     const { showError } = useToast();
 
     const [isOpen, setIsOpen] = useState(false);
@@ -33,6 +31,8 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
     const [chatInput, setChatInput] = useState("");
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
     const [loading, setLoading] = useState(false);
+    const [size, setSize] = useState({ width: 450, height: 600 });
+    const resizingRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
 
     // Dragging state
     const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -45,7 +45,38 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
 
     const portal = (children: React.ReactNode) => {
         if (!document || !document.body) return null;
-        return ReactDOM.createPortal(children, document.body);
+
+        const PORTAL_ID = 'copilot-portal-root';
+        let root = document.getElementById(PORTAL_ID);
+        if (!root) {
+            root = document.createElement('div');
+            root.id = PORTAL_ID;
+            // make root cover viewport but ignore pointer events so inner can control them
+            Object.assign(root.style, {
+                // position: 'fixed',
+                inset: '0px',
+                pointerEvents: 'none',
+                // very large z-index to ensure top-most (override if necessary)
+                zIndex: '100000',
+                // allow children to overflow the portal root and avoid clipping
+                overflow: 'visible',
+                // isolation to avoid other stacking contexts interfering
+                isolation: 'isolate'
+            });
+            document.body.appendChild(root);
+        } else {
+            // ensure highest z-index and pointer-events setting
+            Object.assign(root.style, {
+                // position: 'fixed',
+                inset: '0px',
+                pointerEvents: 'none',
+                zIndex: '100000',
+                overflow: 'visible',
+                isolation: 'isolate'
+            });
+        }
+
+        return ReactDOM.createPortal(children, root);
     };
 
     // Scroll to bottom on new message
@@ -103,6 +134,28 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
         }
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
+    useEffect(() => {
+        function onMouseMove(e: MouseEvent) {
+            if (!resizingRef.current) return;
+            const dx = e.clientX - resizingRef.current.startX;
+            const dy = e.clientY - resizingRef.current.startY;
+            const newW = Math.max(320, Math.min(1200, resizingRef.current.startW + dx));
+            const newH = Math.max(200, Math.min(1200, resizingRef.current.startH + dy));
+            setSize({ width: newW, height: newH });
+        }
+
+        function onMouseUp() {
+            resizingRef.current = null;
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, []);
+
     const handleSend = async () => {
         if (!chatInput.trim()) return;
 
@@ -113,17 +166,41 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
 
         try {
             const contextData = getContextData();
-            const res = await api.post<{ response: string }>(`/copilot/chat`, {
-                context_type: contextType,
-                message: userMsg.content,
-                context_data: contextData,
-                conversation_history: chatHistory
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
+            setLoading(true);
+
+            const res = await api.stream('/copilot/stream', {
+                method: 'POST',
+                body: JSON.stringify({
+                    context_type: contextType,
+                    message: userMsg.content,
+                    context_data: contextData,
+                    conversation_history: chatHistory
+                })
             });
 
-            const aiMsg: ChatMessage = { role: "assistant", content: res.response };
-            setChatHistory(prev => [...prev, aiMsg]);
+            if (!res.body) throw new Error('No stream');
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+
+            // Append assistant placeholder
+            const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
+            setChatHistory(prev => [...prev, assistantMsg]);
+
+            let done = false;
+            while (!done) {
+                const { value, done: d } = await reader.read();
+                done = d;
+                if (value) {
+                    const chunk = decoder.decode(value);
+                    setChatHistory(prev => {
+                        const last = prev[prev.length - 1];
+                        if (!last || last.role !== 'assistant') return prev;
+                        const updated = { ...last, content: last.content + chunk };
+                        return [...prev.slice(0, -1), updated];
+                    });
+                }
+            }
+
         } catch (error) {
             console.error(error);
             showError(t('copilot.requestFailed', 'AI 請求失敗'));
@@ -171,10 +248,12 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
             <div
                 className={`fixed transition-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                     style={{
-                    right: `${32 + position.x}px`,
-                    bottom: `${32 + position.y}px`,
-                    zIndex: 100000
-                }}
+                        right: `${32 + position.x}px`,
+                        bottom: `${32 + position.y}px`,
+                        zIndex: 100000,
+                        pointerEvents: 'auto',
+                        overflow: 'visible'
+                    }}
                 onMouseDown={handleMouseDown}
             >
                 <Button
@@ -191,14 +270,19 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
         );
     }
 
-    return portal(
+        return portal(
         <div
             ref={containerRef}
-            className={`fixed flex flex-col bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${isMinimized ? 'w-72 h-14' : 'w-[450px] h-[600px] max-h-[80vh]'} ${isDragging ? 'cursor-grabbing' : ''}`}
+            className={`fixed flex flex-col bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${isDragging ? 'cursor-grabbing' : ''}`}
             style={{
                 right: `${32 + position.x}px`,
                 bottom: `${32 + position.y}px`,
-                zIndex: 100000
+                zIndex: 100000,
+                pointerEvents: 'auto',
+                overflow: 'visible',
+                width: isMinimized ? undefined : size.width,
+                height: isMinimized ? undefined : size.height,
+                maxHeight: isMinimized ? undefined : '80vh'
             }}
         >
             {/* Header - Draggable */}
@@ -306,6 +390,20 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
                         </div>
                     </div>
                 </>
+            )}
+            {!isMinimized && (
+                <div
+                    onMouseDown={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.dataset && target.dataset.resizeHandle === 'true') {
+                            resizingRef.current = { startX: e.clientX, startY: e.clientY, startW: size.width, startH: size.height };
+                            e.stopPropagation();
+                        }
+                    }}
+                    className="absolute right-2 bottom-2 w-4 h-4 cursor-se-resize"
+                >
+                    <div data-resize-handle="true" style={{ width: 16, height: 16 }} />
+                </div>
             )}
         </div>
     );

@@ -47,6 +47,32 @@ app.add_middleware(
 )
 
 
+# Validate access token early for protected API routes
+@app.middleware("http")
+async def validate_access_token_middleware(request, call_next):
+    from app.auth_utils import decode_access_token
+
+    path = request.url.path
+    # Only validate API v1 routes (skip auth endpoints)
+    if path.startswith("/api/v1") and not path.startswith("/api/v1/auth"):
+        # Allow CORS preflight requests through
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        if not auth_header or not auth_header.lower().startswith("bearer "):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=401, content={"detail": "Missing Authorization header"})
+
+        token = auth_header.split(" ", 1)[1].strip()
+        payload = decode_access_token(token)
+        if payload is None:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
+
+    response = await call_next(request)
+    return response
+
+
 # Fallback middleware: ensure CORS headers are present on all responses (including errors)
 @app.middleware("http")
 async def ensure_cors_headers(request, call_next):
@@ -102,9 +128,9 @@ from app.routers import dashboard, gitlab
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(gitlab.router, prefix="/api/v1/gitlab", tags=["gitlab"])
 
-# 通用 AI Copilot
-from app.routers import copilot
-app.include_router(copilot.router, prefix="/api/v1", tags=["copilot"])
+# 通用 AI Copilot (migrated to openai_proxy)
+from app.routers import openai_proxy
+app.include_router(openai_proxy.router, prefix="/api/v1", tags=["copilot"])
 
 from fastapi.staticfiles import StaticFiles
 import os

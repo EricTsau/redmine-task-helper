@@ -22,10 +22,10 @@ export default function AIChat() {
     setStreaming(true)
     abortCtrl.current = new AbortController()
     try {
-      const res = await fetch('/api/aichat/stream', {
+      const res = await fetch('/api/v1/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMsg.content }),
+        body: JSON.stringify({ message: userMsg.content }),
         signal: abortCtrl.current.signal,
       })
 

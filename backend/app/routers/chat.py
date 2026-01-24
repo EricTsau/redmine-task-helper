@@ -1,4 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import StreamingResponse
+import asyncio
+import httpx
+import json
 from pydantic import BaseModel
 from typing import Optional
 from app.services.openai_service import OpenAIService
@@ -140,6 +144,67 @@ def unified_chat(
             }
         except Exception as e:
             return {"type": "chat", "summary": f"Error: {str(e)}"}
+
+
+@router.post("/stream")
+async def stream_chat(
+    request: ChatParseRequest,
+    openai_service: OpenAIService = Depends(get_openai_service)
+):
+    """
+    Stream chat response from OpenAI to the client using chunked text stream.
+    Frontend can read `res.body` and incrementally append chunks.
+    """
+
+    async def event_generator():
+        messages = [{"role": "user", "content": request.message}]
+        url = f"{openai_service.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {openai_service.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": openai_service.model,
+            "messages": messages,
+            "temperature": 0.2,
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            try:
+                async with client.stream("POST", url, headers=headers, json=payload) as resp:
+                    async for raw_line in resp.aiter_lines():
+                        if raw_line is None:
+                            continue
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        # OpenAI sends lines like: data: {json}
+                        if line.startswith("data:"):
+                            data_str = line[len("data:"):].strip()
+                        else:
+                            data_str = line
+
+                        if data_str == "[DONE]":
+                            break
+
+                        try:
+                            data = json.loads(data_str)
+                            choice = data.get("choices", [None])[0]
+                            if not choice:
+                                continue
+                            # streaming delta content
+                            delta = choice.get("delta", {})
+                            text = delta.get("content") or choice.get("message", {}).get("content", "")
+                            if text:
+                                yield text
+                        except Exception:
+                            # ignore malformed chunk
+                            continue
+            except Exception as e:
+                yield f"[ERROR]{str(e)}"
+
+    return StreamingResponse(event_generator(), media_type="text/plain")
 @router.post("/test-connection")
 def test_connection(
     x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),

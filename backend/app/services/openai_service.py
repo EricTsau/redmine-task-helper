@@ -4,6 +4,8 @@ import openai
 from app.models import TimeEntryExtraction
 import httpx
 from datetime import datetime, timedelta
+import threading
+import asyncio
 
 class OpenAIService:
     def __init__(self, api_key: str, base_url: str = "https://api.openai.com/v1", model: str = "gpt-4o-mini"):
@@ -13,6 +15,9 @@ class OpenAIService:
             base_url=base_url,
             http_client=http_client
         )
+        # expose base_url and api_key for streaming helper
+        self.base_url = base_url
+        self.api_key = api_key
         self.model = model
 
     async def chat_completion(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> str:
@@ -277,6 +282,51 @@ class OpenAIService:
         except Exception as e:
             print(f"Generate Log Error: {e}")
             return "Failed to generate log."
+
+    async def stream_chat(self, messages: List[Dict[str, str]], temperature: float = 0.7):
+        """
+        Async generator that yields streaming chat completions from OpenAI as text chunks.
+
+        Usage:
+            async for chunk in service.stream_chat(messages):
+                # handle chunk (string)
+        """
+        # Use the SDK client's streaming generator in a background thread
+        loop = asyncio.get_running_loop()
+        q: asyncio.Queue = asyncio.Queue()
+
+        def worker():
+            try:
+                # Use context manager to get a ChatCompletionStream (iterable)
+                with self.client.chat.completions.stream(model=self.model, messages=messages, temperature=temperature) as stream:
+                    for event in stream:
+                        try:
+                            # event has `type` and payload fields (e.g., delta for content.delta)
+                            etype = getattr(event, 'type', None)
+                            if etype == 'content.delta':
+                                delta = getattr(event, 'delta', None)
+                                if delta:
+                                    loop.call_soon_threadsafe(q.put_nowait, delta)
+                            elif etype == 'content.done':
+                                content = getattr(event, 'content', None)
+                                if content:
+                                    loop.call_soon_threadsafe(q.put_nowait, content)
+                        except Exception as e:
+                            loop.call_soon_threadsafe(q.put_nowait, f"[ERROR]{str(e)}")
+                            continue
+            except Exception as e:
+                loop.call_soon_threadsafe(q.put_nowait, f"[ERROR]{str(e)}")
+            finally:
+                loop.call_soon_threadsafe(q.put_nowait, None)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
+        while True:
+            item = await q.get()
+            if item is None:
+                break
+            yield item
 
     def edit_text(self, selection: str, instruction: str) -> str:
         """

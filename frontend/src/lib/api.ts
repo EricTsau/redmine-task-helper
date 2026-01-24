@@ -217,6 +217,57 @@ class ApiClient {
         });
     }
 
+    /**
+     * Streaming POST helper that behaves like `request` but returns the raw Response
+     * so callers can read `response.body` as a stream. Automatically attempts refresh on 401.
+     */
+    async stream(endpoint: string, options: RequestOptions = {}): Promise<Response> {
+        const { params, ...init } = options;
+
+        let url = `${this.baseUrl}${endpoint}`;
+        if (params) {
+            const searchParams = new URLSearchParams();
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    searchParams.append(key, value);
+                }
+            });
+            const separator = url.includes('?') ? '&' : '?';
+            url = `${url}${separator}${searchParams.toString()}`;
+        }
+
+        const headers: HeadersInit = {
+            ...init.headers,
+        };
+
+        if (this.token) {
+            (headers as any)['Authorization'] = `Bearer ${this.token}`;
+        }
+
+        if (!(init.body instanceof FormData) && !(headers as any)['Content-Type']) {
+            (headers as any)['Content-Type'] = 'application/json';
+        }
+
+        let response = await fetch(url, {
+            ...init,
+            headers,
+        });
+
+        // Try refresh on 401 once
+        if (response.status === 401 && endpoint !== '/auth/login' && endpoint !== '/auth/refresh') {
+            const newToken = await this.refreshToken();
+            if (newToken) {
+                (headers as any)['Authorization'] = `Bearer ${newToken}`;
+                response = await fetch(url, {
+                    ...init,
+                    headers,
+                });
+            }
+        }
+
+        return response;
+    }
+
 
     async put<T>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'body' | 'method'>): Promise<T> {
         return this.request<T>(endpoint, {
