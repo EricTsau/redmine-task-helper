@@ -14,7 +14,7 @@ export function GitLabDashboardPage() {
     const [data, setData] = useState<any>(null);
 
     // Days Filter
-    const [days, setDays] = useState(30);
+    const [days, setDays] = useState(7);
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");

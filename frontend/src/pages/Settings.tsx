@@ -201,6 +201,7 @@ export function Settings() {
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">目前密碼</label>
                                 <input
                                     type="password"
+                                    autoComplete="current-password"
                                     required
                                     value={passwords.old}
                                     onChange={(e) => setPasswords({ ...passwords, old: e.target.value })}
@@ -212,6 +213,7 @@ export function Settings() {
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">新密碼</label>
                                 <input
                                     type="password"
+                                    autoComplete="new-password"
                                     required
                                     value={passwords.new}
                                     onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
@@ -223,6 +225,7 @@ export function Settings() {
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">確認新密碼</label>
                                 <input
                                     type="password"
+                                    autoComplete="new-password"
                                     required
                                     value={passwords.confirm}
                                     onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
@@ -296,7 +299,7 @@ export function Settings() {
                             <h2 className="text-2xl font-black tracking-tight text-slate-800">Redmine 樞紐</h2>
                         </div>
 
-                        <div className="space-y-6">
+                            <form onSubmit={(e) => { e.preventDefault(); handleSaveRedmine(); }} className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">網路端點網址</label>
                                 <input
@@ -311,19 +314,19 @@ export function Settings() {
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">同步金鑰 (API)</label>
                                 <input
                                     type="password"
+                                    autoComplete="off"
                                     value={settings.redmine_token}
                                     onChange={(e) => updateField('redmine_token', e.target.value)}
                                     className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
                                     placeholder="••••••••"
                                 />
                             </div>
-                        </div>
-
-                        <div className="space-y-3 pt-4">
-                            <button onClick={handleSaveRedmine} className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
-                            <button onClick={testConnection} className="w-full py-3 text-slate-400 hover:text-sky-500 font-black text-[10px] uppercase tracking-widest transition-all">測試連線狀態</button>
-                            {testStatus && <p className="text-[10px] font-black uppercase text-center text-sky-500 animate-pulse">{testStatus}</p>}
-                        </div>
+                            <div className="space-y-3 pt-4">
+                                <button type="submit" className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
+                                <button type="button" onClick={testConnection} className="w-full py-3 text-slate-400 hover:text-sky-500 font-black text-[10px] uppercase tracking-widest transition-all">測試連線狀態</button>
+                                {testStatus && <p className="text-[10px] font-black uppercase text-center text-sky-500 animate-pulse">{testStatus}</p>}
+                            </div>
+                            </form>
                     </section>
                 </div>
 
@@ -337,7 +340,7 @@ export function Settings() {
                             <h2 className="text-2xl font-black tracking-tight text-slate-800">AI 智慧引擎</h2>
                         </div>
 
-                        <div className="space-y-6">
+                        <form onSubmit={(e) => { e.preventDefault(); handleSaveOpenAI(); }} className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">基底網址 (Base URL)</label>
                                 <div className="relative">
@@ -351,16 +354,19 @@ export function Settings() {
                                     <Globe className="w-5 h-5 text-slate-300 absolute left-4 top-4.5" />
                                 </div>
                             </div>
+
                             <div className="space-y-2">
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">金鑰 (API Key)</label>
                                 <input
                                     type="password"
+                                    autoComplete="off"
                                     value={settings.openai_key}
                                     onChange={(e) => updateField('openai_key', e.target.value)}
                                     className="h-14 w-full rounded-2xl border border-slate-100 bg-slate-50/50 px-5 font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                                     placeholder="••••••"
                                 />
                             </div>
+
                             <div className="space-y-2">
                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">指定模型 (Model)</label>
                                 <input
@@ -371,13 +377,13 @@ export function Settings() {
                                     placeholder="openai/gpt-4o-mini"
                                 />
                             </div>
-                        </div>
 
-                        <div className="space-y-3 pt-4">
-                            <button onClick={handleSaveOpenAI} className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
-                            <button onClick={testOpenAI} className="w-full py-3 text-slate-400 hover:text-indigo-500 font-black text-[10px] uppercase tracking-widest transition-all">測試模型響應</button>
-                            {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-indigo-500 animate-pulse">{openaiTestStatus}</p>}
-                        </div>
+                            <div className="space-y-3 pt-4">
+                                <button type="submit" className="w-full h-14 bg-[#1e293b] text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 active:scale-[0.98] transition-all">更新設定</button>
+                                <button type="button" onClick={testOpenAI} className="w-full py-3 text-slate-400 hover:text-indigo-500 font-black text-[10px] uppercase tracking-widest transition-all">測試模型響應</button>
+                                {openaiTestStatus && <p className="text-[10px] font-black uppercase text-center text-indigo-500 animate-pulse">{openaiTestStatus}</p>}
+                            </div>
+                        </form>
                     </section>
                 </div>
 

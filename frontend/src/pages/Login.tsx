@@ -78,6 +78,7 @@ export function Login() {
                             <label className="text-sm font-bold text-foreground ml-1">{t('login.password')}</label>
                             <input
                                 type="password"
+                                autoComplete="current-password"
                                 placeholder="Password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}

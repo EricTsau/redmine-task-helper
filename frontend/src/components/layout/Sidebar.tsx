@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, LayoutDashboard, Shield, LogOut, Brain, PieChart, FileText, ChevronLeft, ChevronRight, Code2 } from "lucide-react";
+import { Settings, LayoutDashboard, Shield, LogOut, Brain, FileText, ChevronLeft, ChevronRight, Code2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";

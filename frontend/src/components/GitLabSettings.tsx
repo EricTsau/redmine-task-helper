@@ -61,11 +61,11 @@ const GitLabSettings: React.FC = () => {
     });
 
     // Step 1: GitLab connection setup
-    const [step, setStep] = useState(1); // 1 for connection setup, 2 for watchlist selection
+    const [step, setStep] = useState(1); // 1: connection, 2: projects, 3: users
     const [connectionTested, setConnectionTested] = useState(false);
     const [testingConnection, setTestingConnection] = useState(false);
 
-    // Step 2: GitLab users and projects selection
+    // Projects and users fetched separately per step
     const [gitlabUsers, setGitlabUsers] = useState<GitLabUser[]>([]);
     const [gitlabProjects, setGitlabProjects] = useState<GitLabProject[]>([]);
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
@@ -94,9 +94,8 @@ const GitLabSettings: React.FC = () => {
         } finally { setFetching(false); }
     };
 
-    const fetchGitLabUsersAndProjects = async () => {
-        // Deprecated: we no longer auto-load users here. Load projects first,
-        // users will be loaded when a project is selected.
+    const fetchGitLabProjectsByConnection = async () => {
+        // Use existing backend endpoint that returns both users and projects
         setFetchingProjects(true);
         try {
             const response = await api.post<{
@@ -109,8 +108,8 @@ const GitLabSettings: React.FC = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            setGitlabProjects(response.projects);
-            setGitlabUsers([]); // Clear users until a project is chosen
+            setGitlabProjects(response.projects || []);
+            setGitlabUsers([]); // keep users empty until user navigates to step 3
         } catch (error) {
             showError('Failed to fetch GitLab projects');
         } finally {
@@ -357,7 +356,16 @@ const GitLabSettings: React.FC = () => {
             {/* Add/Edit Form */}
             {(isAdding || editingId !== null) && (
                 <div className="relative p-1 rounded-[40px] bg-slate-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500 border border-slate-200/50">
-                    <form onSubmit={editingId !== null ? handleUpdateInstance : handleAddInstance} className="bg-white p-10 rounded-[38px] space-y-8">
+                    <form onSubmit={editingId !== null ? handleUpdateInstance : handleAddInstance} className="bg-white p-10 rounded-[38px] space-y-8 relative">
+                        {/* Loading overlay shown during projects fetch on step 2 */}
+                        {step === 2 && fetchingProjects && (
+                            <div className="absolute inset-0 bg-white/70 z-50 flex items-center justify-center rounded-[38px]">
+                                <div className="flex items-center gap-3">
+                                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                                    <div className="text-slate-700 font-bold">正在載入專案，請稍候...</div>
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">
                                 {editingId !== null ? <Edit2 className="w-5 h-5 text-sky-500" /> : <Plus className="w-5 h-5 text-sky-500" />}
@@ -424,11 +432,89 @@ const GitLabSettings: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Step 2: Filtering Configuration (only shown after connection is tested) */}
+                        {/* Step 2: Projects selection only (after connection is tested) */}
                         {step === 2 && connectionTested && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Target Users Selection */}
-                                <div className="space-y-3 lg:col-span-1">
+                            <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
+                                {/* Target Projects Selection */}
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                        <Box className="w-3 h-3" /> 目標專案 (Target projects)
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="搜尋專案..."
+                                            className="w-full h-10 bg-white border border-slate-200 rounded-lg pl-3 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
+                                            value={projectSearch}
+                                            onChange={(e) => setProjectSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    {fetchingProjects && (
+                                        <div className="mt-3 flex items-center gap-3 text-sm text-slate-500">
+                                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                            正在載入專案，請稍候...
+                                        </div>
+                                    )}
+                                    <div className="w-full min-h-[100px] max-h-[300px] bg-slate-50 border border-slate-100 rounded-[24px] p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none overflow-y-auto custom-scrollbar">
+                                        {fetchingProjects ? (
+                                            <div className="flex items-center justify-center h-full">
+                                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                            </div>
+                                        ) : gitlabProjects.length === 0 ? (
+                                            <div className="text-slate-400 text-center py-4">
+                                                無可用專案
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {gitlabProjects
+                                                    .filter(project =>
+                                                        project.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                        project.path_with_namespace.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                        (project.description && project.description.toLowerCase().includes(projectSearch.toLowerCase()))
+                                                    )
+                                                    .map(project => (
+                                                            <div
+                                                                key={project.id}
+                                                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedProjectIds.includes(project.id)
+                                                                    ? 'bg-sky-100 border border-sky-200'
+                                                                    : 'hover:bg-white'
+                                                                    }`}
+                                                                onClick={() => {
+                                                                    if (selectedProjectIds.includes(project.id)) {
+                                                                        setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
+                                                                    } else {
+                                                                        setSelectedProjectIds([...selectedProjectIds, project.id]);
+                                                                    }
+                                                                }}
+                                                            >
+                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedProjectIds.includes(project.id)
+                                                                ? 'bg-sky-500 border-sky-500'
+                                                                : 'border-slate-300'
+                                                                }`}>
+                                                                {selectedProjectIds.includes(project.id) && (
+                                                                    <Check className="w-3 h-3 text-white" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-bold text-slate-800 truncate">{project.name}</div>
+                                                                <div className="text-[10px] text-slate-500 truncate">{project.path_with_namespace}</div>
+                                                                {project.description && (
+                                                                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{project.description}</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 3: Users selection (only after projects selected) */}
+                        {step === 3 && connectionTested && (
+                            <div className="grid grid-cols-1 gap-8">
+                                <div className="space-y-3">
                                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                         <Users className="w-3 h-3" /> 目標人員 (Target users)
                                     </label>
@@ -453,6 +539,7 @@ const GitLabSettings: React.FC = () => {
                                         ) : (
                                             <div className="space-y-2">
                                                 {gitlabUsers
+                                                    .filter(user => user.state === 'active')
                                                     .filter(user =>
                                                         user.name.toLowerCase().includes(userSearch.toLowerCase()) ||
                                                         user.username.toLowerCase().includes(userSearch.toLowerCase())
@@ -497,97 +584,23 @@ const GitLabSettings: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
-
-                                {/* Target Projects Selection */}
-                                <div className="space-y-3 lg:col-span-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                        <Box className="w-3 h-3" /> 目標專案 (Target projects)
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="搜尋專案..."
-                                            className="w-full h-10 bg-white border border-slate-200 rounded-lg pl-3 pr-10 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
-                                            value={projectSearch}
-                                            onChange={(e) => setProjectSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="w-full min-h-[100px] max-h-[300px] bg-slate-50 border border-slate-100 rounded-[24px] p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-sky-500/10 transition-all resize-none overflow-y-auto custom-scrollbar">
-                                        {fetchingProjects ? (
-                                            <div className="flex items-center justify-center h-full">
-                                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                                            </div>
-                                        ) : gitlabProjects.length === 0 ? (
-                                            <div className="text-slate-400 text-center py-4">
-                                                無可用專案
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                {gitlabProjects
-                                                    .filter(project =>
-                                                        project.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
-                                                        project.path_with_namespace.toLowerCase().includes(projectSearch.toLowerCase()) ||
-                                                        (project.description && project.description.toLowerCase().includes(projectSearch.toLowerCase()))
-                                                    )
-                                                    .map(project => (
-                                                            <div
-                                                                key={project.id}
-                                                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedProjectIds.includes(project.id)
-                                                                    ? 'bg-sky-100 border border-sky-200'
-                                                                    : 'hover:bg-white'
-                                                                    }`}
-                                                                onClick={async () => {
-                                                                    if (selectedProjectIds.includes(project.id)) {
-                                                                        setSelectedProjectIds(selectedProjectIds.filter(id => id !== project.id));
-                                                                    } else {
-                                                                        setSelectedProjectIds([...selectedProjectIds, project.id]);
-                                                                        // Load members for this project and merge into user list
-                                                                        await fetchProjectMembersByConnection(project.id);
-                                                                    }
-                                                                }}
-                                                            >
-                                                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedProjectIds.includes(project.id)
-                                                                ? 'bg-sky-500 border-sky-500'
-                                                                : 'border-slate-300'
-                                                                }`}>
-                                                                {selectedProjectIds.includes(project.id) && (
-                                                                    <Check className="w-3 h-3 text-white" />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="font-bold text-slate-800 truncate">{project.name}</div>
-                                                                <div className="text-[10px] text-slate-500 truncate">{project.path_with_namespace}</div>
-                                                                {project.description && (
-                                                                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{project.description}</div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
                             </div>
                         )}
 
                         {/* Navigation between steps */}
                         <div className="flex justify-between pt-4">
-                            {step === 2 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setStep(1)}
-                                    className="px-8 py-4 bg-slate-200 text-slate-700 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:brightness-95 transition-all"
-                                >
-                                    上一步
-                                </button>
-                            )}
+                            
                             {step === 1 && connectionTested && (
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                            if (editingId) {
-                                                // For editing: load projects for the instance, then load members for pre-selected projects
-                                                fetchGitLabProjects(editingId).then(async () => {
+                                    onClick={async () => {
+                                            try {
+                                                console.debug('GitLabSettings: Next to projects clicked', { editingId });
+                                                // Immediately switch UI to step 2 so user sees the projects area
+                                                setStep(2);
+                                                if (editingId) {
+                                                    // load projects for edit and project members in background
+                                                    await fetchGitLabProjects(editingId);
                                                     try {
                                                         const users = JSON.parse(formData.target_users_json || '[]');
                                                         const projects = JSON.parse(formData.target_projects_json || '[]');
@@ -600,26 +613,70 @@ const GitLabSettings: React.FC = () => {
                                                         setSelectedUserIds([]);
                                                         setSelectedProjectIds([]);
                                                     }
-                                                });
-                                            } else {
-                                                // For adding new instance: only fetch projects. Users will be loaded after project selection.
-                                                fetchGitLabUsersAndProjects();
+                                                } else {
+                                                    // fetch projects for new instance in background
+                                                    await fetchGitLabProjectsByConnection();
+                                                }
+                                            } catch (err) {
+                                                console.error('Failed to load projects for next step', err);
+                                                showError('載入專案失敗，請檢查連線資訊或稍後再試');
                                             }
-                                            setStep(2);
                                         }}
                                     className="px-8 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all"
                                 >
-                                    下一步 (設定過濾條件)
+                                    下一步 (選擇專案)
+                                </button>
+                            )}
+                            {step === 2 && (
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep(1)}
+                                        className="px-8 py-4 bg-slate-200 text-slate-700 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:brightness-95 transition-all"
+                                    >
+                                        上一步
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectedProjectIds.length === 0) return;
+                                            // Immediately go to step 3 and load members in background
+                                            setStep(3);
+                                            setFetchingUsers(true);
+                                            Promise.all(selectedProjectIds.map(pid => fetchProjectMembersByConnection(pid)))
+                                                .then(() => setFetchingUsers(false))
+                                                .catch((err) => {
+                                                    console.error('Failed to fetch project members', err);
+                                                    setFetchingUsers(false);
+                                                    showError('載入專案成員失敗');
+                                                });
+                                        }}
+                                        disabled={selectedProjectIds.length === 0}
+                                        className="px-8 py-4 bg-sky-500 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        下一步 (選擇使用者)
+                                    </button>
+                                </div>
+                            )}
+                            {step === 3 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep(2)}
+                                    className="px-8 py-4 bg-slate-200 text-slate-700 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:brightness-95 transition-all"
+                                >
+                                    上一步
                                 </button>
                             )}
                             <div className="ml-auto">
-                                <button
-                                    type="submit"
-                                    disabled={loading || (step === 1 && !connectionTested)}
-                                    className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-                                >
-                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId !== null ? '更新連結' : '建立連線')}
-                                </button>
+                                {step === 3 && (
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingId !== null ? '更新連結' : '建立連線')}
+                                    </button>
+                                )}
                             </div>
                         </div>
 

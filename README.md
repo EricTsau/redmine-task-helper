@@ -55,6 +55,7 @@ uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+# 注意：新加入的前端元件 `AIChat`、`GitLabWizard` 與 `HoverCopy` 需要 `dompurify`，如果你是手動安裝依賴，請確保已執行 `npm install` 以安裝 `dompurify`。
 ```
 
 ### Windows 快速啟停 (Batch)
