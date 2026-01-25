@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2, List } from 'lucide-react';
 import { TaskCreateModal } from '../tasks/TaskCreateModal';
 import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
-import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
+import { getTaskHealthStatus, getTaskHealthColorClass, formatRedmineIssueUrl, type TaskHealthStatus } from '../tasks/taskUtils';
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
 import { StatusSelect } from '../tasks/StatusSelect';
@@ -23,6 +23,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
     const [severeDays, setSevereDays] = useState(3);
     const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
     const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [redmineUrl, setRedmineUrl] = useState<string>('');
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -31,6 +32,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                 if (res) {
                     setWarningDays(res.task_warning_days ?? 2);
                     setSevereDays(res.task_severe_warning_days ?? 3);
+                    if (res.redmine_url) setRedmineUrl(res.redmine_url);
                 }
             } catch (e) {
                 console.error("Failed to fetch settings", e);
@@ -255,7 +257,16 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                                     )}
                                 </div>
                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                    <span>#{node.id}</span>
+                                    <a
+                                        href={formatRedmineIssueUrl(redmineUrl, node.id)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:underline hover:text-primary transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="在 Redmine 中開啟"
+                                    >
+                                        #{node.id}
+                                    </a>
                                     <span>•</span>
                                     <span>{node.project_name}</span>
                                     <span>•</span>
@@ -481,7 +492,17 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-medium truncate">{task.subject}</div>
                                                     <div className="text-sm text-muted-foreground">
-                                                        #{task.id} • {task.project_name} • {task.status_name}
+                                                        <a
+                                                            href={formatRedmineIssueUrl(redmineUrl, task.id)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="hover:underline hover:text-primary transition-colors"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title="在 Redmine 中開啟"
+                                                        >
+                                                            #{task.id}
+                                                        </a>
+                                                        {' '}• {task.project_name} • {task.status_name}
                                                         <TaskMetaInfo
                                                             estimated_hours={task.estimated_hours}
                                                             spent_hours={task.spent_hours}

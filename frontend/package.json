@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dhtmlx-gantt": "^9.1.1",
+    "dompurify": "^3.0.8",
     "i18next": "^25.8.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^0.562.0",
@@ -30,10 +31,10 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.12.0",
     "recharts": "^3.6.0",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7",
-    "dompurify": "^3.0.8"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -42,6 +43,7 @@
     "@testing-library/dom": "^10.0.0",
     "@testing-library/jest-dom": "^6.4.0",
     "@testing-library/react": "^16.0.0",
+    "@types/dompurify": "^2.3.3",
     "@types/node": "^20.14.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -60,7 +62,6 @@
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18",
-    "workbox-window": "^7.4.0",
-    "@types/dompurify": "^2.3.3"
+    "workbox-window": "^7.4.0"
   }
 }

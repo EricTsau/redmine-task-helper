@@ -17,7 +17,8 @@
         "back": "Back",
         "next": "Next",
         "previous": "Previous",
-        "preview": "Preview"
+        "preview": "Preview",
+        "copied": "Copied"
     },
     "commandPalette": {
         "searchPlaceholder": "Search commands or issues...",
@@ -427,6 +428,21 @@
         "generateSuccess": "Report generated successfully",
         "generateFailed": "Report generation failed",
         "downloading": "Downloading...",
-        "downloadReady": "Download ready"
+        "downloadReady": "Download ready",
+        "downloadFailed": "Download failed",
+        "tabs": {
+            "generate": "Generate Report",
+            "history": "Report History"
+        },
+        "history": {
+            "title": "Report History",
+            "fetchFailed": "Failed to fetch report history",
+            "confirmDelete": "Are you sure you want to delete this report? This action cannot be undone.",
+            "deleteSuccess": "Report deleted",
+            "deleteFailed": "Delete failed",
+            "noReports": "No reports found",
+            "noteTitle": "Report Storage Policy",
+            "noteDesc": "The system retains only the last 20 reports; older reports will be automatically archived or removed."
+        }
     }
 }

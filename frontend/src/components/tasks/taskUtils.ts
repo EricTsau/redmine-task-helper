@@ -29,7 +29,13 @@ export function getTaskHealthColorClass(status: TaskHealthStatus): string {
             return "bg-yellow-50 dark:bg-yellow-950/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20 border-yellow-200 dark:border-yellow-900";
         case 'severe':
             return "bg-red-50 dark:bg-red-950/10 hover:bg-red-100/50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-900";
-        default:
-            return "bg-card hover:bg-accent/50";
     }
+    return "bg-card hover:bg-accent/50";
+}
+
+export function formatRedmineIssueUrl(baseUrl: string, issueId: number): string {
+    if (!baseUrl) return '#';
+    // Remove trailing slash if present
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    return `${cleanBaseUrl}/issues/${issueId}`;
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import * as ReactDOM from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -343,6 +344,7 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
                                         <div className="prose prose-sm max-w-none prose-p:text-slate-700 prose-headings:text-slate-800 prose-ul:text-slate-700 prose-li:text-slate-700">
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
+                                                rehypePlugins={[rehypeRaw]}
                                                 components={{
                                                     img: ({ ...props }) => <img {...props} className="max-w-full rounded border border-slate-200 my-2" loading="lazy" />,
                                                 }}

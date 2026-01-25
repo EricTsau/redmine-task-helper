@@ -322,6 +322,25 @@ class AIWorkSummaryReport(SQLModel, table=True):
     owner: User = Relationship(back_populates="work_summary_reports")
 
 
+class OKRReport(SQLModel, table=True):
+    """
+    Store generated OKR reports (OKR Copilot).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", index=True)
+    
+    filename: str
+    file_path: str 
+    report_type: str = Field(default="okr") # future proofing
+    
+    # Metadata for quick display
+    start_date: str
+    end_date: str
+    meta_data: str = Field(default="{}") # JSON: { "completed_count": 10, "score": "green" ... }
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class GitLabInstance(SQLModel, table=True):
     """GitLab 伺服器實體設定"""
     id: Optional[int] = Field(default=None, primary_key=True)

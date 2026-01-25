@@ -266,7 +266,9 @@ class RedmineService:
             if assigned_to:
                 if assigned_to == 'me':
                     filter_params['assigned_to_id'] = 'me'
-                elif assigned_to.isdigit():
+                elif isinstance(assigned_to, int):
+                    filter_params['assigned_to_id'] = assigned_to
+                elif isinstance(assigned_to, str) and assigned_to.isdigit():
                     filter_params['assigned_to_id'] = int(assigned_to)
             
             if status:

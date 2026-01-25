@@ -17,7 +17,8 @@
         "back": "返回",
         "next": "下一步",
         "previous": "上一步",
-        "preview": "預覽"
+        "preview": "預覽",
+        "copied": "已複製"
     },
     "commandPalette": {
         "searchPlaceholder": "搜尋指令或議題...",
@@ -427,6 +428,21 @@
         "generateSuccess": "報告產生成功",
         "generateFailed": "報告產生失敗",
         "downloading": "下載中...",
-        "downloadReady": "下載已準備完成"
+        "downloadReady": "下載已準備完成",
+        "downloadFailed": "下載失敗",
+        "tabs": {
+            "generate": "生成報告",
+            "history": "歷史報告"
+        },
+        "history": {
+            "title": "歷史報告",
+            "fetchFailed": "讀取歷史報告失敗",
+            "confirmDelete": "確定要刪除這份報告嗎？此動作無法復原。",
+            "deleteSuccess": "報告已刪除",
+            "deleteFailed": "刪除失敗",
+            "noReports": "尚無歷史報告",
+            "noteTitle": "關於報告儲存",
+            "noteDesc": "系統僅保留最近 20 份報告，舊報告將自動封存或移除。"
+        }
     }
 }

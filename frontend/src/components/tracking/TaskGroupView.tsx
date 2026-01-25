@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2, List } from 'lucide-react';
 
 import { api } from '@/lib/api';
-import { getTaskHealthStatus, getTaskHealthColorClass, type TaskHealthStatus } from '../tasks/taskUtils';
+import { getTaskHealthStatus, getTaskHealthColorClass, formatRedmineIssueUrl, type TaskHealthStatus } from '../tasks/taskUtils';
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
 import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
@@ -57,6 +57,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     const [newGroupName, setNewGroupName] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
     const [editingTask, setEditingTask] = useState<TrackedTask | null>(null);
+    const [redmineUrl, setRedmineUrl] = useState<string>('');
 
     // State to track expanded groups
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -96,6 +97,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
             if (settingsRes) {
                 setWarningDays(settingsRes.task_warning_days ?? 2);
                 setSevereDays(settingsRes.task_severe_warning_days ?? 3);
+                if (settingsRes.redmine_url) setRedmineUrl(settingsRes.redmine_url);
             }
             setError(null);
         } catch (e) {
@@ -280,7 +282,16 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                                     )}
                                 </div>
                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                    <span>#{node.redmine_issue_id}</span>
+                                    <a
+                                        href={formatRedmineIssueUrl(redmineUrl, node.redmine_issue_id)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:underline hover:text-primary transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="在 Redmine 中開啟"
+                                    >
+                                        #{node.redmine_issue_id}
+                                    </a>
                                     <span>•</span>
                                     <span>{node.project_name}</span>
                                     <span>•</span>
@@ -519,7 +530,17 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="font-medium truncate">{task.subject}</div>
                                                         <div className="text-sm text-muted-foreground">
-                                                            #{task.redmine_issue_id} • {task.project_name} • {task.status}
+                                                            <a
+                                                                href={formatRedmineIssueUrl(redmineUrl, task.redmine_issue_id)}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="hover:underline hover:text-primary transition-colors"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                title="在 Redmine 中開啟"
+                                                            >
+                                                                #{task.redmine_issue_id}
+                                                            </a>
+                                                            {' '}• {task.project_name} • {task.status}
                                                             <TaskMetaInfo
                                                                 estimated_hours={task.estimated_hours}
                                                                 spent_hours={task.spent_hours}
