@@ -87,16 +87,19 @@ npm run dev
 注意：`start.bat` 會使用 `venv\Scripts\activate.bat` 啟用虛擬環境，並以新命令視窗啟動 `uvicorn` 與 `npm run dev`。如需在同一視窗執行，請改在各自資料夾手動執行命令。
 
 
-### 生產環境 (Docker)
+### 生產環境 (Docker Deployment)
+
+使用 Docker Compose 一鍵部署完整環境：
+- **Frontend**: Nginx 靜態服務 (Port 80)
+- **Backend**: Gunicorn (8 Workers) (Internal Port 8000)
 
 ```bash
-docker-compose up --build
+docker-compose up -d --build
 ```
 
 訪問:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API 文檔: http://localhost:8000/docs
+- App: http://localhost
+- API Docs: http://localhost/docs
 
 ## 設定
 

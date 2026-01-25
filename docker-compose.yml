@@ -2,25 +2,38 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: redmine-task-helper-backend
+    restart: always
     volumes:
-      - backend-data:/app/data
-    restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
+      # Mount temp_files to persistence if needed, usually reports are saved there
+      - ./backend/temp_files:/app/temp_files
+    environment:
+      - DATABASE_URL=sqlite:///./data/database.db
+      # Add other environment variables here if needed
+      # - OPENAI_API_KEY=your_key_here
+    networks:
+      - redmine-net
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api/v1
+    container_name: redmine-task-helper-frontend
+    restart: always
     ports:
-      - "3000:80"
+      - "5143:80"
     depends_on:
       - backend
-    restart: unless-stopped
+    networks:
+      - redmine-net
 
-volumes:
-  backend-data:
+networks:
+  redmine-net:
+    driver: bridge

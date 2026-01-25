@@ -1,0 +1,13 @@
+# User requested to ignore these
+data/
+logs/
+temp_files/
+
+# Standard Python ignores
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.git
+.gitignore

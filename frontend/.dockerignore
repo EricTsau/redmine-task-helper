@@ -1,0 +1,32 @@
+# Build artifacts
+dist
+build
+coverage
+
+# Node modules
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test results
+test-results/
+playwright-report/
+
+# Editor/OS files
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo
+
+# Project local config (if any, though .env might be needed for build args, often assumed excluded for security)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Git
+.git
+.gitignore
