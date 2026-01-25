@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, LayoutDashboard, Shield, LogOut, Brain, FileText, ChevronLeft, ChevronRight, Code2 } from "lucide-react";
+import { Settings, LayoutDashboard, Shield, LogOut, Brain, FileText, ChevronLeft, ChevronRight, Code2, Target } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";
@@ -22,6 +22,7 @@ export function Sidebar() {
         // { icon: PieChart, label: t('nav.executiveDashboard'), href: "/executive-dashboard" },
         { icon: Brain, label: t('nav.aiPlanner'), href: "/ai-planner" },
         { icon: FileText, label: t('nav.aiSummary'), href: "/ai-summary" },
+        { icon: Target, label: t('nav.okrCopilot'), href: "/okr-copilot" },
         { icon: Code2, label: "GitLab", href: "/gitlab-dashboard" },
         { icon: Settings, label: t('nav.settings'), href: "/settings" },
     ];

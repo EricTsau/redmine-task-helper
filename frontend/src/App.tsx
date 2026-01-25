@@ -7,6 +7,7 @@ import { Administration } from "@/pages/Administration";
 import { AIPlannerPage } from "@/pages/AIPlannerPage";
 import AIWorkSummaryPage from "@/pages/AIWorkSummaryPage";
 import { GitLabDashboardPage } from "@/pages/GitLabDashboardPage";
+import { OKRCopilotPage } from "@/pages/OKRCopilotPage";
 // import { ExecutiveDashboard } from "@/pages/ExecutiveDashboard";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { CommandPalette } from "@/components/command/CommandPalette";
@@ -44,6 +45,7 @@ function AppContent() {
           <Route path="/focus" element={<FocusPage />} />
           <Route path="/ai-planner" element={<AIPlannerPage />} />
           <Route path="/ai-summary" element={<AIWorkSummaryPage />} />
+          <Route path="/okr-copilot" element={<OKRCopilotPage />} />
           <Route path="/gitlab-dashboard" element={<GitLabDashboardPage />} />
           <Route path="/admin" element={<ProtectedRoute><Administration /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />

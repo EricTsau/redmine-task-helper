@@ -33,6 +33,7 @@
         "executiveDashboard": "高階儀表板",
         "aiPlanner": "AI 專案規劃",
         "aiSummary": "AI 工作總結",
+        "okrCopilot": "OKR 報告精靈",
         "settings": "設定",
         "admin": "管理後台",
         "signOut": "登出"
@@ -381,5 +382,51 @@
         "welcomeTask": "詢問關於任務狀態、進度、工作分配等問題",
         "welcomeSummary": "詢問關於這份報告的問題",
         "welcomeDefault": "有什麼可以幫助您的？"
+    },
+    "okrCopilot": {
+        "title": "OKR 報告精靈",
+        "subtitle": "平時隨手標記，季末一鍵產出",
+        "quickOptions": {
+            "7days": "週報 (7天)",
+            "14days": "雙週報 (14天)",
+            "30days": "月報 (30天)",
+            "custom": "自訂區間"
+        },
+        "preview": {
+            "title": "資料預覽",
+            "completedIssues": "已完成 Issues",
+            "inProgressIssues": "進行中 Issues",
+            "gitlabCommits": "GitLab Commits",
+            "gitlabReleases": "GitLab Releases",
+            "availableImages": "可用圖片"
+        },
+        "export": {
+            "title": "匯出格式",
+            "pptx": "簡報 (PPTX)",
+            "pdf": "PDF 文件",
+            "docx": "Word 文件",
+            "markdown": "Markdown"
+        },
+        "ai": {
+            "statusOnTrack": "進度正常",
+            "statusAtRisk": "有風險",
+            "statusOffTrack": "進度落後",
+            "generateReport": "產生報告",
+            "generating": "報告生成中..."
+        },
+        "gallery": {
+            "title": "亮點圖片畫廊",
+            "selectImages": "選擇要放入報告的圖片",
+            "noImages": "無可用圖片"
+        },
+        "reportPreview": "報告預覽",
+        "selectFormat": "請選擇至少一個輸出格式",
+        "noData": "尚無資料",
+        "selectDateRange": "請選擇日期區間以預覽資料",
+        "loadingPreview": "載入資料預覽中...",
+        "generateSuccess": "報告產生成功",
+        "generateFailed": "報告產生失敗",
+        "downloading": "下載中...",
+        "downloadReady": "下載已準備完成"
     }
 }

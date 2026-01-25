@@ -132,6 +132,10 @@ app.include_router(gitlab.router, prefix="/api/v1/gitlab", tags=["gitlab"])
 from app.routers import openai_proxy
 app.include_router(openai_proxy.router, prefix="/api/v1", tags=["copilot"])
 
+# OKR Copilot 報告模組
+from app.routers import okr_copilot
+app.include_router(okr_copilot.router, prefix="/api/v1", tags=["okr-copilot"])
+
 from fastapi.staticfiles import StaticFiles
 import os
 

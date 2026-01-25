@@ -33,6 +33,7 @@
         "executiveDashboard": "Executive Dashboard",
         "aiPlanner": "AI Planner",
         "aiSummary": "AI Summary",
+        "okrCopilot": "OKR Copilot",
         "settings": "Settings",
         "admin": "Administration",
         "signOut": "Sign Out"
@@ -381,5 +382,51 @@
         "welcomeTask": "Ask about task status, progress, work distribution, etc.",
         "welcomeSummary": "Ask about this report",
         "welcomeDefault": "How can I help you?"
+    },
+    "okrCopilot": {
+        "title": "OKR Report Copilot",
+        "subtitle": "Tag daily highlights, generate reports with one click",
+        "quickOptions": {
+            "7days": "Weekly (7 days)",
+            "14days": "Bi-weekly (14 days)",
+            "30days": "Monthly (30 days)",
+            "custom": "Custom Range"
+        },
+        "preview": {
+            "title": "Data Preview",
+            "completedIssues": "Completed Issues",
+            "inProgressIssues": "In Progress Issues",
+            "gitlabCommits": "GitLab Commits",
+            "gitlabReleases": "GitLab Releases",
+            "availableImages": "Available Images"
+        },
+        "export": {
+            "title": "Export Format",
+            "pptx": "Presentation (PPTX)",
+            "pdf": "PDF Document",
+            "docx": "Word Document",
+            "markdown": "Markdown"
+        },
+        "ai": {
+            "statusOnTrack": "On Track",
+            "statusAtRisk": "At Risk",
+            "statusOffTrack": "Off Track",
+            "generateReport": "Generate Report",
+            "generating": "Generating report..."
+        },
+        "gallery": {
+            "title": "Evidence Gallery",
+            "selectImages": "Select images to include in report",
+            "noImages": "No images available"
+        },
+        "reportPreview": "Report Preview",
+        "selectFormat": "Please select at least one export format",
+        "noData": "No data available",
+        "selectDateRange": "Select a date range to preview data",
+        "loadingPreview": "Loading data preview...",
+        "generateSuccess": "Report generated successfully",
+        "generateFailed": "Report generation failed",
+        "downloading": "Downloading...",
+        "downloadReady": "Download ready"
     }
 }

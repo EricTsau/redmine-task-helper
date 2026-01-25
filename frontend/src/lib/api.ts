@@ -2,6 +2,7 @@ const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 type RequestOptions = RequestInit & {
     params?: Record<string, string>;
+    responseType?: 'json' | 'text' | 'blob';
 };
 
 export class ApiError extends Error {
@@ -176,7 +177,12 @@ class ApiClient {
             return {} as T;
         }
 
-        // Handle Blob
+        // Check response type
+        if (init.responseType === 'blob') {
+            return await response.blob() as unknown as T;
+        }
+
+        // Handle Blob via Header (legacy)
         if (init.headers && (init.headers as any)['Accept'] === 'application/octet-stream') {
             // Type assertion for T (assuming T is Blob)
             return await response.blob() as unknown as T;

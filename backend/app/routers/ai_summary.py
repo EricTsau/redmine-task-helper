@@ -172,6 +172,7 @@ def delete_report(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/redmine-image")
+@router.get("/image-proxy")  # 別名路由，支援前端舊有路徑
 async def proxy_redmine_image(
     url: str,
     current_user: User = Depends(get_current_user),

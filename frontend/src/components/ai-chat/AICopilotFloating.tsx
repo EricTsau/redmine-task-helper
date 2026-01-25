@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import { Loader2, Send, Bot, X, Copy, Check, Minimize2, Maximize2, GripVertical } from "lucide-react";
 
-export type CopilotContextType = 'gitlab_dashboard' | 'task_workbench' | 'ai_summary';
+export type CopilotContextType = 'gitlab_dashboard' | 'task_workbench' | 'ai_summary' | 'okr_copilot';
 
 interface AICopilotFloatingProps {
     contextType: CopilotContextType;
@@ -238,6 +238,8 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
                 return t('copilot.welcomeTask', '詢問關於任務狀態、進度、工作分配等問題');
             case 'ai_summary':
                 return t('copilot.welcomeSummary', '詢問關於這份報告的問題');
+            case 'okr_copilot':
+                return t('copilot.welcomeOKR', '詢問關於 OKR 報告的問題，或請 AI 協助優化報告內容');
             default:
                 return t('copilot.welcomeDefault', '有什麼可以幫助您的？');
         }
@@ -247,13 +249,13 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
         return portal(
             <div
                 className={`fixed transition-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    style={{
-                        right: `${32 + position.x}px`,
-                        bottom: `${32 + position.y}px`,
-                        zIndex: 100000,
-                        pointerEvents: 'auto',
-                        overflow: 'visible'
-                    }}
+                style={{
+                    right: `${32 + position.x}px`,
+                    bottom: `${32 + position.y}px`,
+                    zIndex: 100000,
+                    pointerEvents: 'auto',
+                    overflow: 'visible'
+                }}
                 onMouseDown={handleMouseDown}
             >
                 <Button
@@ -270,7 +272,7 @@ export function AICopilotFloating({ contextType, getContextData, welcomeMessage 
         );
     }
 
-        return portal(
+    return portal(
         <div
             ref={containerRef}
             className={`fixed flex flex-col bg-white shadow-2xl rounded-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${isDragging ? 'cursor-grabbing' : ''}`}
