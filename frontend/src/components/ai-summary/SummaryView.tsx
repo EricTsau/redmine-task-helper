@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { AIChatFloating } from "./AIChatFloating";
+import { AICopilotFloating } from "@/components/ai-chat/AICopilotFloating";
 import { Save, RotateCw, Pencil, Download, Check, Globe, Activity, GitCommit, GitMerge } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
@@ -420,7 +420,10 @@ export function SummaryView(props: SummaryViewProps) {
                 </div>
             </div>
 
-            <AIChatFloating reportId={report.id} />
+            <AICopilotFloating
+                contextType="ai_summary"
+                getContextData={() => ({ report_content: currentMarkdown })}
+            />
         </div>
     );
 }

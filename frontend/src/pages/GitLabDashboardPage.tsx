@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
-import { AICopilotFloating } from "@/components/shared/AICopilotFloating";
+import { AICopilotFloating } from "@/components/ai-chat/AICopilotFloating";
 import { Loader2, GitCommit, GitPullRequest, Layers, Code2, RefreshCw, Filter, Search, Info, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";

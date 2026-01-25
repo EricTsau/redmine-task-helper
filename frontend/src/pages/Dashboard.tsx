@@ -7,7 +7,7 @@ import { TaskGroupView, TaskImportModal } from '@/components/tracking';
 import { Link } from 'react-router-dom';
 import { Settings, AlertCircle, Loader2, Plus, ListTodo, Bookmark } from 'lucide-react';
 import { ChatBox } from '@/components/Chat/ChatBox';
-import { AICopilotFloating } from '@/components/shared/AICopilotFloating';
+import { AICopilotFloating } from '@/components/ai-chat/AICopilotFloating';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 
