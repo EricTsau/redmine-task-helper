@@ -243,3 +243,74 @@ async def proxy_redmine_image(
         error_msg = f"Unexpected error while fetching image from {url}: {str(e)}"
         print(f"[ERROR] {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
+
+# --- Export Endpoints ---
+
+from fastapi.responses import StreamingResponse
+from app.services.export_service import ExportService
+from urllib.parse import quote
+
+@router.get("/{report_id}/export/pdf")
+async def export_report_pdf(
+    report_id: int,
+    service: WorkSummaryService = Depends(get_work_summary_service)
+):
+    try:
+        report = service.get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+            
+        # Get User Settings for Redmine Auth
+        from app.models import UserSettings
+        settings = service.session.exec(select(UserSettings).where(UserSettings.user_id == service.user.id)).first()
+        api_key = settings.api_key if settings else None
+        redmine_url = settings.redmine_url if settings else None
+            
+        export_service = ExportService()
+        pdf_io = await export_service.export_to_pdf(report.summary_markdown, report.title, api_key, redmine_url, report.gitlab_metrics)
+        
+        filename = f"{report.title or 'report'}.pdf"
+        encoded_filename = quote(filename)
+        
+        return StreamingResponse(
+            pdf_io, 
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Export PDF error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{report_id}/export/docx")
+async def export_report_docx(
+    report_id: int,
+    service: WorkSummaryService = Depends(get_work_summary_service)
+):
+    try:
+        report = service.get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+            
+        # Get User Settings for Redmine Auth
+        from app.models import UserSettings
+        settings = service.session.exec(select(UserSettings).where(UserSettings.user_id == service.user.id)).first()
+        api_key = settings.api_key if settings else None
+        redmine_url = settings.redmine_url if settings else None
+            
+        export_service = ExportService()
+        docx_io = await export_service.export_to_docx(report.summary_markdown, report.title, api_key, redmine_url, report.gitlab_metrics)
+        
+        filename = f"{report.title or 'report'}.docx"
+        encoded_filename = quote(filename)
+        
+        return StreamingResponse(
+            docx_io, 
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

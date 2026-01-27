@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AICopilotFloating } from "@/components/ai-chat/AICopilotFloating";
-import { Save, RotateCw, Pencil, Download, Check, Globe, Activity, GitCommit, GitMerge } from "lucide-react";
+import { Save, RotateCw, Pencil, Download, Check, Globe, Activity, GitCommit, GitMerge, FileText, File as FileIcon } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
 
@@ -61,6 +61,23 @@ export function SummaryView(props: SummaryViewProps) {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    };
+
+    const handleExport = async (format: 'pdf' | 'docx') => {
+        try {
+            const response = await api.getBlob(`/ai-summary/${report.id}/export/${format}`);
+            const url = window.URL.createObjectURL(response);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error(error);
+            showError(`Failed to export ${format.toUpperCase()}`);
+        }
     };
 
     const handleStartEdit = () => {
@@ -190,10 +207,19 @@ export function SummaryView(props: SummaryViewProps) {
                                 <Pencil className="h-3.5 w-3.5 mr-2" />
                                 {t('aiSummary.edit')}
                             </Button>
-                            <Button variant="outline" size="sm" onClick={handleDownload} className="bg-white/5 border-border/20 hover:bg-white/10">
-                                <Download className="h-3.5 w-3.5 mr-2" />
-                                {t('aiSummary.exportMd')}
-                            </Button>
+
+                            {/* Export Group */}
+                            <div className="flex items-center gap-1 bg-white/5 border border-border/20 rounded-lg p-1">
+                                <Button variant="ghost" size="icon" onClick={handleDownload} title="Export Markdown" className="h-7 w-7 hover:bg-white/10">
+                                    <Download className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleExport('pdf')} title="Export PDF" className="h-7 w-7 hover:bg-white/10">
+                                    <FileText className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleExport('docx')} title="Export Word" className="h-7 w-7 hover:bg-white/10">
+                                    <FileIcon className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
                         </>
                     )}
                 </div>
@@ -424,6 +450,6 @@ export function SummaryView(props: SummaryViewProps) {
                 contextType="ai_summary"
                 getContextData={() => ({ report_content: currentMarkdown })}
             />
-        </div>
+        </div >
     );
 }

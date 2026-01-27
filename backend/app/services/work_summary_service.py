@@ -291,6 +291,17 @@ class WorkSummaryService:
                             description = getattr(issue, 'description', '') or ''
                         except Exception:
                             description = ''
+                        
+                        # Extract Author and Assignee for fallback grouping
+                        author_name = "Unknown"
+                        assigned_to_name = "Unknown"
+                        try:
+                            if hasattr(issue, 'author'):
+                                author_name = getattr(issue.author, 'name', 'Unknown')
+                            if hasattr(issue, 'assigned_to'):
+                                assigned_to_name = getattr(issue.assigned_to, 'name', 'Unknown')
+                        except:
+                            pass
 
                         structured_issues.append({
                             'id': issue.id,
@@ -303,7 +314,9 @@ class WorkSummaryService:
                             'updated_on': updated_on_str,
                             'journals': journals,
                             'description': description,
-                            'attachment_map': attachment_map
+                            'attachment_map': attachment_map,
+                            'author_name': author_name,
+                            'assigned_to_name': assigned_to_name
                         })
                     except Exception as e:
                         print(f"Error processing issue {issue.id}: {e}")
@@ -614,8 +627,15 @@ class WorkSummaryService:
             p_name = i.get('project_name', 'Unknown Project')
             link = f"{redmine_base}/issues/{i['id']}" if redmine_base else f"issues/{i['id']}"
             subject_clean = i['subject'].replace('|', '-') 
+            
+            # Use Assignee or Author as the user for "General" updates (no journal)
+            # Preference: Assignee > Author > Unknown
+            fallback_user = i.get('assigned_to_name', 'Unknown')
+            if fallback_user == 'Unknown':
+                fallback_user = i.get('author_name', 'Unknown')
 
             # 1. Journals (Filtered)
+            has_journals = False
             for j in i.get('journals', []):
                 u_name = j.get('user', 'Unknown User')
                 note_preview = j.get('notes', '').replace('\n', ' ')
@@ -631,22 +651,23 @@ class WorkSummaryService:
 
                 line = f"- {str(j.get('created_on', ''))[:10]} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | {note_preview}"
                 add_to_group(p_name, u_name, line, 'redmine')
+                has_journals = True
                 
                 # Register images for this user's chunk (only once per issue per user)
                 if i.get('images'):
                     register_issue_images(p_name, u_name, i['id'], subject_clean, i['images'])
             
-            # General update line if no journals
+            # General update line if no journals - Attribute to Fallback User
             updated_on_day = i['updated_on'].split('T')[0] if i['updated_on'] else ''
-            if not i.get('journals') and updated_on_day and start_date <= updated_on_day <= end_date:
-                u_name = "General" 
+            if not has_journals and updated_on_day and start_date <= updated_on_day <= end_date:
+                u_name = fallback_user
                 created_date = str(i.get('created_on', ''))[:10]
                 closed_date = str(i.get('closed_on', ''))[:10]
                 
                 line = f"- {updated_on_day} | [#{i['id']} {subject_clean}]({link}) | Created:{created_date} | Closed:{closed_date} | (Issue Updated)"
                 add_to_group(p_name, u_name, line, 'redmine')
                 
-                # Register images for General user
+                # Register images for Fallback user
                 if i.get('images'):
                     register_issue_images(p_name, u_name, i['id'], subject_clean, i['images'])
 
@@ -853,18 +874,93 @@ class WorkSummaryService:
                 return await analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines)
 
         tasks = []
-        for p_name, users_map in grouped_data.items():
-            for u_name, sources in users_map.items():
-                redmine_lines = sources.get('redmine', [])
-                gitlab_lines = sources.get('gitlab', [])
-                if redmine_lines or gitlab_lines:
-                    tasks.append(restricted_analyze_chunk(p_name, u_name, redmine_lines, gitlab_lines))
+        ordered_chunks = [] # List of (project_name, user_name, future)
+
+        # Iterate Projects
+        # grouped_data: Dict[str, Dict[str, Dict[str, List[str]]]]
+        for project_name, users_map in grouped_data.items():
+            
+            # 1. Generate Project Summary
+            # Aggregate all lines for this project to create a summary
+            all_project_redmine = []
+            all_project_gitlab = []
+            for u_data in users_map.values():
+                all_project_redmine.extend(u_data['redmine'])
+                all_project_gitlab.extend(u_data['gitlab'])
+                
+            async def generate_project_summary_task(p_name, redmine_lines, gitlab_lines):
+                if not redmine_lines and not gitlab_lines: return ""
+                lang = state.get('language', 'zh-TW')
+                text_redmine = "\n".join(redmine_lines)
+                text_gitlab = "\n".join(gitlab_lines)
+                
+                prompt = f"""
+                Task: Create a high-level Project Summary for '{p_name}'.
+                Language: {lang}
+                Range: {start_date} to {end_date}
+                
+                Logs:
+                {text_redmine}
+                {text_gitlab}
+                
+                Instruction:
+                Summarize the overall progress, major achievements, and key events for this project purely based on the logs.
+                Do not list every single task. Focus on the big picture.
+                
+                Output Format:
+                ### {p_name} - Summary
+                (Summary Text Here)
+                """
+                
+                try:
+                    res = await self.openai.chat_completion([
+                         {"role": "system", "content": "You are a Project Manager."},
+                         {"role": "user", "content": prompt}
+                    ])
+                    return res + "\n\n"
+                except Exception as e:
+                    return f"### {p_name} - Summary\n(Error generating summary: {e})\n\n"
+
+            # Add Project Summary Task
+            p_summary_future = generate_project_summary_task(project_name, all_project_redmine, all_project_gitlab)
+            ordered_chunks.append((project_name, "00_SUMMARY", p_summary_future)) # 00_SUMMARY to sort first
+            
+            # 2. Generate User Summaries for this Project
+            for user_name, sources in users_map.items():
+                future = restricted_analyze_chunk(project_name, user_name, sources['redmine'], sources['gitlab'])
+                ordered_chunks.append((project_name, user_name, future))
         
-        chunk_summaries = []
-        if tasks:
-            print(f"[DEBUG] Processing {len(tasks)} chunks in parallel...")
-            chunk_results = await asyncio.gather(*tasks)
-            chunk_summaries = list(filter(None, chunk_results))
+        # Execute all AI calls in parallel
+        futures = [item[2] for item in ordered_chunks]
+        if futures:
+            print(f"[DEBUG] Processing {len(futures)} chunks in parallel...")
+            results = await asyncio.gather(*futures)
+        else:
+            results = []
+
+        combined_markdown = ""
+        
+        # Sort logic: Project Name -> 00_SUMMARY -> User Name
+        def sort_key(item):
+            p_name, u_name, _ = item
+            return (p_name, u_name)
+            
+        # Zip results back
+        final_items = []
+        for i, res in enumerate(results):
+            p_name, u_name, _ = ordered_chunks[i]
+            final_items.append((p_name, u_name, res))
+            
+        final_items.sort(key=sort_key)
+        
+        for p_name, u_name, content in final_items:
+            combined_markdown += content
+
+        # The rest of the code (Grand Summary, GitLab Metrics) will operate on combined_markdown
+        # We need to adjust the `chunk_summaries` variable to be `final_items` for the grand summary logic.
+        # The grand summary logic expects a list of strings, not tuples.
+        # So, we'll create chunk_summaries from the content of final_items.
+        chunk_summaries = [item[2] for item in final_items if item[2]] # Filter out empty results
         
         if not chunk_summaries:
             chunk_summaries = ["(No specific work logs found for target users in this period.)"]

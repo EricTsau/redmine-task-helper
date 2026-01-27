@@ -224,7 +224,7 @@ class OpenAIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3
+                temperature=0.2
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -247,7 +247,7 @@ class OpenAIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.3
+                temperature=0.2
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -276,7 +276,7 @@ class OpenAIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
+                temperature=0.2
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -347,7 +347,7 @@ class OpenAIService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.5
+                temperature=0.2
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -498,7 +498,7 @@ class OpenAIService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": context}
                 ],
-                temperature=0.5
+                temperature=0.2
             )
             return response.choices[0].message.content
         except Exception as e:
