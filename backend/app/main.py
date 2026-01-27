@@ -49,6 +49,15 @@ app.add_middleware(
 
 # Validate access token early for protected API routes
 @app.middleware("http")
+async def log_requests_middleware(request, call_next):
+    print(f"Incoming request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    print(f"Response status: {response.status_code} for {request.method} {request.url.path}")
+    if response.status_code == 302:
+        print(f"Redirecting to: {response.headers.get('location')}")
+    return response
+
+@app.middleware("http")
 async def validate_access_token_middleware(request, call_next):
     from app.auth_utils import decode_access_token
 

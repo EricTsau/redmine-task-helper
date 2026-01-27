@@ -42,6 +42,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [token]);
 
+    // Register auth failure callback
+    useEffect(() => {
+        api.onUnauthorized(() => {
+            logout();
+        });
+    }, []);
+
     const checkRedmineAccess = async () => {
         try {
             await api.get('/auth/validate');

@@ -18,13 +18,17 @@ export function WatchlistStats() {
         const fetchStats = async () => {
             setLoading(true);
             try {
-                // Get API Key
+                // Get Settings (API Key & URL)
                 const settingsRes = await api.get<any>('/settings');
-                const apiKey = settingsRes.redmine_token;
+                const apiKey = settingsRes.redmine_token || settingsRes.api_key; // Handle inconsistent naming if any, usually api_key from backend
+                const redmineUrl = settingsRes.redmine_url;
 
-                if (apiKey) {
+                if (apiKey && redmineUrl) {
                     const res = await api.get<WatchlistStat[]>('/watchlist/stats', {}, {
-                        headers: { 'X-Redmine-API-Key': apiKey }
+                        headers: {
+                            'X-Redmine-API-Key': apiKey,
+                            'X-Redmine-Url': redmineUrl
+                        }
                     });
                     setStats(res);
                 }

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlmodel import Session, select
 from typing import List, Optional
 from app.database import get_session
-from app.models import ProjectWatchlist, User
+from app.models import ProjectWatchlist, User, UserSettings
 from app.dependencies import get_current_user
 from pydantic import BaseModel
 
@@ -68,26 +68,49 @@ def get_watchlist_stats(
 ):
     """
     Get stats for all watched projects.
-    Requires Redmine credentials in headers.
+    Requires Redmine credentials in headers or user settings.
     """
     watchlist = session.exec(select(ProjectWatchlist).where(ProjectWatchlist.owner_id == current_user.id)).all()
     
+    # Handle missing or masked credentials by falling back to DB
+    if not x_redmine_url or not x_redmine_key or x_redmine_key == "******":
+        settings = session.exec(select(UserSettings).where(UserSettings.user_id == current_user.id)).first()
+        if settings:
+            if not x_redmine_url:
+                x_redmine_url = settings.redmine_url
+            if not x_redmine_key or x_redmine_key == "******":
+                x_redmine_key = settings.api_key
+
     if not x_redmine_url or not x_redmine_key:
         # Return empty stats if no credentials provided (or handle as 401)
         # Choosing to return empty stats structure for UI flexibility
         return []
 
     from app.services.redmine_client import RedmineService
-    service = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
     
-    stats_results = []
-    for item in watchlist:
-        stats = service.get_project_stats(item.redmine_project_id)
-        stats_results.append({
-            "id": item.id,
-            "redmine_project_id": item.redmine_project_id,
-            "project_name": item.project_name,
-            "open_issues_count": stats.get("open_issues_count", 0)
-        })
+    try:
+        service = RedmineService(url=x_redmine_url, api_key=x_redmine_key)
         
-    return stats_results
+        stats_results = []
+        for item in watchlist:
+            try:
+                stats = service.get_project_stats(item.redmine_project_id)
+                stats_results.append({
+                    "id": item.id,
+                    "redmine_project_id": item.redmine_project_id,
+                    "project_name": item.project_name,
+                    "open_issues_count": stats.get("open_issues_count", 0)
+                })
+            except Exception as e:
+                print(f"Error fetching stats for project {item.id}: {e}")
+                stats_results.append({
+                    "id": item.id,
+                    "redmine_project_id": item.redmine_project_id,
+                    "project_name": item.project_name,
+                    "open_issues_count": 0
+                })
+            
+        return stats_results
+    except Exception as e:
+        print(f"Error initializing RedmineService: {e}")
+        return []

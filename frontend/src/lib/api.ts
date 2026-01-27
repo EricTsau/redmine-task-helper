@@ -27,11 +27,17 @@ class ApiClient {
     private isRefreshing = false;
     private refreshSubscribers: ((token: string) => void)[] = [];
 
+    private onAuthFailure: (() => void) | null = null;
+
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
         // Load tokens from storage on init
         this.token = localStorage.getItem('token');
         this.refreshTokenStr = localStorage.getItem('refresh_token');
+    }
+
+    public onUnauthorized(cb: () => void) {
+        this.onAuthFailure = cb;
     }
 
     setToken(token: string | null) {
@@ -85,6 +91,7 @@ class ApiClient {
             // Refresh failed, clear everything
             this.setToken(null);
             this.setRefreshToken(null);
+            this.onAuthFailure?.();
             return null;
         }
     }
