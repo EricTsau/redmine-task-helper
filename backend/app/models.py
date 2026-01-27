@@ -96,6 +96,9 @@ class TrackedTask(SQLModel, table=True):
     spent_hours: float = Field(default=0.0)
     updated_on: Optional[datetime] = None
     
+    # Relations Data (JSON list of related issues with details)
+    relations: Optional[str] = Field(default="[]", description="JSON list of related tasks")
+
     last_synced_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

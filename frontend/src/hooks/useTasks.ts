@@ -24,6 +24,16 @@ export interface Task {
         id: number;
         name: string;
     };
+    relations?: {
+        id: number;
+        subject: string;
+        status: string;
+        estimated_hours: number | null;
+        updated_on: string | null;
+        author_name: string | null;
+        assigned_to_name: string | null;
+        relation_type: string;
+    }[];
 }
 
 export function useTasks() {

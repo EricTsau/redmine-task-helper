@@ -38,3 +38,4 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - 使用i18n做多國語系功能
 - pythonn backend venv路徑: backend/venv
 - nodejs frontend venv路徑: frontend/node_modules
+- 改完前端code, 一律要用 `npm run lint` 確認語法沒問題

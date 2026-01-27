@@ -90,46 +90,85 @@ class RedmineService:
             return None
 
     def get_my_tasks(self, limit: int = 50) -> List[Any]:
-        """Fetches issues assigned to the current user, including their subtasks."""
+        """Fetches issues assigned to the current user, including their subtasks and related issues."""
         try:
-            # 1. Fetch assigned issues with children info
-            # Status 2 = In Progress (Standard Redmine, might vary)
+            # 1. Fetch assigned issues with children and relations info
             issues = list(self.redmine.issue.filter(
                 assigned_to_id='me',
-                # status_id='open', # or generic open
+                # status_id='open', 
                 sort='updated_on:desc',
                 limit=limit,
-                include=['children']
+                include=['children', 'relations']
             ))
             
-            # 2. Collect child IDs
-            child_ids = []
+            # 2. Collect child IDs and Related IDs
+            extra_ids = set()
             seen_ids = {issue.id for issue in issues}
             
             for issue in issues:
-                # Redmine python lib returns children as a ResourceSet or list of dict-like objects
-                # checking hasattr just in case
+                # 1. Children
                 if hasattr(issue, 'children'):
                     for child in issue.children:
-                        # child is usually a simplistic object with id and subject
                         if child.id not in seen_ids:
-                            child_ids.append(str(child.id))
-                            seen_ids.add(child.id)
-            
-            # 3. Fetch full details for children if any found
-            if child_ids:
+                            extra_ids.add(str(child.id))
+                            # seen_ids.add(child.id) # Don't add to seen, we might need to fetch it in bulk
+
+                # 2. Relations
+                if hasattr(issue, 'relations'):
+                    for relation in issue.relations:
+                        # Determine the ID of the related issue
+                        # relation has issue_id (source) and issue_to_id (target)
+                        # We are 'issue'. If issue.id == relation.issue_id, related is issue_to_id
+                        related_id = None
+                        if getattr(relation, 'issue_id', None) == issue.id:
+                            related_id = getattr(relation, 'issue_to_id', None)
+                        elif getattr(relation, 'issue_to_id', None) == issue.id:
+                            related_id = getattr(relation, 'issue_id', None)
+                        
+                        if related_id and related_id not in seen_ids:
+                             extra_ids.add(str(related_id))
+
+            # 3. Fetch full details for extra items if any found
+            if extra_ids:
                 try:
-                    # Redmine API supports filtering by comma-separated IDs
-                    child_issues = self.redmine.issue.filter(
-                        issue_id=','.join(child_ids),
-                        status_id='open' # Only fetch open subtasks? Usually desirable
+                    # Redmine API allows filtering by comma-separated IDs
+                    # We fetch them. Note: We might get closed issues too if they are related. 
+                    # Usually desirable to see what is blocking or related.
+                    # Limit chunk size if too many? Redmine URL length limits. 
+                    # For now assume reasonable specific set.
+                    # Convert to list
+                    extra_ids_list = list(extra_ids)
+                    
+                    # Fetch in batches if needed? python-redmine handles long URLs? 
+                    # It might use POST for filters if supported? No usually GET.
+                    # Let's simple fetch.
+                    fetched_extra = self.redmine.issue.filter(
+                        issue_id=','.join(extra_ids_list),
+                        status_id='*' # Fetch all statuses for related items
                     )
-                    issues.extend(list(child_issues))
+                    
+                    # Extend unique
+                    fetched_map = {i.id: i for i in fetched_extra}
+                    
+                    # Attach details to original issues logic?
+                    # No, we just want to return them in the LIST so the frontend can build the tree/graph.
+                    # Frontend tree logic:
+                    # - If I have Issue A (assigned to me)
+                    # - A relates to B (not assigned to me)
+                    # - I want B to show up UNDER A in the UI? 
+                    #   - "Related tasks ... display them"
+                    #   - Usually displayed as a sub-list "Related Issues".
+                    # - So I need B in the pool of known tasks.
+                    
+                    for i in fetched_extra:
+                        if i.id not in seen_ids:
+                            issues.append(i)
+                            seen_ids.add(i.id)
+                            
                 except Exception as e:
-                    print(f"Error fetching child tasks: {e}")
+                    print(f"Error fetching extra tasks: {e}")
             
             # 4. Sort combined list
-            # We sort again because appending children breaks order
             issues.sort(key=lambda x: getattr(x, 'updated_on', ''), reverse=True)
             
             return issues

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useTasks, type Task } from '@/hooks/useTasks';
 import { api } from '@/lib/api';
-import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2, List } from 'lucide-react';
+import { Play, RefreshCw, FolderOpen, CheckCircle, Loader2, Plus, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2 } from 'lucide-react';
 import { TaskCreateModal } from '../tasks/TaskCreateModal';
 import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
 import { getTaskHealthStatus, getTaskHealthColorClass, formatRedmineIssueUrl, type TaskHealthStatus } from '../tasks/taskUtils';
 import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
 import { StatusSelect } from '../tasks/StatusSelect';
+import { formatDistanceToNow } from 'date-fns';
+import { zhTW } from 'date-fns/locale';
 
 interface TaskListViewProps {
     startTimer: (id: number, comment?: string) => void;
@@ -21,7 +23,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
     const [refreshing, setRefreshing] = useState(false);
     const [warningDays, setWarningDays] = useState(2);
     const [severeDays, setSevereDays] = useState(3);
-    const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
+
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [redmineUrl, setRedmineUrl] = useState<string>('');
 
@@ -81,14 +83,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
         });
     };
 
-    const expandAll = () => {
-        const currentKeys = Object.keys(deriveGroupedTasks());
-        setExpandedGroups(new Set(currentKeys));
-    };
 
-    const collapseAll = () => {
-        setExpandedGroups(new Set());
-    };
 
     // Helper to check if a project is monitored (in watchlist or child of watchlist)
     const isProjectMonitored = (projectId: number) => {
@@ -220,12 +215,18 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
         setTreeExpanded(new Set());
     };
 
-    const renderTreeNodes = (nodes: (Task & { children: any[] })[]) => {
+    const renderTreeNodes = (nodes: (Task & { children: (Task & { children: any[] })[] })[]) => {
         return nodes.map(node => {
             const status = getTaskStatus(node);
             const bgClass = getTaskHealthColorClass(status);
             const hasChildren = node.children && node.children.length > 0;
             const isExpanded = treeExpanded.has(node.id);
+
+            // Find related tasks
+            const relatedTasks = node.relations || [];
+
+            // If we have children OR related tasks, we act as a parent
+            const hasContent = hasChildren || relatedTasks.length > 0;
 
             return (
                 <div key={node.id} className="tree-node-container space-y-2">
@@ -235,7 +236,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         <div className="flex-1 min-w-0 flex items-center gap-2">
                             {/* Tree Toggle */}
                             <div className="flex-shrink-0 w-6 flex justify-center">
-                                {hasChildren ? (
+                                {hasContent ? (
                                     <button
                                         onClick={() => toggleTreeNode(node.id)}
                                         className="p-0.5 hover:bg-black/10 rounded transition-colors"
@@ -253,6 +254,11 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                                     {hasChildren && !isExpanded && (
                                         <span className="text-xs bg-muted px-1.5 rounded-full text-muted-foreground">
                                             {node.children.length} 子任務
+                                        </span>
+                                    )}
+                                    {relatedTasks.length > 0 && !isExpanded && (
+                                        <span className="text-xs bg-indigo-50 text-indigo-600 px-1.5 rounded-full">
+                                            {relatedTasks.length} 相關
                                         </span>
                                     )}
                                 </div>
@@ -320,10 +326,63 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                             </button>
                         </div>
                     </div>
-                    {/* Children */}
-                    {hasChildren && isExpanded && (
+
+                    {/* Expanded Content */}
+                    {isExpanded && (
                         <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
+                            {/* Children */}
                             {renderTreeNodes(node.children)}
+
+                            {/* Related Tasks */}
+                            {relatedTasks.length > 0 && (
+                                <div className="pl-4 space-y-1 mt-1 border-l-2 border-indigo-500/30 ml-1">
+                                    <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                                        <Network className="h-3 w-3" />
+                                        相關任務
+                                    </div>
+                                    {relatedTasks.map((rel) => (
+                                        <div key={`rel-${rel.id}`} className="p-2 border border-dashed border-indigo-200 rounded-md bg-indigo-50/30 flex items-center justify-between group">
+                                            <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+                                                <div className="flex-shrink-0 flex items-center gap-2">
+                                                    <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full flex-shrink-0">
+                                                        {rel.relation_type}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex flex-col min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <a
+                                                            href={formatRedmineIssueUrl(redmineUrl, rel.id)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-sm font-medium hover:underline hover:text-primary text-foreground truncate"
+                                                            title={rel.subject}
+                                                        >
+                                                            #{rel.id} • {rel.subject}
+                                                        </a>
+                                                        <span className={`text-xs px-1.5 rounded-full border ${rel.status === 'Closed' || rel.status === 'Resolved'
+                                                            ? 'bg-green-100 text-green-700 border-green-200'
+                                                            : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                                            }`}>
+                                                            {rel.status}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                                        {rel.estimated_hours && <span>Est: {rel.estimated_hours}h</span>}
+                                                        {rel.updated_on && (
+                                                            <span>
+                                                                {formatDistanceToNow(new Date(rel.updated_on), { addSuffix: true, locale: zhTW })}
+                                                            </span>
+                                                        )}
+                                                        {rel.author_name && <span>📝 {rel.author_name}</span>}
+                                                        {rel.assigned_to_name && <span>👤 {rel.assigned_to_name}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -381,33 +440,16 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>
 
-                    <div className="flex items-center border rounded overflow-hidden">
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={`p-2 ${viewMode === 'list' ? 'bg-muted' : 'hover:bg-muted'} border-r`}
-                            title="列表檢視"
-                        >
-                            <List className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('tree')}
-                            className={`p-2 ${viewMode === 'tree' ? 'bg-muted' : 'hover:bg-muted'}`}
-                            title="樹狀檢視"
-                        >
-                            <Network className="h-4 w-4" />
-                        </button>
-                    </div>
-
                     <div className="flex items-center border rounded overflow-hidden ml-2">
                         <button
-                            onClick={viewMode === 'tree' ? expandAllTree : expandAll}
+                            onClick={expandAllTree}
                             className="p-2 hover:bg-muted border-r"
                             title="全部展開"
                         >
                             <ChevronsDown className="h-4 w-4" />
                         </button>
                         <button
-                            onClick={viewMode === 'tree' ? collapseAllTree : collapseAll}
+                            onClick={collapseAllTree}
                             className="p-2 hover:bg-muted"
                             title="全部收合"
                         >
@@ -475,7 +517,7 @@ export function TaskListView({ startTimer }: TaskListViewProps) {
                         {/* Tasks */}
                         {expandedGroups.has(groupName) && (
                             <div className="grid gap-2">
-                                {viewMode === 'tree' && groupBy === 'project' ? (
+                                {groupBy === 'project' ? (
                                     <div className="mt-2">
                                         {renderTreeNodes(buildTaskTree(groupTasks))}
                                     </div>

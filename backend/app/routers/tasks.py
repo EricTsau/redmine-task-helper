@@ -11,6 +11,16 @@ router = APIRouter()
 
 from app.dependencies import get_redmine_service
 
+class RelationResponse(BaseModel):
+    id: int
+    subject: str
+    status: str
+    estimated_hours: Optional[float] = None
+    updated_on: Optional[str] = None
+    author_name: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    relation_type: str
+
 class TaskResponse(BaseModel):
     id: int
     subject: str
@@ -24,6 +34,7 @@ class TaskResponse(BaseModel):
     assigned_to: Optional[dict] = None
     author: Optional[dict] = None
     parent: Optional[dict] = None
+    relations: Optional[List[RelationResponse]] = None
 
 def format_iso_datetime(dt) -> str:
     """Format datetime to ISO string with UTC timezone if naive."""
@@ -76,6 +87,26 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
             # But having the ID is enough to build the tree if the parent is present.
             pass
 
+        relations = []
+        relations = []
+        if hasattr(issue, 'relations'):
+            rel_ids = [rel.issue_to_id if rel.issue_id == issue.id else rel.issue_id for rel in issue.relations]
+            for target_id in rel_ids:
+                try:
+                    target = service.redmine.issue.get(target_id)
+                    relations.append(RelationResponse(
+                        id=target.id,
+                        subject=target.subject,
+                        status=target.status.name,
+                        estimated_hours=getattr(target, 'estimated_hours', None),
+                        updated_on=format_iso_datetime(target.updated_on) if hasattr(target, 'updated_on') else None,
+                        author_name=target.author.name if hasattr(target, 'author') else None,
+                        assigned_to_name=target.assigned_to.name if hasattr(target, 'assigned_to') else None,
+                        relation_type=next((r.relation_type for r in issue.relations if r.issue_id == target_id or r.issue_to_id == target_id), "relates")
+                    ))
+                except Exception as e:
+                    print(f"Failed to fetch related task {target_id}: {e}")
+
         results.append(TaskResponse(
             id=issue.id,
             subject=issue.subject,
@@ -88,8 +119,10 @@ async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
             updated_on=format_iso_datetime(issue.updated_on),
             assigned_to=assigned_to,
             author=author,
-            parent={'id': issue.parent.id, 'subject': ''} if hasattr(issue, 'parent') and issue.parent else None
+            parent={'id': issue.parent.id, 'subject': ''} if hasattr(issue, 'parent') and issue.parent else None,
+            relations=relations
         ))
+
     return results
 
 

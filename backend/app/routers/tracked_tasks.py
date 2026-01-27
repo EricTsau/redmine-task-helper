@@ -7,6 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
+import json
 from app.database import get_session
 from app.models import TrackedTask, User
 from app.services.redmine_client import RedmineService
@@ -34,6 +35,8 @@ class TrackedTaskResponse(BaseModel):
     estimated_hours: Optional[float] = None
     spent_hours: float = 0.0
     updated_on: Optional[datetime] = None
+    
+    relations: Optional[str] = None
     
     assigned_to_id: Optional[int] = None
     assigned_to_name: Optional[str] = None
@@ -109,6 +112,38 @@ async def import_tasks(
                 if hasattr(issue.parent, 'subject'):
                     parent_subject = issue.parent.subject
             
+            # Fetch relations details
+            relations_data = []
+            if hasattr(issue, 'relations'):
+                rel_ids = []
+                for rel in issue.relations:
+                    # Determine the other issue ID
+                    target_id = rel.issue_to_id if rel.issue_id == issue.id else rel.issue_id
+                    rel_ids.append(target_id)
+                
+                # Fetch details for related issues (Subject, Status, etc.)
+                # We do this one-by-one or in batch if possible. Redmine doesn't support easy batch fetch by IDs list usually,
+                # unless we use filter. But for small number, loop is fine. 
+                # Or we can just store the ID and type for now? 
+                # User requested detailed info: "Logistics CRM System Development • Open Est: 80h about 1 month ago 📝 eric eric"
+                # So we definitely need to fetch the target issue details.
+                for target_id in rel_ids:
+                    try:
+                        # Fetch minimal info?
+                        target = service.redmine.issue.get(target_id)
+                        relations_data.append({
+                            "id": target.id,
+                            "subject": target.subject,
+                            "status": target.status.name,
+                            "estimated_hours": getattr(target, 'estimated_hours', None),
+                            "updated_on": target.updated_on.isoformat() if hasattr(target, 'updated_on') else None,
+                            "author_name": target.author.name if hasattr(target, 'author') else None,
+                            "assigned_to_name": target.assigned_to.name if hasattr(target, 'assigned_to') else None,
+                            "relation_type": next((r.relation_type for r in issue.relations if r.issue_id == target_id or r.issue_to_id == target_id), "relates")
+                        })
+                    except Exception as e:
+                        print(f"Failed to fetch related task {target_id}: {e}")
+            
             if existing:
                 # 更新現有記錄
                 existing.project_id = issue.project.id
@@ -130,6 +165,7 @@ async def import_tasks(
                 existing.author_name = author_name
                 existing.parent_id = parent_id
                 existing.parent_subject = parent_subject
+                existing.relations = json.dumps(relations_data)
                 
                 existing.last_synced_at = datetime.utcnow()
                 session.add(existing)
@@ -153,6 +189,7 @@ async def import_tasks(
                     author_name=author_name,
                     parent_id=parent_id,
                     parent_subject=parent_subject,
+                    relations=json.dumps(relations_data),
                     last_synced_at=datetime.utcnow()
                 )
                 session.add(tracked)
@@ -345,6 +382,28 @@ async def sync_tracked_tasks(
             task.assigned_to_id = assigned_to_id
             task.assigned_to_name = assigned_to_name
             task.last_synced_at = datetime.utcnow()
+            
+            # Update relations
+            relations_data = []
+            if hasattr(issue, 'relations'):
+                rel_ids = [rel.issue_to_id if rel.issue_id == issue.id else rel.issue_id for rel in issue.relations]
+                for target_id in rel_ids:
+                    try:
+                        target = service.redmine.issue.get(target_id)
+                        relations_data.append({
+                            "id": target.id,
+                            "subject": target.subject,
+                            "status": target.status.name,
+                            "estimated_hours": getattr(target, 'estimated_hours', None),
+                            "updated_on": target.updated_on.isoformat() if hasattr(target, 'updated_on') else None,
+                            "author_name": target.author.name if hasattr(target, 'author') else None,
+                            "assigned_to_name": target.assigned_to.name if hasattr(target, 'assigned_to') else None,
+                            "relation_type": next((r.relation_type for r in issue.relations if r.issue_id == target_id or r.issue_to_id == target_id), "relates")
+                        })
+                    except Exception as e:
+                        print(f"Failed to sync related task {target_id}: {e}")
+            
+            task.relations = json.dumps(relations_data)
             
             session.add(task)
             updated += 1

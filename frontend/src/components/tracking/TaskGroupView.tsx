@@ -3,7 +3,7 @@
  * 支援依 Project / Status / Custom Group 分類
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Network, Edit2, List } from 'lucide-react';
+import { Play, RefreshCw, Trash2, Tag, FolderOpen, CheckCircle, Loader2, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Edit2, Network } from 'lucide-react';
 
 import { api } from '@/lib/api';
 import { getTaskHealthStatus, getTaskHealthColorClass, formatRedmineIssueUrl, type TaskHealthStatus } from '../tasks/taskUtils';
@@ -11,7 +11,8 @@ import { TaskMetaInfo } from '../tasks/TaskMetaInfo';
 import { TaskGroupStats } from '../tasks/TaskGroupStats';
 import { RedmineTaskDetailModal } from '../tasks/RedmineTaskDetailModal';
 import { StatusSelect } from '../tasks/StatusSelect';
-
+import { formatDistanceToNow } from 'date-fns';
+import { zhTW } from 'date-fns/locale';
 
 interface TrackedTask {
     id: number;
@@ -38,6 +39,18 @@ interface TrackedTask {
         id: number;
         subject: string;
     };
+    relations?: string; // JSON string
+}
+
+interface Relation {
+    id: number;
+    subject: string;
+    status: string;
+    estimated_hours: number | null;
+    updated_on: string | null;
+    author_name: string | null;
+    assigned_to_name: string | null;
+    relation_type: string;
 }
 
 type GroupBy = 'project' | 'status' | 'custom';
@@ -53,9 +66,8 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [groupBy, setGroupBy] = useState<GroupBy>('project');
-    const [editingGroup, setEditingGroup] = useState<number | null>(null);
-    const [newGroupName, setNewGroupName] = useState('');
-    const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
+
+
     const [editingTask, setEditingTask] = useState<TrackedTask | null>(null);
     const [redmineUrl, setRedmineUrl] = useState<string>('');
 
@@ -75,14 +87,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
         });
     };
 
-    const expandAll = () => {
-        const allGroups = new Set(Object.keys(groupedData));
-        setExpandedGroups(allGroups);
-    };
 
-    const collapseAll = () => {
-        setExpandedGroups(new Set());
-    };
 
     const [warningDays, setWarningDays] = useState(2);
     const [severeDays, setSevereDays] = useState(3);
@@ -166,18 +171,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
         }
     };
 
-    const handleUpdateGroup = async (taskId: number, group: string | null) => {
-        try {
-            const updated = await api.patch<TrackedTask>(`/tracked-tasks/${taskId}/group`, {
-                custom_group: group || ''
-            });
-            setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
-            setEditingGroup(null);
-            setNewGroupName('');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : '更新分組失敗');
-        }
-    };
+
 
     // Helper to determine status based on updated_on
     // Helper to determine status based on updated_on
@@ -245,7 +239,7 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
     };
 
 
-    const renderTreeNodes = (nodes: (TrackedTask & { children: any[] })[]) => {
+    const renderTreeNodes = (nodes: (TrackedTask & { children: (TrackedTask & { children: any[] })[] })[]) => {
         return nodes.map(node => {
             const status = getTaskStatus(node);
             const bgClass = getTaskHealthColorClass(status);
@@ -358,13 +352,91 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                             </button>
                         </div>
                     </div>
+
+                    {/* Related Tasks (from parsed JSON) */}
+                    {
+                        (() => {
+                            if (!node.relations) return null;
+                            try {
+                                const relations = JSON.parse(node.relations) as Relation[];
+                                if (!relations || relations.length === 0) return null;
+
+                                return (
+                                    <div className="pl-6 border-l-2 border-indigo-500/30 ml-3 space-y-1 mt-1">
+                                        <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                                            <Network className="h-3 w-3" />
+                                            相關任務 ({relations.length})
+                                        </div>
+                                        {relations.map(rel => (
+                                            <div key={rel.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 hover:bg-muted/50 transition-colors border border-dashed border-indigo-200 dark:border-indigo-800">
+                                                {/* Relation Type Badge */}
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                                                    {rel.relation_type || 'related'}
+                                                </span>
+
+                                                <div className="flex-1 min-w-0 flex items-center gap-2 text-sm">
+                                                    <a
+                                                        href={formatRedmineIssueUrl(redmineUrl, rel.id)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="font-medium hover:underline hover:text-primary transition-colors text-foreground"
+                                                    >
+                                                        #{rel.id}
+                                                    </a>
+                                                    <span className="text-muted-foreground">•</span>
+                                                    <span className="truncate text-foreground/90" title={rel.subject}>
+                                                        {rel.subject}
+                                                    </span>
+                                                    <span className="text-muted-foreground">•</span>
+                                                    <span className={`px-1.5 py-0.5 rounded text-xs ${rel.status === 'Closed' || rel.status === 'Resolved'
+                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                                        }`}>
+                                                        {rel.status}
+                                                    </span>
+
+                                                    {/* Detailed Info Row */}
+                                                    <span className="text-xs text-muted-foreground flex items-center gap-2 ml-2">
+                                                        {rel.estimated_hours && (
+                                                            <span>Est: {rel.estimated_hours}h</span>
+                                                        )}
+                                                        {rel.updated_on && (
+                                                            <span>
+                                                                {formatDistanceToNow(new Date(rel.updated_on), { addSuffix: true, locale: zhTW })}
+                                                            </span>
+                                                        )}
+                                                        {rel.author_name && (
+                                                            <span className="flex items-center gap-1" title={`Author: ${rel.author_name}`}>
+                                                                📝 {rel.author_name}
+                                                            </span>
+                                                        )}
+                                                        {rel.assigned_to_name && (
+                                                            <span className="flex items-center gap-1" title={`Assigned: ${rel.assigned_to_name}`}>
+                                                                👤 {rel.assigned_to_name}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            } catch (e) {
+                                console.error('Failed to parse relations', e);
+                                return null;
+                            }
+                        })()
+                    }
+
                     {/* Children */}
-                    {hasChildren && isExpanded && (
-                        <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
-                            {renderTreeNodes(node.children)}
-                        </div>
-                    )}
-                </div>
+                    {
+                        hasChildren && isExpanded && (
+                            <div className="pl-6 border-l-2 border-muted/30 ml-3 space-y-2">
+                                {renderTreeNodes(node.children)}
+                            </div>
+                        )
+                    }
+                </div >
             );
         });
     };
@@ -445,34 +517,16 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                         <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                     </button>
 
-                    {/* Expand/Collapse All */}
-                    <div className="flex items-center border rounded overflow-hidden">
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={`p-2 ${viewMode === 'list' ? 'bg-muted' : 'hover:bg-muted'} border-r`}
-                            title="列表檢視"
-                        >
-                            <List className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('tree')}
-                            className={`p-2 ${viewMode === 'tree' ? 'bg-muted' : 'hover:bg-muted'}`}
-                            title="樹狀檢視"
-                        >
-                            <Network className="h-4 w-4" />
-                        </button>
-                    </div>
-
                     <div className="flex items-center border rounded overflow-hidden ml-2">
                         <button
-                            onClick={viewMode === 'tree' ? expandAllTree : expandAll}
+                            onClick={expandAllTree}
                             className="p-2 hover:bg-muted border-r"
                             title="全部展開"
                         >
                             <ChevronsDown className="h-4 w-4" />
                         </button>
                         <button
-                            onClick={viewMode === 'tree' ? collapseAllTree : collapseAll}
+                            onClick={collapseAllTree}
                             className="p-2 hover:bg-muted"
                             title="全部收合"
                         >
@@ -482,181 +536,67 @@ export function TaskGroupView({ startTimer }: TaskGroupViewProps) {
                 </div>
             </div>
 
-            {error && (
-                <div className="p-3 bg-destructive/10 text-destructive rounded-md">
-                    {error}
-                </div>
-            )}
+            {
+                error && (
+                    <div className="p-3 bg-destructive/10 text-destructive rounded-md">
+                        {error}
+                    </div>
+                )
+            }
 
             {/* Task Groups */}
-            {Object.keys(groupedData).length > 0 ? (
-                <div className="space-y-6">
-                    {Object.entries(groupedData).map(([groupName, { tasks: groupTasks, stats }]) => (
-                        <div key={groupName} className="space-y-2">
-                            {/* Group Header */}
-                            <div
-                                className="flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                                onClick={() => toggleGroup(groupName)}
-                            >
-                                {expandedGroups.has(groupName) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                {groupBy === 'project' && <FolderOpen className="h-4 w-4" />}
-                                {groupBy === 'status' && <CheckCircle className="h-4 w-4" />}
-                                {groupBy === 'custom' && <Tag className="h-4 w-4" />}
-                                <span>{groupName}</span>
-                                <TaskGroupStats
-                                    stats={stats}
-                                    warningDays={warningDays}
-                                    severeDays={severeDays}
-                                />
-                            </div>
+            {
+                Object.keys(groupedData).length > 0 ? (
+                    <div className="space-y-6">
+                        {Object.entries(groupedData).map(([groupName, { tasks: groupTasks, stats }]) => (
+                            <div key={groupName} className="space-y-2">
+                                {/* Group Header */}
+                                <div
+                                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                                    onClick={() => toggleGroup(groupName)}
+                                >
+                                    {expandedGroups.has(groupName) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    {groupBy === 'project' && <FolderOpen className="h-4 w-4" />}
+                                    {groupBy === 'status' && <CheckCircle className="h-4 w-4" />}
+                                    {groupBy === 'custom' && <Tag className="h-4 w-4" />}
+                                    <span>{groupName}</span>
+                                    <TaskGroupStats
+                                        stats={stats}
+                                        warningDays={warningDays}
+                                        severeDays={severeDays}
+                                    />
+                                </div>
 
-                            {/* Tasks */}
-                            {expandedGroups.has(groupName) && (
-                                <div className="grid gap-2">
-                                    {viewMode === 'tree' && groupBy === 'project' ? (
+                                {/* Tasks */}
+                                {expandedGroups.has(groupName) && (
+                                    <div className="grid gap-2">
                                         <div className="mt-2">
                                             {renderTreeNodes(buildTaskTree(groupTasks))}
                                         </div>
-                                    ) : (
-                                        groupTasks.map(task => {
-                                            const status = getTaskStatus(task);
-                                            const bgClass = getTaskHealthColorClass(status);
-
-                                            return (
-                                                <div
-                                                    key={task.id}
-                                                    className={`flex items-center justify-between p-3 border rounded-lg transition-colors group ${bgClass}`}
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-medium truncate">{task.subject}</div>
-                                                        <div className="text-sm text-muted-foreground">
-                                                            <a
-                                                                href={formatRedmineIssueUrl(redmineUrl, task.redmine_issue_id)}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="hover:underline hover:text-primary transition-colors"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                title="在 Redmine 中開啟"
-                                                            >
-                                                                #{task.redmine_issue_id}
-                                                            </a>
-                                                            {' '}• {task.project_name} • {task.status}
-                                                            <TaskMetaInfo
-                                                                estimated_hours={task.estimated_hours}
-                                                                spent_hours={task.spent_hours}
-                                                                updated_on={task.updated_on}
-                                                                status={status}
-                                                            />
-                                                            {task.custom_group && (
-                                                                <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
-                                                                    {task.custom_group}
-                                                                </span>
-                                                            )}
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                {task.assigned_to_name && (
-                                                                    <span className="text-xs text-muted-foreground/70" title="被指派者">
-                                                                        👤 {task.assigned_to_name}
-                                                                    </span>
-                                                                )}
-                                                                {task.author_name && (
-                                                                    <span className="text-xs text-muted-foreground/70" title="建立者">
-                                                                        📝 {task.author_name}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Actions */}
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => setEditingTask(task)}
-                                                            className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary"
-                                                            title="查看詳情與筆記"
-                                                        >
-                                                            <Edit2 className="h-4 w-4" />
-                                                        </button>
-                                                        {/* Edit Group */}
-                                                        {editingGroup === task.id ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <input
-                                                                    type="text"
-                                                                    value={newGroupName}
-                                                                    onChange={(e) => setNewGroupName(e.target.value)}
-                                                                    placeholder="分組名稱"
-                                                                    className="px-2 py-1 text-sm border rounded w-24"
-                                                                    autoFocus
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            handleUpdateGroup(task.id, newGroupName);
-                                                                        } else if (e.key === 'Escape') {
-                                                                            setEditingGroup(null);
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    onClick={() => handleUpdateGroup(task.id, newGroupName)}
-                                                                    className="p-1 hover:bg-muted rounded"
-                                                                >
-                                                                    <CheckCircle className="h-4 w-4 text-primary" />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingGroup(task.id);
-                                                                    setNewGroupName(task.custom_group || '');
-                                                                }}
-                                                                className="p-1.5 hover:bg-muted rounded"
-                                                                title="設定分組"
-                                                            >
-                                                                <Tag className="h-4 w-4" />
-                                                            </button>
-                                                        )}
-
-                                                        {/* Remove */}
-                                                        <button
-                                                            onClick={() => handleRemove(task.id)}
-                                                            className="p-1.5 hover:bg-destructive/10 text-destructive rounded"
-                                                            title="移除追蹤"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-
-                                                        {/* Start Timer */}
-                                                        <button
-                                                            onClick={() => startTimer(task.redmine_issue_id)}
-                                                            className="p-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                                                            title="開始計時"
-                                                        >
-                                                            <Play className="h-4 w-4 fill-current" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center text-muted-foreground py-8">
-                    尚無追蹤任務。點擊「匯入任務」開始追蹤。
-                </div>
-            )}
-            {editingTask && (
-                <RedmineTaskDetailModal
-                    taskId={editingTask.redmine_issue_id}
-                    subject={editingTask.subject}
-                    onClose={() => setEditingTask(null)}
-                    onUpdate={() => {
-                        handleSync(); // Refresh details by syncing if needed, or just let user manually refresh
-                        // Actually better to just close, stats might update on next sync
-                    }}
-                />
-            )}
-        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                        尚無追蹤任務。點擊「匯入任務」開始追蹤。
+                    </div>
+                )
+            }
+            {
+                editingTask && (
+                    <RedmineTaskDetailModal
+                        taskId={editingTask.redmine_issue_id}
+                        subject={editingTask.subject}
+                        onClose={() => setEditingTask(null)}
+                        onUpdate={() => {
+                            handleSync(); // Refresh details by syncing if needed, or just let user manually refresh
+                            // Actually better to just close, stats might update on next sync
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 }
