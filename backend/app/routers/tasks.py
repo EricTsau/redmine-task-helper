@@ -62,68 +62,68 @@ async def get_statuses(service: RedmineService = Depends(get_redmine_service)):
 @router.get("", response_model=List[TaskResponse])
 async def list_tasks(service: RedmineService = Depends(get_redmine_service)):
     """List issues assigned to the current user."""
-    issues = service.get_my_tasks()
-    
-    results = []
-    for issue in issues:
-        assigned_to = None
-        if hasattr(issue, 'assigned_to') and issue.assigned_to:
-            assigned_to = {'id': issue.assigned_to.id, 'name': issue.assigned_to.name}
-            
-        author = None
-        if hasattr(issue, 'author') and issue.author:
-            author = {'id': issue.author.id, 'name': issue.author.name}
-            
-        parent = None
-        if hasattr(issue, 'parent') and issue.parent:
-            parent = {'id': issue.parent.id, 'subject': getattr(issue.parent, 'subject', '')} # Subject might not be loaded if minimal
-            # Redmine API 'parent' attribute usually has id. Subject might require extra fetch but sometimes included?
-            # Actually standard issue response `parent` is {id: 1, name: "..."} ? No, it's usually just ID in minimal view.
-            # But let's check. python-redmine `parent` attribute is a Resource.
-            # We want subject. If python-redmine lazy loads, this might trigger calls.
-            # But earlier we did a bulk fetch for children. For parent of TOP level tasks, we haven't fetched them.
-            # But "My Tasks" are assigned to me. Their parent might be anything.
-            # For tree view within the list, we only care about parents THAT ARE IN THE LIST.
-            # But having the ID is enough to build the tree if the parent is present.
-            pass
+    try:
+        issues = service.get_my_tasks()
 
-        relations = []
-        relations = []
-        if hasattr(issue, 'relations'):
-            rel_ids = [rel.issue_to_id if rel.issue_id == issue.id else rel.issue_id for rel in issue.relations]
-            for target_id in rel_ids:
+        results = []
+        for issue in issues:
+            assigned_to = None
+            if hasattr(issue, 'assigned_to') and issue.assigned_to:
+                assigned_to = {'id': issue.assigned_to.id, 'name': issue.assigned_to.name}
+
+            author = None
+            if hasattr(issue, 'author') and issue.author:
+                author = {'id': issue.author.id, 'name': issue.author.name}
+
+            parent = None
+            if hasattr(issue, 'parent') and issue.parent:
+                parent = {'id': issue.parent.id, 'subject': getattr(issue.parent, 'subject', '')}
+
+            relations = []
+            if hasattr(issue, 'relations'):
                 try:
-                    target = service.redmine.issue.get(target_id)
-                    relations.append(RelationResponse(
-                        id=target.id,
-                        subject=target.subject,
-                        status=target.status.name,
-                        estimated_hours=getattr(target, 'estimated_hours', None),
-                        updated_on=format_iso_datetime(target.updated_on) if hasattr(target, 'updated_on') else None,
-                        author_name=target.author.name if hasattr(target, 'author') else None,
-                        assigned_to_name=target.assigned_to.name if hasattr(target, 'assigned_to') else None,
-                        relation_type=next((r.relation_type for r in issue.relations if r.issue_id == target_id or r.issue_to_id == target_id), "relates")
-                    ))
+                    rel_ids = [rel.issue_to_id if rel.issue_id == issue.id else rel.issue_id for rel in issue.relations]
                 except Exception as e:
-                    print(f"Failed to fetch related task {target_id}: {e}")
+                    # Likely a permission error when fetching relations/details for some related items
+                    print(f"Warning: unable to iterate relations for issue {getattr(issue, 'id', '<unknown>')}: {e}")
+                    rel_ids = []
+                for target_id in rel_ids:
+                    try:
+                        target = service.redmine.issue.get(target_id)
+                        relations.append(RelationResponse(
+                            id=target.id,
+                            subject=target.subject,
+                            status=target.status.name,
+                            estimated_hours=getattr(target, 'estimated_hours', None),
+                            updated_on=format_iso_datetime(target.updated_on) if hasattr(target, 'updated_on') else None,
+                            author_name=target.author.name if hasattr(target, 'author') else None,
+                            assigned_to_name=target.assigned_to.name if hasattr(target, 'assigned_to') else None,
+                            relation_type=next((r.relation_type for r in issue.relations if r.issue_id == target_id or r.issue_to_id == target_id), "relates")
+                        ))
+                    except Exception as e:
+                        print(f"Failed to fetch related task {target_id}: {e}")
 
-        results.append(TaskResponse(
-            id=issue.id,
-            subject=issue.subject,
-            project_id=issue.project.id,
-            project_name=issue.project.name,
-            status_id=issue.status.id,
-            status_name=issue.status.name,
-            estimated_hours=getattr(issue, 'estimated_hours', None),
-            spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
-            updated_on=format_iso_datetime(issue.updated_on),
-            assigned_to=assigned_to,
-            author=author,
-            parent={'id': issue.parent.id, 'subject': ''} if hasattr(issue, 'parent') and issue.parent else None,
-            relations=relations
-        ))
-
-    return results
+            results.append(TaskResponse(
+                id=issue.id,
+                subject=issue.subject,
+                project_id=issue.project.id,
+                project_name=issue.project.name,
+                status_id=issue.status.id,
+                status_name=issue.status.name,
+                estimated_hours=getattr(issue, 'estimated_hours', None),
+                spent_hours=getattr(issue, 'spent_hours', 0.0) or getattr(issue, 'total_spent_hours', 0.0) or 0.0,
+                updated_on=format_iso_datetime(issue.updated_on),
+                assigned_to=assigned_to,
+                author=author,
+                parent={'id': issue.parent.id, 'subject': ''} if hasattr(issue, 'parent') and issue.parent else None,
+                relations=relations
+            ))
+        return results
+    except Exception as e:
+        import traceback as _tb
+        print("Exception while listing tasks:")
+        _tb.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class SearchTaskResponse(BaseModel):

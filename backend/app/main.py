@@ -85,9 +85,16 @@ async def validate_access_token_middleware(request, call_next):
 # Fallback middleware: ensure CORS headers are present on all responses (including errors)
 @app.middleware("http")
 async def ensure_cors_headers(request, call_next):
+    from fastapi import HTTPException
     try:
         response = await call_next(request)
+    except HTTPException as e:
+        # Preserve HTTPException status and detail instead of converting to 500
+        response = JSONResponse(status_code=e.status_code, content={"detail": e.detail})
     except Exception as e:
+        import traceback as _tb
+        print("Unhandled exception in ensure_cors_headers middleware:")
+        _tb.print_exc()
         response = JSONResponse(status_code=500, content={"detail": str(e)})
 
     origin = request.headers.get("origin")
